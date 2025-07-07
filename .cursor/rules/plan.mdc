@@ -1,5 +1,5 @@
 ---
-description: 这个项目用于实现vscode中的maven插件，具体实现请参考plan.md文件
+description: 这个项目用于实现vscode中的maven插件，项目功能参考当前目录下的MavenHelper项目的代码，具体实现请参考plan.md文件
 globs: {
     "include": [
       "**/*.{js,jsx,ts,tsx,vue}",
