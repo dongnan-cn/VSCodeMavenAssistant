@@ -1,6 +1,5 @@
 package nd.mavenassistant.lsp;
 
-
 import org.eclipse.lsp4j.InitializeParams;
 import org.eclipse.lsp4j.InitializeResult;
 import org.eclipse.lsp4j.ServerCapabilities;
@@ -16,6 +15,8 @@ import java.util.concurrent.CompletableFuture;
 public class SimpleLanguageServer implements LanguageServer {
     @Override
     public CompletableFuture<InitializeResult> initialize(InitializeParams params) {
+
+        System.out.println("LSP Server 已初始化");
         // 返回空的初始化结果
         return CompletableFuture.completedFuture(new InitializeResult(new ServerCapabilities()));
     }
@@ -39,4 +40,4 @@ public class SimpleLanguageServer implements LanguageServer {
     public WorkspaceService getWorkspaceService() {
         return null;
     }
-} 
+}

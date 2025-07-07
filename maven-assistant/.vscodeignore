@@ -6,6 +6,7 @@ src/**
 vsc-extension-quickstart.md
 **/tsconfig.json
 **/eslint.config.mjs
-**/*.map
-**/*.ts
-**/.vscode-test.*
+!out/**       # 新增 → 强制包含编译输出
+!dist/**      # 按需添加
+**/*.map      # 可保留（不影响运行）
+**/*.ts       # 保留（正确排除源码）

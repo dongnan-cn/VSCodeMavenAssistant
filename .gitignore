@@ -7,7 +7,8 @@ java-backend/target/
 # 忽略 VSCode 插件前端依赖和构建产物
 vscode-extension/node_modules/
 vscode-extension/dist/
-
+maven-assistant/out/
+maven-assistant/node_modules/
 # 忽略日志和系统文件
 *.log
 .DS_Store
