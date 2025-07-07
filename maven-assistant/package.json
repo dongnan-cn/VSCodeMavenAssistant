@@ -1,25 +1,174 @@
 {
   "name": "maven-assistant",
   "displayName": "Maven Assistant",
-  "description": "VSCode前端插件，配合Java后端LSP使用",
+  "description": "VSCode前端插件，配合Java后端LSP使用，专注于Maven依赖结构解析和命令管理",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.101.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Programming Languages"
   ],
   "activationEvents": [
-    "onCommand:maven-assistant.helloWorld",
     "onLanguage:xml",
-    "onLanguage:java"
+    "onLanguage:java",
+    "onCommand:maven-assistant.openMavenPanel",
+    "onCommand:maven-assistant.runMavenGoal",
+    "onCommand:maven-assistant.editMavenGoal"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "maven-assistant.helloWorld",
-        "title": "Hello World from Maven Assistant"
+        "command": "maven-assistant.openMavenPanel",
+        "title": "Maven Assistant: 打开Maven面板",
+        "category": "Maven"
+      },
+      {
+        "command": "maven-assistant.runMavenGoal",
+        "title": "Maven Assistant: 运行Maven目标",
+        "category": "Maven"
+      },
+      {
+        "command": "maven-assistant.editMavenGoal",
+        "title": "Maven Assistant: 编辑Maven目标",
+        "category": "Maven"
+      },
+      {
+        "command": "maven-assistant.quickRun",
+        "title": "Maven Assistant: 快速运行",
+        "category": "Maven"
+      },
+      {
+        "command": "maven-assistant.showDependencyTree",
+        "title": "Maven Assistant: 显示依赖树",
+        "category": "Maven"
+      },
+      {
+        "command": "maven-assistant.analyzeDependencies",
+        "title": "Maven Assistant: 分析依赖",
+        "category": "Maven"
+      },
+      {
+        "command": "maven-assistant.showDependencyConflicts",
+        "title": "Maven Assistant: 显示依赖冲突",
+        "category": "Maven"
+      },
+      {
+        "command": "maven-assistant.showEffectivePom",
+        "title": "Maven Assistant: 显示有效POM",
+        "category": "Maven"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "maven-assistant.openMavenPanel",
+          "when": "workspaceHasMavenProject"
+        },
+        {
+          "command": "maven-assistant.quickRun",
+          "when": "workspaceHasMavenProject"
+        },
+        {
+          "command": "maven-assistant.showDependencyTree",
+          "when": "workspaceHasMavenProject"
+        },
+        {
+          "command": "maven-assistant.analyzeDependencies",
+          "when": "workspaceHasMavenProject"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "maven-assistant",
+          "title": "Maven Assistant",
+          "icon": "resources/maven-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "maven-assistant": [
+        {
+          "id": "maven-assistant.goals",
+          "name": "Maven 目标",
+          "when": "workspaceHasMavenProject"
+        },
+        {
+          "id": "maven-assistant.dependencies",
+          "name": "依赖管理",
+          "when": "workspaceHasMavenProject"
+        },
+        {
+          "id": "maven-assistant.conflicts",
+          "name": "依赖冲突",
+          "when": "workspaceHasMavenProject"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "maven-assistant.goals",
+        "contents": "Maven 目标管理\n\n[打开 Maven 面板](command:maven-assistant.openMavenPanel)\n[快速运行](command:maven-assistant.quickRun)\n[编辑目标](command:maven-assistant.editMavenGoal)"
+      },
+      {
+        "view": "maven-assistant.dependencies",
+        "contents": "依赖结构分析\n\n[显示依赖树](command:maven-assistant.showDependencyTree)\n[分析依赖](command:maven-assistant.analyzeDependencies)\n[显示有效POM](command:maven-assistant.showEffectivePom)"
+      },
+      {
+        "view": "maven-assistant.conflicts",
+        "contents": "依赖冲突检测\n\n[显示依赖冲突](command:maven-assistant.showDependencyConflicts)"
+      }
+    ],
+    "configuration": {
+      "title": "Maven Assistant",
+      "properties": {
+        "maven-assistant.useTerminalCommand": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否使用自定义终端命令运行Maven"
+        },
+        "maven-assistant.terminalCommand": {
+          "type": "string",
+          "default": "mvn",
+          "description": "自定义Maven命令（如mvnd）"
+        },
+        "maven-assistant.enableDelete": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否启用删除功能"
+        },
+        "maven-assistant.resolveWorkspaceArtifacts": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否解析工作区构件"
+        },
+        "maven-assistant.autoRefreshDependencies": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否自动刷新依赖信息"
+        },
+        "maven-assistant.showTransitiveDependencies": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否显示传递依赖"
+        }
+      }
+    },
+    "customEditors": [
+      {
+        "viewType": "maven-assistant.dependencyAnalyzer",
+        "displayName": "Dependency Analyzer",
+        "selector": [
+          {
+            "filenamePattern": "**/pom.xml"
+          }
+        ],
+        "priority": "default",
+        "supportsMultipleEditorsPerDocument": false
       }
     ]
   },
