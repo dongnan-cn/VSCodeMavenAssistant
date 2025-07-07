@@ -1,0 +1,20 @@
+---
+description: 这个项目用于实现vscode中的maven插件，具体实现请参考plan.md文件
+globs: {
+    "include": [
+      "**/*.{js,jsx,ts,tsx,vue}",
+      "**/*.{java}",
+      "**/*.{md,markdown}"
+    ],
+    "exclude": [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/.next/**",
+      "**/*.min.js",
+      "**/*.log",
+      "**/coverage/**"
+    ]
+  }
+alwaysApply: true
+---

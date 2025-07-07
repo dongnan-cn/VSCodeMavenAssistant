@@ -1,0 +1,1 @@
+请你参考这个文件夹里面的项目：D:\workplace\MavenHelper， 这个项目是IntelliJ的一个插件，用于辅助maven查找的功能，我现在想在当前文件夹下做一个类似功能的项目，但是用于vscode的。使用java + maven实现。

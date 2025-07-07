@@ -1,0 +1,16 @@
+# 忽略 IntelliJ 参考项目
+MavenHelper/
+
+# 忽略 Java 后端构建输出
+java-backend/target/
+
+# 忽略 VSCode 插件前端依赖和构建产物
+vscode-extension/node_modules/
+vscode-extension/dist/
+
+# 忽略日志和系统文件
+*.log
+.DS_Store
+Thumbs.db
+
+# 可根据实际情况补充其他忽略规则
