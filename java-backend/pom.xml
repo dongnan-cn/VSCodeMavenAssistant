@@ -5,19 +5,39 @@
     <groupId>nd.mavenassistant</groupId>
     <artifactId>java-backend</artifactId>
     <version>1.0-SNAPSHOT</version>
+    <repositories>
+        <repository>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2/</url>
+        </repository>
+    </repositories>
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
-        <maven.resolver.version>1.9.18</maven.resolver.version>
-        <maven.version>3.9.6</maven.version>
+        <maven.resolver.version>2.0.9</maven.resolver.version>
         <maven.core.version>3.9.10</maven.core.version>
         <plexus.utils.version>3.5.1</plexus.utils.version>
         <slf4j.version>1.7.36</slf4j.version>
     </properties>
     <dependencies>
+<!--        <dependency>-->
+<!--            <groupId>org.apache.maven</groupId>-->
+<!--            <artifactId>maven-resolver-provider</artifactId>-->
+<!--            <version>${maven.core.version}</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>org.apache.maven.resolver</groupId>
-            <artifactId>maven-resolver-api</artifactId>
+            <artifactId>maven-resolver-connector-basic</artifactId>
+            <version>${maven.resolver.version}</version>
+        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.apache.maven.resolver</groupId>-->
+<!--            <artifactId>maven-resolver-transport-http</artifactId>-->
+<!--            <version>${maven.resolver.version}</version>-->
+<!--        </dependency>-->
+        <dependency>
+            <groupId>org.apache.maven.resolver</groupId>
+            <artifactId>maven-resolver-transport-file</artifactId>
             <version>${maven.resolver.version}</version>
         </dependency>
         <dependency>
@@ -27,55 +47,37 @@
         </dependency>
         <dependency>
             <groupId>org.apache.maven.resolver</groupId>
-            <artifactId>maven-resolver-util</artifactId>
+            <artifactId>maven-resolver-supplier-mvn3</artifactId>
             <version>${maven.resolver.version}</version>
+            <exclusions>
+                <exclusion>
+                    <artifactId>maven-resolver-api</artifactId>
+                    <groupId>org.apache.maven.resolver</groupId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>maven-resolver-impl</artifactId>
+                    <groupId>org.apache.maven.resolver</groupId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>maven-resolver-spi</artifactId>
+                    <groupId>org.apache.maven.resolver</groupId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>maven-resolver-util</artifactId>
+                    <groupId>org.apache.maven.resolver</groupId>
+                </exclusion>
+            </exclusions>
         </dependency>
-        <dependency>
-            <groupId>org.apache.maven</groupId>
-            <artifactId>maven-resolver-provider</artifactId>
-            <version>${maven.core.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.maven.resolver</groupId>
-            <artifactId>maven-resolver-connector-basic</artifactId>
-            <version>${maven.resolver.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.maven.resolver</groupId>
-            <artifactId>maven-resolver-transport-http</artifactId>
-            <version>${maven.resolver.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.maven.resolver</groupId>
-            <artifactId>maven-resolver-transport-file</artifactId>
-            <version>${maven.resolver.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.maven</groupId>
-            <artifactId>maven-model</artifactId>
-            <version>${maven.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.maven</groupId>
-            <artifactId>maven-artifact</artifactId>
-            <version>${maven.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.maven</groupId>
-            <artifactId>maven-model-builder</artifactId>
-            <version>${maven.core.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.codehaus.plexus</groupId>
-            <artifactId>plexus-utils</artifactId>
-            <version>3.5.1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>${slf4j.version}</version>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.apache.maven</groupId>-->
+<!--            <artifactId>maven-model</artifactId>-->
+<!--            <version>${maven.core.version}</version>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>org.apache.maven</groupId>-->
+<!--            <artifactId>maven-artifact</artifactId>-->
+<!--            <version>${maven.core.version}</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
@@ -85,7 +87,7 @@
         <dependency>
             <groupId>org.eclipse.lsp4j</groupId>
             <artifactId>org.eclipse.lsp4j</artifactId>
-            <version>0.21.1</version>
+            <version>0.23.1</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -93,6 +95,7 @@
             <version>5.9.1</version>
             <scope>test</scope>
         </dependency>
+
     </dependencies>
     <build>
         <plugins>
