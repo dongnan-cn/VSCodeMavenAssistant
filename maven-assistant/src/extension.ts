@@ -39,7 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.window.registerCustomEditorProvider(
 			DependencyAnalyzerEditorProvider.viewType,
-			new DependencyAnalyzerEditorProvider(context),
+			new DependencyAnalyzerEditorProvider(context, lspClient),
 			{ webviewOptions: { retainContextWhenHidden: true } }
 		)
 	);

@@ -23,7 +23,7 @@ export class LspClient {
 	async start(): Promise<void> {
 		try {
 			// 获取Java后端jar包路径
-			const serverJarPath = path.join(this.context.extensionPath, 'server', 'java-backend-1.0-SNAPSHOT-shaded.jar');
+			const serverJarPath = path.join(this.context.extensionPath, 'server', 'java-backend-1.0-SNAPSHOT.jar');
 			
 			console.log('LSP Server jar路径:', serverJarPath);
 

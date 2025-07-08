@@ -1,6 +1,7 @@
 package nd.mavenassistant.lsp;
 
 import org.eclipse.lsp4j.launch.LSPLauncher;
+import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
 
 import java.io.IOException;
@@ -12,10 +13,14 @@ import java.io.IOException;
  */
 public class LspServerMain {
     public static void main(String[] args) throws IOException {
-        // 创建自定义的 LanguageServer 实现（此处用最简单的空实现）
-        LanguageServer server = new SimpleLanguageServer();
+        // 创建自定义的 LanguageServer 实现
+        SimpleLanguageServer server = new SimpleLanguageServer();
         // 启动 LSP4J 的 Launcher，绑定标准输入输出，实现与前端的通信
-        LSPLauncher.createServerLauncher(server, System.in, System.out).startListening();
+        var launcher = org.eclipse.lsp4j.launch.LSPLauncher.createServerLauncher(server, System.in, System.out);
+        // 将 VSCode 前端的 LanguageClient 注入到 server，便于推送日志
+        server.connect(launcher.getRemoteProxy());
+        // 启动监听，等待前端请求
+        launcher.startListening();
         // 进程会一直阻塞，直到被前端关闭
     }
 } 
