@@ -430,6 +430,7 @@ src/
 - 后端日志通过 LSP logMessage 正确输出到 VSCode 输出面板
 - 解决了 VSCode 发送 $/setTrace 时 LSP4J 抛出异常的问题，已实现空 setTrace 方法
 - 依赖分析功能已能端到端展示（目前为模拟数据）
+- 【第1步】后端已引入 Maven Resolver (Aether) 相关依赖，准备好进行依赖树解析开发
 
 ## 下一步计划
 - 后端实现真实的 pom.xml 依赖解析与分析
