@@ -194,7 +194,7 @@ export class LspClient {
 			}
 
 			// 通过LSP自定义方法分析依赖
-			const result = await this.client.sendRequest('maven/analyzeDependencies', {});
+			const result = await this.client.sendRequest('maven/analyzeDependencies', null);
 			return result as string;
 		} catch (error) {
 			console.error('分析依赖失败:', error);
