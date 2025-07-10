@@ -1,12 +1,22 @@
 package nd.mavenassistant.lsp;
 
+import org.eclipse.aether.artifact.Artifact;
+import org.eclipse.aether.collection.CollectResult;
+import org.eclipse.aether.collection.DependencySelector;
+import org.eclipse.aether.resolution.*;
+import org.eclipse.aether.util.artifact.SubArtifact;
+import org.eclipse.aether.util.graph.selector.AndDependencySelector;
+import org.eclipse.aether.util.graph.selector.OptionalDependencySelector;
+import org.eclipse.aether.util.graph.visitor.DependencyGraphDumper;
 import org.eclipse.lsp4j.InitializeParams;
 import org.eclipse.lsp4j.InitializeResult;
 import org.eclipse.lsp4j.ServerCapabilities;
 import org.eclipse.lsp4j.services.LanguageServer;
 import org.eclipse.lsp4j.services.TextDocumentService;
 import org.eclipse.lsp4j.services.WorkspaceService;
+
 import java.util.concurrent.CompletableFuture;
+
 import org.eclipse.lsp4j.jsonrpc.services.JsonRequest;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.MessageParams;
@@ -15,16 +25,24 @@ import org.eclipse.lsp4j.SetTraceParams;
 import com.google.gson.Gson;
 
 import org.apache.maven.model.Model;
-import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+import org.apache.maven.model.building.DefaultModelBuilder;
+import org.apache.maven.model.building.DefaultModelBuilderFactory;
+import org.apache.maven.model.building.DefaultModelBuildingRequest;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelBuildingResult;
+import org.codehaus.plexus.util.StringUtils;
 import org.eclipse.aether.RepositorySystem;
-import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.RepositorySystemSession.CloseableSession;
 import org.eclipse.aether.supplier.RepositorySystemSupplier;
+import org.eclipse.aether.supplier.SessionBuilderSupplier;
 import org.eclipse.aether.collection.CollectRequest;
 import org.eclipse.aether.repository.RemoteRepository;
 import org.eclipse.aether.graph.DependencyNode;
+import org.eclipse.aether.internal.impl.scope.ScopeDependencySelector;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.repository.LocalRepository;
+
 import java.io.File;
 import java.io.FileReader;
 import java.util.*;
@@ -74,16 +92,30 @@ public class SimpleLanguageServer implements LanguageServer {
 
     /**
      * 依赖分析请求，参数为 pom.xml 路径，返回所有依赖（含传递依赖、冲突）JSON 字符串
-     * 
+     *
      * @param pomPath pom.xml 文件路径（可为 null，默认取当前工作目录下 pom.xml）
      */
     @JsonRequest("maven/analyzeDependencies")
-    public CompletableFuture<String> analyzeDependencies(String pomPath) {
+    public CompletableFuture<String> analyzeDependencies(String pomPath) throws Exception {
+        // in order to include "test" scope dependencies, by default is it excluded
+        DependencySelector effectiveSelector = AndDependencySelector
+                .newInstance(ScopeDependencySelector.fromRoot(Arrays.asList("runtime", "compile", "test"),
+                        Arrays.asList("provided", "system")), new OptionalDependencySelector());
+
         // supplyAsync 泛型指定为 String，避免类型不匹配
         return CompletableFuture.supplyAsync(() -> {
-            try {
+
+            // do in this way
+            try (RepositorySystem system = new RepositorySystemSupplier().get();
+                    CloseableSession session = new SessionBuilderSupplier(system)
+                            .get()// .setDependencySelector(new ExclusionDependencySelector())
+                            .withLocalRepositoryBaseDirectories(
+                                    new File(System.getProperty("user.home") + "/.m2/repository").toPath())
+                            .setDependencySelector(effectiveSelector)
+                            .build()) {
+
                 // 1. 解析 pom.xml 路径
-                String pomFilePath = (pomPath == null || pomPath.isEmpty())
+                String pomFilePath = (StringUtils.isBlank(pomPath))
                         ? new File("pom.xml").getAbsolutePath()
                         : pomPath;
                 File pomFile = new File(pomFilePath);
@@ -91,69 +123,110 @@ public class SimpleLanguageServer implements LanguageServer {
                     return "{\"error\":\"pom.xml 文件不存在: " + pomFilePath + "\"}";
                 }
 
-                // 2. 初始化 Maven Resolver（org.eclipse.aether 体系）
-                RepositorySystem system = createRepositorySystem();
-                RepositorySystemSession session = createSession(system);
+                DefaultModelBuildingRequest request = new DefaultModelBuildingRequest();
+                request.setPomFile(pomFile);
+                request.setModelResolver(null);
+                request.setValidationLevel(ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL);
+                request.setSystemProperties(System.getProperties());
 
-                // 3. 配置远程仓库
+                DefaultModelBuilder modelBuilder = new DefaultModelBuilderFactory().newInstance();
+                ModelBuildingResult result = modelBuilder.build(request);
+
                 List<RemoteRepository> repos = Collections.singletonList(
                         new RemoteRepository.Builder(
                                 "central", "default", "https://repo.maven.apache.org/maven2/").build());
+                // --- 4. 获取解析后的有效模型 ---
+                Model model = result.getEffectiveModel();
 
-                // 4. 读取 pom.xml 获取 GAV 坐标
-                Model model = new MavenXpp3Reader().read(new FileReader(pomFile));
+                List<Dependency> directDependencies = new ArrayList<>();
+                List<Dependency> managedDependencies = new ArrayList<>();
+
+                model.getDependencies().forEach(dep -> {
+                    // Aether 的 Dependency 构造函数需要 groupId, artifactId, version, scope
+                    // 从 effectiveModel 得到的 dep 已经包含解析后的版本
+                    directDependencies.add(new org.eclipse.aether.graph.Dependency(
+                            new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
+                                    dep.getClassifier(), dep.getVersion()),
+                            dep.getScope()));
+                });
+
+                if (model.getDependencyManagement() != null) {
+                    model.getDependencyManagement().getDependencies().forEach(dep -> {
+                        // 对于 managedDependencies，它们通常没有明确的scope或type，只需GAV
+                        managedDependencies.add(new org.eclipse.aether.graph.Dependency(
+                                new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
+                                        dep.getClassifier(), dep.getVersion()),
+                                dep.getScope() // scope is optional for managed dependencies
+                        ));
+                    });
+                }
+
+                // Model model = new MavenXpp3Reader().read(new FileReader(pomFile));
                 String coords = model.getGroupId() + ":" + model.getArtifactId() + ":" + model.getVersion();
+                Artifact artifact = new DefaultArtifact(coords);
+                // model.getDependencies().forEach(dep -> {
+                // System.out.println(dep.getGroupId() + ":" + dep.getArtifactId() + ":" +
+                // dep.getVersion());
+                // });
+                // CollectRequest collectRequest = getCollectRequest(artifact, repos, system,
+                // session);
+                CollectRequest collectRequest = getEffectiveCollectRequest(artifact, directDependencies,
+                        managedDependencies, repos);
+                collectRequest.setResolutionScope(null);
 
-                // 5. 构建依赖收集请求
-                CollectRequest collectRequest = new CollectRequest();
-                collectRequest.setRoot(new Dependency(
-                        new DefaultArtifact(coords), "compile"));
-                collectRequest.setRepositories(repos);
-
-                // 6. 解析依赖树
                 DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
-
-                // 7. 遍历依赖树生成JSON
-                List<Map<String, Object>> dependencies = new ArrayList<>();
-                collectDependencies(rootNode, dependencies, 0);
-
-                return new Gson().toJson(dependencies);
+                System.out.println("Root node: " + rootNode);
+                System.out.println("Children count: " + rootNode.getChildren().size());
+                for (DependencyNode child : rootNode.getChildren()) {
+                    System.out.println("Child: " + child);
+                }
+                // 7. 递归生成树形结构
+                Map<String, Object> tree = buildDependencyTree(rootNode, 0);
+                String treeAsJson = new Gson().toJson(tree);
+                return treeAsJson;
             } catch (Exception e) {
                 return "{\"error\":\"依赖解析异常: " + e.getMessage() + "\"}";
             }
         });
     }
 
+    private static CollectRequest getEffectiveCollectRequest(Artifact artifact, List<Dependency> directDependencies,
+            List<Dependency> managedDependencies, List<RemoteRepository> repos) {
+        CollectRequest collectRequest = new CollectRequest();
+        // 直接将 effectiveModel 的 GAV 作为根 Artifact
+        collectRequest.setRoot(new Dependency(
+                artifact, null));
+        // 将从 effectiveModel 中提取的依赖和依赖管理直接设置给 CollectRequest
+        collectRequest.setDependencies(directDependencies);
+        collectRequest.setManagedDependencies(managedDependencies);
+        collectRequest.setRepositories(repos); // 别忘了设置远程仓库，因为传递性依赖还是要下载的
 
-    // 创建 RepositorySystem（org.eclipse.aether 体系）
-    private RepositorySystem createRepositorySystem() {
-        // 使用 org.eclipse.aether.impl.DefaultServiceLocator
-        // DefaultServiceLocator locator = new DefaultServiceLocator();
-        // locator.addService(RepositoryConnectorFactory.class, BasicRepositoryConnectorFactory.class);
-        // locator.addService(TransporterFactory.class, FileTransporterFactory.class);
-        // locator.addService(TransporterFactory.class, HttpTransporterFactory.class);
-        // RepositorySystem system = locator.getService(RepositorySystem.class);
-
-        RepositorySystemSupplier systemSupplier = new RepositorySystemSupplier();
-        RepositorySystem system = systemSupplier.get();
-        if (system == null) {
-            throw new IllegalStateException("RepositorySystem 实例获取失败，依赖包可能缺失或SPI加载失败");
-        }
-        return system;
+        return collectRequest;
     }
 
-    // 创建 RepositorySystemSession
-    private RepositorySystemSession createSession(RepositorySystem system) {
-        // 使用 MavenRepositorySystemUtils 创建 session
-        org.eclipse.aether.DefaultRepositorySystemSession session = org.apache.maven.repository.internal.MavenRepositorySystemUtils
-                .newSession();
-        LocalRepository localRepo = new LocalRepository(System.getProperty("user.home") + "/.m2/repository");
-        session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, localRepo));
-        return session;
-    }
+    // private static CollectRequest getCollectRequest(Artifact artifact,
+    // List<RemoteRepository> repos,
+    // RepositorySystem system, CloseableSession session) throws
+    // ArtifactDescriptorException {
+    // ArtifactDescriptorRequest descriptorRequest = new
+    // ArtifactDescriptorRequest();
+    // descriptorRequest.setArtifact(artifact);
+    // descriptorRequest.setRepositories(repos);
+    // ArtifactDescriptorResult descriptorResult =
+    // system.readArtifactDescriptor(session, descriptorRequest);
 
-    // 递归收集依赖信息
-    private void collectDependencies(DependencyNode node, List<Map<String, Object>> result, int depth) {
+    // CollectRequest collectRequest = new CollectRequest();
+    // collectRequest.setRootArtifact(descriptorResult.getArtifact());
+    // collectRequest.setDependencies(descriptorResult.getDependencies());
+    // collectRequest.setManagedDependencies(descriptorResult.getManagedDependencies());
+    // collectRequest.setRepositories(descriptorRequest.getRepositories());
+    // return collectRequest;
+    // }
+
+    /**
+     * 递归生成树形依赖结构
+     */
+    private Map<String, Object> buildDependencyTree(DependencyNode node, int depth) {
         Map<String, Object> depInfo = new LinkedHashMap<>();
         if (node.getArtifact() != null) {
             depInfo.put("groupId", node.getArtifact().getGroupId());
@@ -164,10 +237,15 @@ public class SimpleLanguageServer implements LanguageServer {
             depInfo.put("scope", node.getDependency().getScope());
         }
         depInfo.put("depth", depth);
-        result.add(depInfo);
+        // 递归 children
+        List<Map<String, Object>> children = new ArrayList<>();
         for (DependencyNode child : node.getChildren()) {
-            collectDependencies(child, result, depth + 1);
+            children.add(buildDependencyTree(child, depth + 1));
         }
+        if (!children.isEmpty()) {
+            depInfo.put("children", children);
+        }
+        return depInfo;
     }
 
     // 实现 setTrace 方法，防止 VSCode 发送 $/setTrace 时抛出异常

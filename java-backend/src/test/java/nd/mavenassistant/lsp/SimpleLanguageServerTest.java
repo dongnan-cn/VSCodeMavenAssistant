@@ -4,7 +4,6 @@ import org.eclipse.lsp4j.InitializeParams;
 import org.eclipse.lsp4j.InitializeResult;
 import org.junit.jupiter.api.Test;
 import java.util.concurrent.CompletableFuture;
-import nd.mavenassistant.lsp.SimpleLanguageServer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
