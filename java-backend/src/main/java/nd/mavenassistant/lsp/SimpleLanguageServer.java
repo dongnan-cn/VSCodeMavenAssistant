@@ -143,7 +143,7 @@ public class SimpleLanguageServer implements LanguageServer {
 
                 DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
 
-                // rootNode.accept(new ConflictAnalyzer());
+                rootNode.accept(new ConflictAnalyzer());
                 // System.out.println("Root node: " + rootNode);
                 // System.out.println("Children count: " + rootNode.getChildren().size());
                 // for (DependencyNode child : rootNode.getChildren()) {
