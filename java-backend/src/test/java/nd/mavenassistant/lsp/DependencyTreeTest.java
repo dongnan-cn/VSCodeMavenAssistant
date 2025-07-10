@@ -45,8 +45,10 @@ public class DependencyTreeTest {
     private void printNode(com.google.gson.JsonObject node, int indent) {
         String prefix = "  ".repeat(indent);
         String label = node.get("groupId").getAsString() + ":" + node.get("artifactId").getAsString() + ":" + node.get("version").getAsString();
+        // 增加scope信息（如有）
+        String scope = node.has("scope") && !node.get("scope").isJsonNull() ? node.get("scope").getAsString() : "";
         int childrenCount = node.has("children") ? node.getAsJsonArray("children").size() : 0;
-        System.out.println(prefix + label + "  [children: " + childrenCount + "]");
+        System.out.println(prefix + label + (scope.isEmpty() ? "" : (" [scope: " + scope + "]")) + "  [children: " + childrenCount + "]");
         if (childrenCount > 0) {
             for (var child : node.getAsJsonArray("children")) {
                 printNode(child.getAsJsonObject(), indent + 1);

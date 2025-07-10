@@ -52,6 +52,7 @@ public class SimpleLanguageServer implements LanguageServer {
     private List<RemoteRepository> repos = Collections.singletonList(
             new RemoteRepository.Builder(
                     "central", "default", "https://repo.maven.apache.org/maven2/").build());
+
     // 提供一个方法让主入口注入 LanguageClient
     public void connect(LanguageClient client) {
         this.client = client;
@@ -95,21 +96,22 @@ public class SimpleLanguageServer implements LanguageServer {
     @JsonRequest("maven/analyzeDependencies")
     public CompletableFuture<String> analyzeDependencies(String pomPath) throws Exception {
         // in order to include "test" scope dependencies, by default is it excluded
-        DependencySelector effectiveSelector = AndDependencySelector
-                .newInstance(ScopeDependencySelector.fromRoot(Arrays.asList("runtime", "compile", "test"),
-                        Arrays.asList("provided", "system")), new OptionalDependencySelector());
+        // DependencySelector effectiveSelector = AndDependencySelector
+        // .newInstance(ScopeDependencySelector.fromRoot(Arrays.asList("runtime",
+        // "compile", "test"),
+        // Arrays.asList("provided", "system")), new OptionalDependencySelector());
 
         // supplyAsync 泛型指定为 String，避免类型不匹配
         return CompletableFuture.supplyAsync(() -> {
 
             // do in this way
             try (RepositorySystem system = new RepositorySystemSupplier().get();
-                 CloseableSession session = new SessionBuilderSupplier(system)
-                         .get()// .setDependencySelector(new ExclusionDependencySelector())
-                         .withLocalRepositoryBaseDirectories(
-                                 new File(System.getProperty("user.home") + "/.m2/repository").toPath())
-                         .setDependencySelector(effectiveSelector)
-                         .build()) {
+                    CloseableSession session = new SessionBuilderSupplier(system)
+                            .get()// .setDependencySelector(new ExclusionDependencySelector())
+                            .withLocalRepositoryBaseDirectories(
+                                    new File(System.getProperty("user.home") + "/.m2/repository").toPath())
+                            .setDependencySelector(new CustomScopeDependencySelector())
+                            .build()) {
                 Model model = getModel(pomPath);
 
                 List<Dependency> directDependencies = new ArrayList<>();
@@ -147,7 +149,7 @@ public class SimpleLanguageServer implements LanguageServer {
                 // System.out.println("Root node: " + rootNode);
                 // System.out.println("Children count: " + rootNode.getChildren().size());
                 // for (DependencyNode child : rootNode.getChildren()) {
-                //     System.out.println("Child: " + child);
+                // System.out.println("Child: " + child);
                 // }
                 // 7. 递归生成树形结构
                 Map<String, Object> tree = buildDependencyTree(rootNode, 0);
@@ -181,14 +183,14 @@ public class SimpleLanguageServer implements LanguageServer {
     }
 
     private static CollectRequest getEffectiveCollectRequest(Artifact artifact, List<Dependency> directDependencies,
-                                                             List<Dependency> managedDependencies, List<RemoteRepository> repos) {
+            List<Dependency> managedDependencies, List<RemoteRepository> repos) {
         CollectRequest collectRequest = new CollectRequest();
         // 直接将 effectiveModel 的 GAV 作为根 Artifact
         // collectRequest.setRoot(new Dependency(
-        //         artifact, null));
+        // artifact, null));
         collectRequest.setDependencies(directDependencies);
         collectRequest.setManagedDependencies(managedDependencies);
-        collectRequest.setRepositories(repos); 
+        collectRequest.setRepositories(repos);
 
         return collectRequest;
     }
