@@ -1,9 +1,6 @@
 package nd.mavenassistant.lsp;
 
 import org.eclipse.lsp4j.launch.LSPLauncher;
-import org.eclipse.lsp4j.services.LanguageClient;
-import org.eclipse.lsp4j.services.LanguageServer;
-
 import java.io.IOException;
 
 /**

@@ -28,11 +28,18 @@ public class DependencyTreeTest {
     }
 
     /**
-     * 递归打印树形依赖结构（增强版，显示 children 数量）
+     * 递归打印树形依赖结构（只打印根节点的 children，并打印依赖数量）
      */
     private void printDependencyTree(String json, int indent) {
         com.google.gson.JsonObject obj = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
-        printNode(obj, indent);
+        // 只打印根节点的 children，并打印数量
+        int childrenCount = obj.has("children") ? obj.getAsJsonArray("children").size() : 0;
+        System.out.println("Dependency count: " + childrenCount);
+        if (childrenCount > 0) {
+            for (var child : obj.getAsJsonArray("children")) {
+                printNode(child.getAsJsonObject(), indent);
+            }
+        }
     }
 
     private void printNode(com.google.gson.JsonObject node, int indent) {

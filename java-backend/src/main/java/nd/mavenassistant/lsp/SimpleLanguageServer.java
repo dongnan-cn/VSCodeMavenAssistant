@@ -1,13 +1,9 @@
 package nd.mavenassistant.lsp;
 
 import org.eclipse.aether.artifact.Artifact;
-import org.eclipse.aether.collection.CollectResult;
 import org.eclipse.aether.collection.DependencySelector;
-import org.eclipse.aether.resolution.*;
-import org.eclipse.aether.util.artifact.SubArtifact;
 import org.eclipse.aether.util.graph.selector.AndDependencySelector;
 import org.eclipse.aether.util.graph.selector.OptionalDependencySelector;
-import org.eclipse.aether.util.graph.visitor.DependencyGraphDumper;
 import org.eclipse.lsp4j.InitializeParams;
 import org.eclipse.lsp4j.InitializeResult;
 import org.eclipse.lsp4j.ServerCapabilities;
@@ -42,10 +38,7 @@ import org.eclipse.aether.graph.DependencyNode;
 import org.eclipse.aether.internal.impl.scope.ScopeDependencySelector;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.artifact.DefaultArtifact;
-import org.eclipse.aether.repository.LocalRepository;
-
 import java.io.File;
-import java.io.FileReader;
 import java.util.*;
 
 /**
@@ -147,14 +140,15 @@ public class SimpleLanguageServer implements LanguageServer {
 
                 CollectRequest collectRequest = getEffectiveCollectRequest(artifact, directDependencies,
                         managedDependencies, repos);
-                collectRequest.setResolutionScope(null);
 
                 DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
-                System.out.println("Root node: " + rootNode);
-                System.out.println("Children count: " + rootNode.getChildren().size());
-                for (DependencyNode child : rootNode.getChildren()) {
-                    System.out.println("Child: " + child);
-                }
+
+                // rootNode.accept(new ConflictAnalyzer());
+                // System.out.println("Root node: " + rootNode);
+                // System.out.println("Children count: " + rootNode.getChildren().size());
+                // for (DependencyNode child : rootNode.getChildren()) {
+                //     System.out.println("Child: " + child);
+                // }
                 // 7. 递归生成树形结构
                 Map<String, Object> tree = buildDependencyTree(rootNode, 0);
                 String treeAsJson = new Gson().toJson(tree);
@@ -190,12 +184,11 @@ public class SimpleLanguageServer implements LanguageServer {
                                                              List<Dependency> managedDependencies, List<RemoteRepository> repos) {
         CollectRequest collectRequest = new CollectRequest();
         // 直接将 effectiveModel 的 GAV 作为根 Artifact
-        collectRequest.setRoot(new Dependency(
-                artifact, null));
-        // 将从 effectiveModel 中提取的依赖和依赖管理直接设置给 CollectRequest
+        // collectRequest.setRoot(new Dependency(
+        //         artifact, null));
         collectRequest.setDependencies(directDependencies);
         collectRequest.setManagedDependencies(managedDependencies);
-        collectRequest.setRepositories(repos); // 别忘了设置远程仓库，因为传递性依赖还是要下载的
+        collectRequest.setRepositories(repos); 
 
         return collectRequest;
     }
