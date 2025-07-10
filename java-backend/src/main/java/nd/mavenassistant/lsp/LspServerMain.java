@@ -16,7 +16,7 @@ public class LspServerMain {
         // 创建自定义的 LanguageServer 实现
         SimpleLanguageServer server = new SimpleLanguageServer();
         // 启动 LSP4J 的 Launcher，绑定标准输入输出，实现与前端的通信
-        var launcher = org.eclipse.lsp4j.launch.LSPLauncher.createServerLauncher(server, System.in, System.out);
+        var launcher = LSPLauncher.createServerLauncher(server, System.in, System.out);
         // 将 VSCode 前端的 LanguageClient 注入到 server，便于推送日志
         server.connect(launcher.getRemoteProxy());
         // 启动监听，等待前端请求

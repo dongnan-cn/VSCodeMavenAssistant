@@ -171,7 +171,7 @@ public class SimpleLanguageServer implements LanguageServer {
                 : pomPath;
         File pomFile = new File(pomFilePath);
         if (!pomFile.exists()) {
-            throw new FileNotFoundException("{\"error\":\"pom.xml 文件不存在: " + pomFilePath + "\"}");
+            throw new FileNotFoundException("{\"error\":\"pom.xml does not exist: " + pomFilePath + "\"}");
         }
 
         DefaultModelBuildingRequest request = new DefaultModelBuildingRequest();
