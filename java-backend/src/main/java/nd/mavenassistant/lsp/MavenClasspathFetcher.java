@@ -20,7 +20,7 @@ public class MavenClasspathFetcher {
             String line;
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
-                if (line.startsWith("[INFO]")) {
+                if (line.contains("-- module ")) {
                     String dep = line.substring(6).trim();
                     if (dep.contains(":") && !dep.startsWith("---")) {
                         // 解析 GAV 和 moduleName
