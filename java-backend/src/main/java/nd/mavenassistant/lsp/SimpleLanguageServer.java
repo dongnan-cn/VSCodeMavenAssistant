@@ -15,6 +15,7 @@ import org.eclipse.lsp4j.services.LanguageServer;
 import org.eclipse.lsp4j.services.TextDocumentService;
 import org.eclipse.lsp4j.services.WorkspaceService;
 
+import java.io.FileNotFoundException;
 import java.util.concurrent.CompletableFuture;
 
 import org.eclipse.lsp4j.jsonrpc.services.JsonRequest;
@@ -55,6 +56,9 @@ public class SimpleLanguageServer implements LanguageServer {
     // LanguageClient 用于与 VSCode 前端通信，推送日志等
     private LanguageClient client;
 
+    private List<RemoteRepository> repos = Collections.singletonList(
+            new RemoteRepository.Builder(
+                    "central", "default", "https://repo.maven.apache.org/maven2/").build());
     // 提供一个方法让主入口注入 LanguageClient
     public void connect(LanguageClient client) {
         this.client = client;
@@ -107,36 +111,13 @@ public class SimpleLanguageServer implements LanguageServer {
 
             // do in this way
             try (RepositorySystem system = new RepositorySystemSupplier().get();
-                    CloseableSession session = new SessionBuilderSupplier(system)
-                            .get()// .setDependencySelector(new ExclusionDependencySelector())
-                            .withLocalRepositoryBaseDirectories(
-                                    new File(System.getProperty("user.home") + "/.m2/repository").toPath())
-                            .setDependencySelector(effectiveSelector)
-                            .build()) {
-
-                // 1. 解析 pom.xml 路径
-                String pomFilePath = (StringUtils.isBlank(pomPath))
-                        ? new File("pom.xml").getAbsolutePath()
-                        : pomPath;
-                File pomFile = new File(pomFilePath);
-                if (!pomFile.exists()) {
-                    return "{\"error\":\"pom.xml 文件不存在: " + pomFilePath + "\"}";
-                }
-
-                DefaultModelBuildingRequest request = new DefaultModelBuildingRequest();
-                request.setPomFile(pomFile);
-                request.setModelResolver(null);
-                request.setValidationLevel(ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL);
-                request.setSystemProperties(System.getProperties());
-
-                DefaultModelBuilder modelBuilder = new DefaultModelBuilderFactory().newInstance();
-                ModelBuildingResult result = modelBuilder.build(request);
-
-                List<RemoteRepository> repos = Collections.singletonList(
-                        new RemoteRepository.Builder(
-                                "central", "default", "https://repo.maven.apache.org/maven2/").build());
-                // --- 4. 获取解析后的有效模型 ---
-                Model model = result.getEffectiveModel();
+                 CloseableSession session = new SessionBuilderSupplier(system)
+                         .get()// .setDependencySelector(new ExclusionDependencySelector())
+                         .withLocalRepositoryBaseDirectories(
+                                 new File(System.getProperty("user.home") + "/.m2/repository").toPath())
+                         .setDependencySelector(effectiveSelector)
+                         .build()) {
+                Model model = getModel(pomPath);
 
                 List<Dependency> directDependencies = new ArrayList<>();
                 List<Dependency> managedDependencies = new ArrayList<>();
@@ -161,15 +142,9 @@ public class SimpleLanguageServer implements LanguageServer {
                     });
                 }
 
-                // Model model = new MavenXpp3Reader().read(new FileReader(pomFile));
                 String coords = model.getGroupId() + ":" + model.getArtifactId() + ":" + model.getVersion();
                 Artifact artifact = new DefaultArtifact(coords);
-                // model.getDependencies().forEach(dep -> {
-                // System.out.println(dep.getGroupId() + ":" + dep.getArtifactId() + ":" +
-                // dep.getVersion());
-                // });
-                // CollectRequest collectRequest = getCollectRequest(artifact, repos, system,
-                // session);
+
                 CollectRequest collectRequest = getEffectiveCollectRequest(artifact, directDependencies,
                         managedDependencies, repos);
                 collectRequest.setResolutionScope(null);
@@ -190,8 +165,29 @@ public class SimpleLanguageServer implements LanguageServer {
         });
     }
 
+    private Model getModel(String pomPath) throws Exception {
+        String pomFilePath = (StringUtils.isBlank(pomPath))
+                ? new File("pom.xml").getAbsolutePath()
+                : pomPath;
+        File pomFile = new File(pomFilePath);
+        if (!pomFile.exists()) {
+            throw new FileNotFoundException("{\"error\":\"pom.xml 文件不存在: " + pomFilePath + "\"}");
+        }
+
+        DefaultModelBuildingRequest request = new DefaultModelBuildingRequest();
+        request.setPomFile(pomFile);
+        request.setModelResolver(null);
+        request.setValidationLevel(ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL);
+        request.setSystemProperties(System.getProperties());
+
+        DefaultModelBuilder modelBuilder = new DefaultModelBuilderFactory().newInstance();
+        ModelBuildingResult result = modelBuilder.build(request);
+
+        return result.getEffectiveModel();
+    }
+
     private static CollectRequest getEffectiveCollectRequest(Artifact artifact, List<Dependency> directDependencies,
-            List<Dependency> managedDependencies, List<RemoteRepository> repos) {
+                                                             List<Dependency> managedDependencies, List<RemoteRepository> repos) {
         CollectRequest collectRequest = new CollectRequest();
         // 直接将 effectiveModel 的 GAV 作为根 Artifact
         collectRequest.setRoot(new Dependency(
@@ -203,25 +199,6 @@ public class SimpleLanguageServer implements LanguageServer {
 
         return collectRequest;
     }
-
-    // private static CollectRequest getCollectRequest(Artifact artifact,
-    // List<RemoteRepository> repos,
-    // RepositorySystem system, CloseableSession session) throws
-    // ArtifactDescriptorException {
-    // ArtifactDescriptorRequest descriptorRequest = new
-    // ArtifactDescriptorRequest();
-    // descriptorRequest.setArtifact(artifact);
-    // descriptorRequest.setRepositories(repos);
-    // ArtifactDescriptorResult descriptorResult =
-    // system.readArtifactDescriptor(session, descriptorRequest);
-
-    // CollectRequest collectRequest = new CollectRequest();
-    // collectRequest.setRootArtifact(descriptorResult.getArtifact());
-    // collectRequest.setDependencies(descriptorResult.getDependencies());
-    // collectRequest.setManagedDependencies(descriptorResult.getManagedDependencies());
-    // collectRequest.setRepositories(descriptorRequest.getRepositories());
-    // return collectRequest;
-    // }
 
     /**
      * 递归生成树形依赖结构
