@@ -145,6 +145,12 @@ public class SimpleLanguageServer implements LanguageServer {
 
                 DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
 
+
+                Set<String> artifacts = collectAllArtifacts(rootNode);
+
+
+
+
                 rootNode.accept(new ConflictAnalyzer());
                 // System.out.println("Root node: " + rootNode);
                 // System.out.println("Children count: " + rootNode.getChildren().size());
@@ -159,6 +165,24 @@ public class SimpleLanguageServer implements LanguageServer {
                 return "{\"error\":\"依赖解析异常: " + e.getMessage() + "\"}";
             }
         });
+    }
+
+    public Set<String> collectAllArtifacts(DependencyNode rootNode) {
+        Set<String> artifacts = new HashSet<>();
+        collectArtifactsRecursive(rootNode, artifacts);
+        return artifacts;
+    }
+    
+    private void collectArtifactsRecursive(DependencyNode node, Set<String> artifacts) {
+        Artifact artifact = node.getArtifact();
+        if (artifact != null) {
+            // 用 groupId:artifactId:version 作为唯一标识
+            String key = artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion();
+            artifacts.add(key);
+        }
+        for (DependencyNode child : node.getChildren()) {
+            collectArtifactsRecursive(child, artifacts);
+        }
     }
 
     private Model getModel(String pomPath) throws Exception {
