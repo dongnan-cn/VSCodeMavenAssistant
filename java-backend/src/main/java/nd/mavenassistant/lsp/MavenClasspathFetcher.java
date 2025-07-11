@@ -9,7 +9,9 @@ public class MavenClasspathFetcher {
      * 执行 mvn dependency:list 并返回所有 GAV 信息的列表（支持 moduleName）
      */
     public static List<ArtifactGav> fetchGavList() throws Exception {
+        // 判断操作系统，选择合适的mvn命令
         String mvnCmd = System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
+        // 执行mvn dependency:list命令
         ProcessBuilder pb = new ProcessBuilder(mvnCmd, "dependency:list", "-DoutputAbsoluteArtifactFilename=false");
         pb.redirectErrorStream(true);
         pb.directory(new File("."));
@@ -20,16 +22,32 @@ public class MavenClasspathFetcher {
             String line;
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
-                if (line.contains("-- module ")) {
-                    String dep = line.substring(6).trim();
-                    if (dep.contains(":") && !dep.startsWith("---")) {
-                        // 解析 GAV 和 moduleName
-                        String[] mainAndModule = dep.split("-- module ");
-                        String[] parts = mainAndModule[0].split(":");
-                        String moduleName = mainAndModule.length > 1 ? mainAndModule[1].split(" ")[0] : null;
-                        if (parts.length >= 4) {
-                            gavList.add(new ArtifactGav(parts[0], parts[1], parts[3], moduleName));
+                // 只处理以[INFO]开头且包含:的依赖行
+                if (line.startsWith("[INFO]") && line.contains(":")) {
+                    String dep = line.substring(6).trim(); // 去掉[INFO]
+                    String moduleName = null;
+                    // 检查是否有-- module
+                    if (dep.contains("-- module")) {
+                        String[] arr = dep.split("-- module");
+                        dep = arr[0].trim();
+                        moduleName = arr[1].trim();
+                        // 去掉括号及其内容，如 (auto)
+                        int idx = moduleName.indexOf('(');
+                        if (idx != -1) {
+                            moduleName = moduleName.substring(0, idx).trim();
                         }
+                    }
+                    // 解析GAV部分
+                    String[] parts = dep.split(":");
+                    // groupId:artifactId:packaging:version:scope
+                    if (parts.length >= 5) {
+                        String groupId = parts[0];
+                        String artifactId = parts[1];
+                        // String packaging = parts[2]; // 如需可加
+                        String version = parts[3];
+                        String scope = parts[4];
+                        // 构造ArtifactGav对象
+                        gavList.add(new ArtifactGav(groupId, artifactId, version, moduleName, scope));
                     }
                 }
             }
