@@ -21,6 +21,9 @@ import org.eclipse.lsp4j.MessageType;
 import org.eclipse.lsp4j.SetTraceParams;
 import com.google.gson.Gson;
 
+import nd.mavenassistant.model.ArtifactGav;
+import nd.mavenassistant.model.ArtifactConflictInfo;
+
 import org.apache.maven.model.Model;
 import org.apache.maven.model.building.DefaultModelBuilder;
 import org.apache.maven.model.building.DefaultModelBuilderFactory;
@@ -145,22 +148,14 @@ public class SimpleLanguageServer implements LanguageServer {
 
                 DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
 
-
                 Set<String> artifacts = collectAllArtifacts(rootNode);
+                List<ArtifactGav> effectiveGavs = MavenClasspathFetcher.fetchGavList();
 
+                Map<String, String> gavToScope = new HashMap<>(); // 递归依赖树时收集
 
+                String conflictJson = buildArtifactConflictJson(artifacts, effectiveGavs, gavToScope);
 
-
-                rootNode.accept(new ConflictAnalyzer());
-                // System.out.println("Root node: " + rootNode);
-                // System.out.println("Children count: " + rootNode.getChildren().size());
-                // for (DependencyNode child : rootNode.getChildren()) {
-                // System.out.println("Child: " + child);
-                // }
-                // 7. 递归生成树形结构
-                Map<String, Object> tree = buildDependencyTree(rootNode, 0);
-                String treeAsJson = new Gson().toJson(tree);
-                return treeAsJson;
+                return conflictJson;
             } catch (Exception e) {
                 return "{\"error\":\"依赖解析异常: " + e.getMessage() + "\"}";
             }
@@ -172,7 +167,7 @@ public class SimpleLanguageServer implements LanguageServer {
         collectArtifactsRecursive(rootNode, artifacts);
         return artifacts;
     }
-    
+
     private void collectArtifactsRecursive(DependencyNode node, Set<String> artifacts) {
         Artifact artifact = node.getArtifact();
         if (artifact != null) {
@@ -242,6 +237,47 @@ public class SimpleLanguageServer implements LanguageServer {
             depInfo.put("children", children);
         }
         return depInfo;
+    }
+
+    /**
+     * 根据所有artifact GAV字符串和实际用到的GAV对象列表，生成包含gav、scope、是否因冲突被放弃的json数组
+     */
+    public static String buildArtifactConflictJson(Set<String> allArtifacts, List<ArtifactGav> effectiveGavs,
+            Map<String, String> gavToScope) {
+        Set<String> usedGASet = new HashSet<>();
+        Set<String> usedGAVSet = new HashSet<>();
+        // 建立GAV到scope的映射，便于后续查找
+        Map<String, String> gavScopeMap = new HashMap<>();
+        for (ArtifactGav gav : effectiveGavs) {
+            usedGASet.add(gav.getGroupId() + ":" + gav.getArtifactId());
+            usedGAVSet.add(gav.getGroupId() + ":" + gav.getArtifactId() + ":" + gav.getVersion());
+            // 以 groupId:artifactId:version 作为key
+            String key = gav.getGroupId() + ":" + gav.getArtifactId() + ":" + gav.getVersion();
+            if (gav.getScope() != null) {
+                gavScopeMap.put(key, gav.getScope());
+            }
+        }
+        List<ArtifactConflictInfo> result = new ArrayList<>();
+        for (String gav : allArtifacts) {
+            String[] parts = gav.split(":");
+            if (parts.length < 3)
+                continue;
+            String ga = parts[0] + ":" + parts[1];
+            if (!usedGASet.contains(ga)) {
+                // 这个 groupId:artifactId 根本没被采用，直接跳过
+                continue;
+            }
+
+            // 优先使用effectiveGavs中的scope，否则用gavToScope，否则默认compile
+            String key = parts[0] + ":" + parts[1] + ":" + parts[2];
+            String scope = gavScopeMap.getOrDefault(key, gavToScope.getOrDefault(gav, "compile"));
+
+            boolean dropped = !usedGAVSet.contains(gav);
+            if (parts.length >= 3) {
+                result.add(new ArtifactConflictInfo(parts[0], parts[1], parts[2], scope, dropped));
+            }
+        }
+        return new Gson().toJson(result);
     }
 
     // 实现 setTrace 方法，防止 VSCode 发送 $/setTrace 时抛出异常

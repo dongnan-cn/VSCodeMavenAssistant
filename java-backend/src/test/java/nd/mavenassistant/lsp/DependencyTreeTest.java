@@ -23,22 +23,21 @@ public class DependencyTreeTest {
         String result = server.analyzeDependencies(pomPath).get();
         assertFalse(result.contains("\"error\""), "依赖树解析失败: " + result);
 
-        // 递归打印树形结构
-        printDependencyTree(result, 0);
+        // 递归打印依赖数组结构
+        printDependencyArray(result, 0);
     }
 
     /**
-     * 递归打印树形依赖结构（只打印根节点的 children，并打印依赖数量）
+     * 递归打印依赖数组结构（适配返回为数组的情况）
      */
-    private void printDependencyTree(String json, int indent) {
-        com.google.gson.JsonObject obj = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
-        // 只打印根节点的 children，并打印数量
-        int childrenCount = obj.has("children") ? obj.getAsJsonArray("children").size() : 0;
-        System.out.println("Dependency count: " + childrenCount);
-        if (childrenCount > 0) {
-            for (var child : obj.getAsJsonArray("children")) {
-                printNode(child.getAsJsonObject(), indent);
+    private void printDependencyArray(String json, int indent) {
+        com.google.gson.JsonElement elem = com.google.gson.JsonParser.parseString(json);
+        if (elem.isJsonArray()) {
+            for (var item : elem.getAsJsonArray()) {
+                printNode(item.getAsJsonObject(), indent);
             }
+        } else if (elem.isJsonObject()) {
+            printNode(elem.getAsJsonObject(), indent);
         }
     }
 
