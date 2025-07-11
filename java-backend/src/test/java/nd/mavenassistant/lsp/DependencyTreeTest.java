@@ -43,11 +43,16 @@ public class DependencyTreeTest {
 
     private void printNode(com.google.gson.JsonObject node, int indent) {
         String prefix = "  ".repeat(indent);
-        String label = node.get("groupId").getAsString() + ":" + node.get("artifactId").getAsString() + ":" + node.get("version").getAsString();
+        String groupId = node.has("groupId") && !node.get("groupId").isJsonNull() ? node.get("groupId").getAsString() : "";
+        String artifactId = node.has("artifactId") && !node.get("artifactId").isJsonNull() ? node.get("artifactId").getAsString() : "";
+        String version = node.has("version") && !node.get("version").isJsonNull() ? node.get("version").getAsString() : "";
+        String label = groupId + ":" + artifactId + ":" + version;
         // 增加scope信息（如有）
         String scope = node.has("scope") && !node.get("scope").isJsonNull() ? node.get("scope").getAsString() : "";
+        // 增加droppedByConflict信息（如有）
+        String dropped = node.has("droppedByConflict") && !node.get("droppedByConflict").isJsonNull() ? (node.get("droppedByConflict").getAsBoolean() ? "[DROPPED]" : "[USED]") : "";
         int childrenCount = node.has("children") ? node.getAsJsonArray("children").size() : 0;
-        System.out.println(prefix + label + (scope.isEmpty() ? "" : (" [scope: " + scope + "]")) + "  [children: " + childrenCount + "]");
+        System.out.println(prefix + label + (scope.isEmpty() ? "" : (" [scope: " + scope + "]")) + " " + dropped + "  [children: " + childrenCount + "]");
         if (childrenCount > 0) {
             for (var child : node.getAsJsonArray("children")) {
                 printNode(child.getAsJsonObject(), indent + 1);

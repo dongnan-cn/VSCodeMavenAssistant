@@ -98,64 +98,49 @@ public class SimpleLanguageServer implements LanguageServer {
      */
     @JsonRequest("maven/analyzeDependencies")
     public CompletableFuture<String> analyzeDependencies(String pomPath) throws Exception {
-        // in order to include "test" scope dependencies, by default is it excluded
-        // DependencySelector effectiveSelector = AndDependencySelector
-        // .newInstance(ScopeDependencySelector.fromRoot(Arrays.asList("runtime",
-        // "compile", "test"),
-        // Arrays.asList("provided", "system")), new OptionalDependencySelector());
-
-        // supplyAsync 泛型指定为 String，避免类型不匹配
         return CompletableFuture.supplyAsync(() -> {
-
-            // do in this way
             try (RepositorySystem system = new RepositorySystemSupplier().get();
                     CloseableSession session = new SessionBuilderSupplier(system)
-                            .get()// .setDependencySelector(new ExclusionDependencySelector())
+                            .get()
                             .withLocalRepositoryBaseDirectories(
                                     new File(System.getProperty("user.home") + "/.m2/repository").toPath())
                             .setDependencySelector(new CustomScopeDependencySelector())
                             .build()) {
                 Model model = getModel(pomPath);
-
                 List<Dependency> directDependencies = new ArrayList<>();
                 List<Dependency> managedDependencies = new ArrayList<>();
-
                 model.getDependencies().forEach(dep -> {
-                    // Aether 的 Dependency 构造函数需要 groupId, artifactId, version, scope
-                    // 从 effectiveModel 得到的 dep 已经包含解析后的版本
                     directDependencies.add(new org.eclipse.aether.graph.Dependency(
                             new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
                                     dep.getClassifier(), dep.getVersion()),
                             dep.getScope()));
                 });
-
                 if (model.getDependencyManagement() != null) {
                     model.getDependencyManagement().getDependencies().forEach(dep -> {
-                        // 对于 managedDependencies，它们通常没有明确的scope或type，只需GAV
                         managedDependencies.add(new org.eclipse.aether.graph.Dependency(
                                 new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
                                         dep.getClassifier(), dep.getVersion()),
-                                dep.getScope() // scope is optional for managed dependencies
+                                dep.getScope()
                         ));
                     });
                 }
-
                 String coords = model.getGroupId() + ":" + model.getArtifactId() + ":" + model.getVersion();
                 Artifact artifact = new DefaultArtifact(coords);
-
                 CollectRequest collectRequest = getEffectiveCollectRequest(artifact, directDependencies,
                         managedDependencies, repos);
-
                 DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
-
-                Set<String> artifacts = collectAllArtifacts(rootNode);
                 List<ArtifactGav> effectiveGavs = MavenClasspathFetcher.fetchGavList();
-
-                Map<String, String> gavToScope = new HashMap<>(); // 递归依赖树时收集
-
-                String conflictJson = buildArtifactConflictJson(artifacts, effectiveGavs, gavToScope);
-
-                return conflictJson;
+                Set<String> usedGAVSet = new HashSet<>();
+                Map<String, String> gavScopeMap = new HashMap<>();
+                for (ArtifactGav gav : effectiveGavs) {
+                    usedGAVSet.add(gav.getGroupId() + ":" + gav.getArtifactId() + ":" + gav.getVersion());
+                    if (gav.getScope() != null) {
+                        gavScopeMap.put(gav.getGroupId() + ":" + gav.getArtifactId() + ":" + gav.getVersion(), gav.getScope());
+                    }
+                }
+                // 构建树形结构并返回JSON
+                Map<String, Object> tree = buildDependencyTreeWithConflict(rootNode, usedGAVSet, gavScopeMap);
+                return new Gson().toJson(tree);
             } catch (Exception e) {
                 return "{\"error\":\"依赖解析异常: " + e.getMessage() + "\"}";
             }
@@ -215,23 +200,30 @@ public class SimpleLanguageServer implements LanguageServer {
     }
 
     /**
-     * 递归生成树形依赖结构
+     * 递归构建依赖树结构，并标记冲突（droppedByConflict）
+     * @param node 当前Aether依赖节点
+     * @param usedGAVSet 有效依赖GAV集合
+     * @param gavScopeMap GAV到scope的映射
+     * @return 树形依赖结构（Map表示）
      */
-    private Map<String, Object> buildDependencyTree(DependencyNode node, int depth) {
+    private Map<String, Object> buildDependencyTreeWithConflict(DependencyNode node, Set<String> usedGAVSet, Map<String, String> gavScopeMap) {
         Map<String, Object> depInfo = new LinkedHashMap<>();
-        if (node.getArtifact() != null) {
-            depInfo.put("groupId", node.getArtifact().getGroupId());
-            depInfo.put("artifactId", node.getArtifact().getArtifactId());
-            depInfo.put("version", node.getArtifact().getVersion());
+        Artifact artifact = node.getArtifact();
+        if (artifact != null) {
+            depInfo.put("groupId", artifact.getGroupId());
+            depInfo.put("artifactId", artifact.getArtifactId());
+            depInfo.put("version", artifact.getVersion());
+            String key = artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion();
+            // 优先用gavScopeMap
+            String scope = gavScopeMap.getOrDefault(key, node.getDependency() != null ? node.getDependency().getScope() : "compile");
+            depInfo.put("scope", scope);
+            boolean dropped = !usedGAVSet.contains(key);
+            depInfo.put("droppedByConflict", dropped);
         }
-        if (node.getDependency() != null) {
-            depInfo.put("scope", node.getDependency().getScope());
-        }
-        depInfo.put("depth", depth);
         // 递归 children
         List<Map<String, Object>> children = new ArrayList<>();
         for (DependencyNode child : node.getChildren()) {
-            children.add(buildDependencyTree(child, depth + 1));
+            children.add(buildDependencyTreeWithConflict(child, usedGAVSet, gavScopeMap));
         }
         if (!children.isEmpty()) {
             depInfo.put("children", children);
