@@ -1,48 +1,33 @@
 package nd.mavenassistant.lsp;
 
+import com.google.gson.Gson;
+import nd.mavenassistant.model.ArtifactConflictInfo;
+import nd.mavenassistant.model.ArtifactGav;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.building.*;
+import org.codehaus.plexus.util.StringUtils;
+import org.eclipse.aether.RepositorySystem;
+import org.eclipse.aether.RepositorySystemSession.CloseableSession;
 import org.eclipse.aether.artifact.Artifact;
-import org.eclipse.aether.collection.DependencySelector;
-import org.eclipse.aether.util.graph.selector.AndDependencySelector;
-import org.eclipse.aether.util.graph.selector.OptionalDependencySelector;
-import org.eclipse.lsp4j.InitializeParams;
-import org.eclipse.lsp4j.InitializeResult;
-import org.eclipse.lsp4j.ServerCapabilities;
+import org.eclipse.aether.artifact.DefaultArtifact;
+import org.eclipse.aether.collection.CollectRequest;
+import org.eclipse.aether.graph.Dependency;
+import org.eclipse.aether.graph.DependencyNode;
+import org.eclipse.aether.repository.RemoteRepository;
+import org.eclipse.aether.supplier.RepositorySystemSupplier;
+import org.eclipse.aether.supplier.SessionBuilderSupplier;
+import org.eclipse.aether.util.graph.transformer.ConflictResolver;
+import org.eclipse.lsp4j.*;
+import org.eclipse.lsp4j.jsonrpc.services.JsonRequest;
+import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
 import org.eclipse.lsp4j.services.TextDocumentService;
 import org.eclipse.lsp4j.services.WorkspaceService;
 
-import java.io.FileNotFoundException;
-import java.util.concurrent.CompletableFuture;
-
-import org.eclipse.lsp4j.jsonrpc.services.JsonRequest;
-import org.eclipse.lsp4j.services.LanguageClient;
-import org.eclipse.lsp4j.MessageParams;
-import org.eclipse.lsp4j.MessageType;
-import org.eclipse.lsp4j.SetTraceParams;
-import com.google.gson.Gson;
-
-import nd.mavenassistant.model.ArtifactGav;
-import nd.mavenassistant.model.ArtifactConflictInfo;
-
-import org.apache.maven.model.Model;
-import org.apache.maven.model.building.DefaultModelBuilder;
-import org.apache.maven.model.building.DefaultModelBuilderFactory;
-import org.apache.maven.model.building.DefaultModelBuildingRequest;
-import org.apache.maven.model.building.ModelBuildingRequest;
-import org.apache.maven.model.building.ModelBuildingResult;
-import org.codehaus.plexus.util.StringUtils;
-import org.eclipse.aether.RepositorySystem;
-import org.eclipse.aether.RepositorySystemSession.CloseableSession;
-import org.eclipse.aether.supplier.RepositorySystemSupplier;
-import org.eclipse.aether.supplier.SessionBuilderSupplier;
-import org.eclipse.aether.collection.CollectRequest;
-import org.eclipse.aether.repository.RemoteRepository;
-import org.eclipse.aether.graph.DependencyNode;
-import org.eclipse.aether.internal.impl.scope.ScopeDependencySelector;
-import org.eclipse.aether.graph.Dependency;
-import org.eclipse.aether.artifact.DefaultArtifact;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 最基础的 LanguageServer 实现
@@ -52,7 +37,7 @@ public class SimpleLanguageServer implements LanguageServer {
     // LanguageClient 用于与 VSCode 前端通信，推送日志等
     private LanguageClient client;
 
-    private List<RemoteRepository> repos = Collections.singletonList(
+    private final List<RemoteRepository> repos = Collections.singletonList(
             new RemoteRepository.Builder(
                     "central", "default", "https://repo.maven.apache.org/maven2/").build());
 
@@ -100,11 +85,12 @@ public class SimpleLanguageServer implements LanguageServer {
     public CompletableFuture<String> analyzeDependencies(String pomPath) throws Exception {
         return CompletableFuture.supplyAsync(() -> {
             try (RepositorySystem system = new RepositorySystemSupplier().get();
-                    CloseableSession session = new SessionBuilderSupplier(system)
+                 CloseableSession session = new SessionBuilderSupplier(system)
                             .get()
                             .withLocalRepositoryBaseDirectories(
                                     new File(System.getProperty("user.home") + "/.m2/repository").toPath())
                             .setDependencySelector(new CustomScopeDependencySelector())
+                            .setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, ConflictResolver.Verbosity.STANDARD)
                             .build()) {
                 Model model = getModel(pomPath);
                 List<Dependency> directDependencies = new ArrayList<>();
@@ -129,18 +115,27 @@ public class SimpleLanguageServer implements LanguageServer {
                 CollectRequest collectRequest = getEffectiveCollectRequest(artifact, directDependencies,
                         managedDependencies, repos);
                 DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
+
+
+
+
                 List<ArtifactGav> effectiveGavs = MavenClasspathFetcher.fetchGavList();
                 Set<String> usedGAVSet = new HashSet<>();
+                Set<String> usedGASet = new HashSet<>();
                 Map<String, String> gavScopeMap = new HashMap<>();
                 for (ArtifactGav gav : effectiveGavs) {
                     usedGAVSet.add(gav.getGroupId() + ":" + gav.getArtifactId() + ":" + gav.getVersion());
+                    usedGASet.add(gav.getGroupId() + ":" + gav.getArtifactId());
                     if (gav.getScope() != null) {
                         gavScopeMap.put(gav.getGroupId() + ":" + gav.getArtifactId() + ":" + gav.getVersion(), gav.getScope());
                     }
                 }
+                // 打印所有 rootNode 的依赖以及子依赖，带缩进，便于调试
+                printDependencyTree(rootNode, 0);
+
                 // 构建树形结构并返回JSON
-                Map<String, Object> tree = buildDependencyTreeWithConflict(rootNode, usedGAVSet, gavScopeMap);
-                return new Gson().toJson(tree);
+                Map<String, Object> tree = buildDependencyTreeWithConflict(rootNode, usedGAVSet, usedGASet, gavScopeMap);
+                return new Gson().toJson(null);
             } catch (Exception e) {
                 return "{\"error\":\"依赖解析异常: " + e.getMessage() + "\"}";
             }
@@ -203,17 +198,26 @@ public class SimpleLanguageServer implements LanguageServer {
      * 递归构建依赖树结构，并标记冲突（droppedByConflict）
      * @param node 当前Aether依赖节点
      * @param usedGAVSet 有效依赖GAV集合
+     * @param usedGASet 有效依赖groupId:artifactId集合
      * @param gavScopeMap GAV到scope的映射
      * @return 树形依赖结构（Map表示）
      */
-    private Map<String, Object> buildDependencyTreeWithConflict(DependencyNode node, Set<String> usedGAVSet, Map<String, String> gavScopeMap) {
+    private Map<String, Object> buildDependencyTreeWithConflict(DependencyNode node, Set<String> usedGAVSet, Set<String> usedGASet, Map<String, String> gavScopeMap) {
         Map<String, Object> depInfo = new LinkedHashMap<>();
         Artifact artifact = node.getArtifact();
         if (artifact != null) {
-            depInfo.put("groupId", artifact.getGroupId());
-            depInfo.put("artifactId", artifact.getArtifactId());
-            depInfo.put("version", artifact.getVersion());
-            String key = artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion();
+            String groupId = artifact.getGroupId();
+            String artifactId = artifact.getArtifactId();
+            String version = artifact.getVersion();
+            String key = groupId + ":" + artifactId + ":" + version;
+            String ga = groupId + ":" + artifactId;
+            // 如果groupId:artifactId不在usedGASet中，直接跳过该节点
+            if (!usedGASet.contains(ga)) {
+                return null;
+            }
+            depInfo.put("groupId", groupId);
+            depInfo.put("artifactId", artifactId);
+            depInfo.put("version", version);
             // 优先用gavScopeMap
             String scope = gavScopeMap.getOrDefault(key, node.getDependency() != null ? node.getDependency().getScope() : "compile");
             depInfo.put("scope", scope);
@@ -223,7 +227,10 @@ public class SimpleLanguageServer implements LanguageServer {
         // 递归 children
         List<Map<String, Object>> children = new ArrayList<>();
         for (DependencyNode child : node.getChildren()) {
-            children.add(buildDependencyTreeWithConflict(child, usedGAVSet, gavScopeMap));
+            Map<String, Object> childNode = buildDependencyTreeWithConflict(child, usedGAVSet, usedGASet, gavScopeMap);
+            if (childNode != null) {
+                children.add(childNode);
+            }
         }
         if (!children.isEmpty()) {
             depInfo.put("children", children);
@@ -276,5 +283,27 @@ public class SimpleLanguageServer implements LanguageServer {
     @Override
     public void setTrace(SetTraceParams params) {
         // 这里可以根据 params.getValue() 设置日志级别，目前为空实现
+    }
+
+    // 打印所有 rootNode 的依赖以及子依赖，带缩进，便于调试
+    private void printDependencyTree(DependencyNode node, int level) {
+        // 构建缩进字符串
+        StringBuilder indent = new StringBuilder();
+        for (int i = 0; i < level; i++) {
+            indent.append("  ");
+        }
+        Artifact artifact = node.getArtifact();
+        if (artifact != null) {
+            // 详细打印 groupId:artifactId:version:scope
+            String scope = node.getDependency() != null ? node.getDependency().getScope() : "";
+            System.out.println(indent + artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion() + (scope != null && !scope.isEmpty() ? " [" + scope + "]" : ""));
+        } else {
+            // 根节点可能没有artifact
+            System.out.println(indent + "(no artifact)");
+        }
+        // 递归打印子依赖
+        for (DependencyNode child : node.getChildren()) {
+            printDependencyTree(child, level + 1);
+        }
     }
 }
