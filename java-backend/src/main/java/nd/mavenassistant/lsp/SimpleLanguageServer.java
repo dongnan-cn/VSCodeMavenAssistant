@@ -131,11 +131,11 @@ public class SimpleLanguageServer implements LanguageServer {
                     }
                 }
                 // 打印所有 rootNode 的依赖以及子依赖，带缩进，便于调试
-                printDependencyTree(rootNode, 0);
+//                printDependencyTree(rootNode, 0);
 
                 // 构建树形结构并返回JSON
                 Map<String, Object> tree = buildDependencyTreeWithConflict(rootNode, usedGAVSet, usedGASet, gavScopeMap);
-                return new Gson().toJson(null);
+                return new Gson().toJson(tree);
             } catch (Exception e) {
                 return "{\"error\":\"依赖解析异常: " + e.getMessage() + "\"}";
             }

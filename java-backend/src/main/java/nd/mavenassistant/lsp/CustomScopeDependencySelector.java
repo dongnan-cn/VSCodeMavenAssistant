@@ -19,7 +19,8 @@ public class CustomScopeDependencySelector implements DependencySelector {
     public boolean selectDependency(Dependency dependency) {
         if (depth == 0 || depth == 1) {
             return true;
-        } else if (depth <= 4) {
+        }
+        if (depth <= 4 && !dependency.isOptional()) {
             return "compile".equals(dependency.getScope()) || "runtime".equals(dependency.getScope());
         }
         return false;
