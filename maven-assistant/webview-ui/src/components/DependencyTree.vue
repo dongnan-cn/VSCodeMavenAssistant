@@ -280,9 +280,11 @@ onMounted(() => {
   color: var(--vscode-foreground);
   background: var(--vscode-editor-background);
   margin: 0;
-  padding: 20px;
+  padding: 0;
   height: 100vh;
+  width: 100%;
   overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .toolbar {

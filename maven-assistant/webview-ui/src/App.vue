@@ -43,17 +43,31 @@ onBeforeUnmount(() => {
   </div>
 </template>
 
-<style scoped>
+<style>
+html, body, #app, .split-pane, .left-pane, .right-pane {
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+  height: 100vh;
+  width: 100vw;
+}
 .split-pane {
   display: flex;
   height: 100vh;
   width: 100vw;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 .left-pane {
   background: var(--vscode-sideBar-background);
   min-width: 180px;
   max-width: 80vw;
   height: 100vh;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
   transition: width 0.1s;
 }
 .splitter {
@@ -70,5 +84,9 @@ onBeforeUnmount(() => {
   flex: 1;
   background: var(--vscode-editor-background);
   height: 100vh;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
 }
 </style>
