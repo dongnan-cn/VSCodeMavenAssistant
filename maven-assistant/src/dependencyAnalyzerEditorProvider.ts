@@ -26,141 +26,60 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
         webviewPanel: vscode.WebviewPanel,
         token: vscode.CancellationToken
     ): Promise<void> {
+        // 允许Webview加载本地资源和脚本
         webviewPanel.webview.options = {
             enableScripts: true,
+            localResourceRoots: [
+                vscode.Uri.joinPath(this.context.extensionUri, 'webview-ui', 'dist')
+            ]
         };
 
-        // 定义渲染分析内容的函数
-        const renderAnalysis = (analysis: string) => {
-            webviewPanel.webview.postMessage({ type: 'updateAnalysis', html: this.renderAnalysisHtml(analysis) });
+        // 获取Vue构建产物index.html的内容
+        const html = await this.getVueWebviewHtml(webviewPanel.webview);
+        webviewPanel.webview.html = html;
+
+        // 定义推送依赖分析数据的函数
+        const postDependencyData = async () => {
+            try {
+                const analysis = await this.lspClient.analyzeDependencies();
+                webviewPanel.webview.postMessage({ type: 'updateAnalysis', data: analysis });
+            } catch (e) {
+                webviewPanel.webview.postMessage({ type: 'error', message: String(e) });
+            }
         };
 
-        // 初次加载时获取依赖分析内容
-        const analysis = await this.lspClient.analyzeDependencies();
-        webviewPanel.webview.html = this.getHtml();
-        // Webview 加载后主动推送内容
-        setTimeout(() => renderAnalysis(analysis), 100);
+        // Webview加载后，主动推送依赖数据
+        setTimeout(() => postDependencyData(), 100);
 
-        // 监听Webview消息，实现刷新功能
+        // 监听Webview消息，实现刷新等功能
         webviewPanel.webview.onDidReceiveMessage(async (msg) => {
             if (msg.type === 'refresh') {
-                // 调用LSP后端获取最新依赖分析数据
-                const newAnalysis = await this.lspClient.analyzeDependencies();
-                renderAnalysis(newAnalysis);
+                await postDependencyData();
             }
+            // 可扩展：处理节点点击、详情等
         });
     }
 
     /**
-     * 生成Webview HTML，包含刷新按钮和内容区域
+     * 读取Vue构建产物index.html，并修正静态资源路径，适配VSCode Webview
      */
-    private getHtml(): string {
-        return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>Dependency Analyzer</title>
-    <style>
-        body { 
-            font-family: var(--vscode-font-family); 
-            color: var(--vscode-foreground); 
-            background: var(--vscode-editor-background); 
-            margin: 0; 
-            padding: 40px; 
-        }
-        h2 { color: var(--vscode-editor-foreground); }
-        .toolbar { display: flex; align-items: center; margin-bottom: 16px; }
-        .toolbar button { margin-left: 8px; }
-        #analyzer-content { 
-            margin-top: 16px; 
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.4;
-        }
-        .dependency-tree {
-            white-space: pre-wrap;
-            color: var(--vscode-editor-foreground);
-        }
-        .error {
-            color: var(--vscode-errorForeground);
-        }
-    </style>
-</head>
-<body>
-    <div class="toolbar">
-        <h2 style="flex:1;">依赖分析结果</h2>
-        <button id="refresh-btn">刷新</button>
-    </div>
-    <div id="analyzer-content">
-        <p>正在加载依赖分析...</p>
-    </div>
-    <script>
-        // 获取VSCode API
-        const vscode = acquireVsCodeApi();
-        // 刷新按钮点击事件
-        document.getElementById('refresh-btn').onclick = function() {
-            vscode.postMessage({ type: 'refresh' });
-        };
-        // 监听扩展端发来的消息，更新分析内容
-        window.addEventListener('message', event => {
-            const msg = event.data;
-            if (msg.type === 'updateAnalysis') {
-                document.getElementById('analyzer-content').innerHTML = msg.html;
-            }
+    private async getVueWebviewHtml(webview: vscode.Webview): Promise<string> {
+        // 获取dist目录下的index.html
+        const distFolder = vscode.Uri.joinPath(this.context.extensionUri, 'webview-ui', 'dist');
+        const indexHtmlUri = vscode.Uri.joinPath(distFolder, 'index.html');
+        let html = (await vscode.workspace.fs.readFile(indexHtmlUri)).toString();
+
+        // 更宽松的正则，兼容crossorigin等属性
+        html = html.replace(/<script[^>]*type="module"[^>]*src="([^"]+)"[^>]*><\/script>/g, (match, src) => {
+            let realSrc = src.replace(/^\//, '').replace(/^\.\//, '');
+            const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(distFolder, realSrc));
+            return match.replace(src, scriptUri.toString());
         });
-    </script>
-</body>
-</html>`;
-    }
-
-    /**
-     * 渲染依赖分析内容为HTML
-     * @param analysis 依赖分析字符串
-     */
-    private renderAnalysisHtml(analysis: string): string {
-        try {
-            // 尝试解析 JSON
-            const dependencyTree = JSON.parse(analysis);
-            return this.formatDependencyTree(dependencyTree);
-        } catch (error) {
-            // 如果解析失败，显示详细的错误信息
-            const preview = analysis.length > 100 ? analysis.substring(0, 100) + '...' : analysis;
-            return `<div class="error">
-                <h3>解析失败</h3>
-                <p><strong>错误信息:</strong> ${error}</p>
-                <p><strong>响应预览:</strong></p>
-                <pre style="background: var(--vscode-textBlockQuote-background); padding: 8px; border-radius: 4px;">${preview}</pre>
-                <p><strong>完整响应:</strong></p>
-                <pre style="white-space:pre-wrap; background: var(--vscode-textBlockQuote-background); padding: 8px; border-radius: 4px;">${analysis}</pre>
-            </div>`;
-        }
-    }
-
-    /**
-     * 格式化依赖树为可读的文本格式
-     * @param node 依赖节点
-     * @param indent 缩进级别
-     */
-    private formatDependencyTree(node: any, indent: number = 0): string {
-        if (node && !node.groupId && Array.isArray(node.children)) {
-            // 兼容根节点是 { children: [...] } 的情况
-            return node.children.map((child: any) => this.formatDependencyTree(child, indent)).join('');
-        }
-        if (!node || !node.groupId) {
-            return '';
-        }
-        const indentStr = '&nbsp;&nbsp;'.repeat(indent);
-        const gav = `${node.groupId}:${node.artifactId}:${node.version}`;
-        const scope = node.scope || 'compile';
-        const status = node.droppedByConflict ? 'DROPPED' : 'USED';
-        const childrenCount = node.children ? node.children.length : 0;
-        const statusColor = node.droppedByConflict ? 'var(--vscode-errorForeground)' : 'var(--vscode-textPreformat-foreground)';
-        let result = `<div style="margin: 0; padding: 0;">${indentStr}${gav} [scope: ${scope}] <span style="color: ${statusColor};">[${status}]</span>  [children: ${childrenCount}]</div>`;
-        if (node.children && node.children.length > 0) {
-            for (const child of node.children) {
-                result += this.formatDependencyTree(child, indent + 1);
-            }
-        }
-        return result;
+        html = html.replace(/<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/g, (match, href) => {
+            let realHref = href.replace(/^\//, '').replace(/^\.\//, '');
+            const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(distFolder, realHref));
+            return match.replace(href, styleUri.toString());
+        });
+        return html;
     }
 } 

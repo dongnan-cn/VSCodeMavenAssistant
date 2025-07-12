@@ -8,9 +8,13 @@ class DependencyTreeItem extends vscode.TreeItem {
 	constructor(
 		public readonly label: string,
 		public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-		public readonly children?: DependencyTreeItem[]
+		public readonly children?: DependencyTreeItem[],
+		public readonly tooltip?: string
 	) {
 		super(label, collapsibleState);
+		if (tooltip) {
+			this.tooltip = tooltip;
+		}
 	}
 }
 
@@ -23,7 +27,7 @@ export class DependencyTreeProvider implements vscode.TreeDataProvider<Dependenc
 	readonly onDidChangeTreeData: vscode.Event<DependencyTreeItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
 	private _lspClient: LspClient;
-	private _dependencies: DependencyTreeItem[] = [];
+	private _treeData: DependencyTreeItem[] = [];
 
 	constructor(lspClient: LspClient) {
 		this._lspClient = lspClient;
@@ -65,22 +69,46 @@ export class DependencyTreeProvider implements vscode.TreeDataProvider<Dependenc
 			if (!this._lspClient.isConnected()) {
 				return this._getMockDependencies();
 			}
-
-			// 通过LSP获取依赖树
-			const dependencyTree = await this._lspClient.getDependencyTree();
-			
-			// 解析依赖树文本，转换为树形结构
-			return this._parseDependencyTree(dependencyTree);
+			// 获取后端返回的依赖树（JSON字符串）
+			const dependencyTreeJson = await this._lspClient.getDependencyTree();
+			let root: any;
+			try {
+				root = JSON.parse(dependencyTreeJson);
+			} catch (e) {
+				console.error('依赖树JSON解析失败:', e, dependencyTreeJson);
+				return [new DependencyTreeItem('依赖树JSON解析失败', vscode.TreeItemCollapsibleState.None)];
+			}
+			// 兼容根节点为 { children: [...] }
+			let nodes: any[] = [];
+			if (root && !root.groupId && Array.isArray(root.children)) {
+				nodes = root.children;
+			} else if (root && root.groupId) {
+				nodes = [root];
+			}
+			const items = nodes.map((n) => this._buildTreeItem(n));
+			this._treeData = items;
+			return items;
 		} catch (error) {
 			console.error('获取依赖树失败:', error);
-			// 返回错误节点
-			return [
-				new DependencyTreeItem(
-					`获取依赖失败: ${error}`,
-					vscode.TreeItemCollapsibleState.None
-				)
-			];
+			return [new DependencyTreeItem(`获取依赖失败: ${error}`, vscode.TreeItemCollapsibleState.None)];
 		}
+	}
+
+	/**
+	 * 递归构建 TreeItem
+	 */
+	private _buildTreeItem(node: any): DependencyTreeItem {
+		if (!node || !node.groupId) return new DependencyTreeItem('未知依赖', vscode.TreeItemCollapsibleState.None);
+		const label = `${node.groupId}:${node.artifactId}:${node.version}` + (node.scope ? ` [${node.scope}]` : '') + (node.droppedByConflict ? ' [DROPPED]' : '');
+		const tooltip = label;
+		const hasChildren = node.children && node.children.length > 0;
+		const children = hasChildren ? node.children.map((c: any) => this._buildTreeItem(c)) : undefined;
+		return new DependencyTreeItem(
+			label,
+			hasChildren ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+			children,
+			tooltip
+		);
 	}
 
 	/**
