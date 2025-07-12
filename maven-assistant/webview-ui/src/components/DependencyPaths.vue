@@ -5,10 +5,11 @@
     </div>
     <div v-else>
       <div class="title">所有来源路径（共 {{ paths.length }} 条）：</div>
+
       <div v-if="paths.length === 0" class="no-paths">未找到任何路径</div>
       <div v-for="(path, idx) in paths" :key="idx" class="path-block">
-        <div v-for="(node, i) in path" :key="i" :style="{ paddingLeft: (path.length - i - 1) * 24 + 'px' }" class="dep-path-node">
-          <span :class="['dep-label', i === 0 ? 'target' : '']">
+        <div v-for="(node, i) in path" :key="i" :style="{ paddingLeft: i * 28 + 'px' }" class="dep-path-node">
+          <span :class="['dep-label', node.droppedByConflict ? 'dropped' : '', i === 0 ? 'target' : '']">
             {{ node.groupId }}:{{ node.artifactId }}:{{ node.version }} <span v-if="node.scope">[{{ node.scope }}]</span>
           </span>
         </div>
@@ -97,6 +98,10 @@ watch(
 }
 .dep-label.target {
   color: var(--vscode-editor-foreground);
+  font-weight: bold;
+}
+.dep-label.dropped {
+  color: var(--vscode-errorForeground);
   font-weight: bold;
 }
 </style> 

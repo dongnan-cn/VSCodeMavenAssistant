@@ -235,7 +235,7 @@ const processDependencyData = (data: any): DependencyNode[] => {
       status,
       statusClass,
       hasChildren,
-      expanded: true, // 默认展开
+      expanded: false, // 默认全部收起
       children: hasChildren ? processDependencyData(node.children) : undefined
     }
   })
