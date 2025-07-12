@@ -61,11 +61,29 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
     <meta charset="UTF-8">
     <title>Dependency Analyzer</title>
     <style>
-        body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background); margin: 0; padding: 40px; }
+        body { 
+            font-family: var(--vscode-font-family); 
+            color: var(--vscode-foreground); 
+            background: var(--vscode-editor-background); 
+            margin: 0; 
+            padding: 40px; 
+        }
         h2 { color: var(--vscode-editor-foreground); }
         .toolbar { display: flex; align-items: center; margin-bottom: 16px; }
         .toolbar button { margin-left: 8px; }
-        #analyzer-content { margin-top: 16px; }
+        #analyzer-content { 
+            margin-top: 16px; 
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .dependency-tree {
+            white-space: pre-wrap;
+            color: var(--vscode-editor-foreground);
+        }
+        .error {
+            color: var(--vscode-errorForeground);
+        }
     </style>
 </head>
 <body>
@@ -100,7 +118,49 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
      * @param analysis 依赖分析字符串
      */
     private renderAnalysisHtml(analysis: string): string {
-        // 这里可以根据实际格式美化内容
-        return `<pre style="white-space:pre-wrap;">${analysis ? analysis : '暂无依赖分析结果'}</pre>`;
+        try {
+            // 尝试解析 JSON
+            const dependencyTree = JSON.parse(analysis);
+            return this.formatDependencyTree(dependencyTree);
+        } catch (error) {
+            // 如果解析失败，显示详细的错误信息
+            const preview = analysis.length > 100 ? analysis.substring(0, 100) + '...' : analysis;
+            return `<div class="error">
+                <h3>解析失败</h3>
+                <p><strong>错误信息:</strong> ${error}</p>
+                <p><strong>响应预览:</strong></p>
+                <pre style="background: var(--vscode-textBlockQuote-background); padding: 8px; border-radius: 4px;">${preview}</pre>
+                <p><strong>完整响应:</strong></p>
+                <pre style="white-space:pre-wrap; background: var(--vscode-textBlockQuote-background); padding: 8px; border-radius: 4px;">${analysis}</pre>
+            </div>`;
+        }
+    }
+
+    /**
+     * 格式化依赖树为可读的文本格式
+     * @param node 依赖节点
+     * @param indent 缩进级别
+     */
+    private formatDependencyTree(node: any, indent: number = 0): string {
+        if (node && !node.groupId && Array.isArray(node.children)) {
+            // 兼容根节点是 { children: [...] } 的情况
+            return node.children.map((child: any) => this.formatDependencyTree(child, indent)).join('');
+        }
+        if (!node || !node.groupId) {
+            return '';
+        }
+        const indentStr = '&nbsp;&nbsp;'.repeat(indent);
+        const gav = `${node.groupId}:${node.artifactId}:${node.version}`;
+        const scope = node.scope || 'compile';
+        const status = node.droppedByConflict ? 'DROPPED' : 'USED';
+        const childrenCount = node.children ? node.children.length : 0;
+        const statusColor = node.droppedByConflict ? 'var(--vscode-errorForeground)' : 'var(--vscode-textPreformat-foreground)';
+        let result = `<div style="margin: 0; padding: 0;">${indentStr}${gav} [scope: ${scope}] <span style="color: ${statusColor};">[${status}]</span>  [children: ${childrenCount}]</div>`;
+        if (node.children && node.children.length > 0) {
+            for (const child of node.children) {
+                result += this.formatDependencyTree(child, indent + 1);
+            }
+        }
+        return result;
     }
 } 

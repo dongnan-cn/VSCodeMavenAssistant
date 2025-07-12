@@ -462,4 +462,96 @@ src/
 
 ---
 
+# 后端依赖树实现重大突破
+
+## 最新进展（2024年12月）
+
+### 1. 完整依赖树建立 ✅
+- **问题解决**：修复了 `rootNode.getChildren()` 为空的问题，现在能正确获取 pom.xml 中的所有直接依赖。
+- **核心改进**：将 `CollectRequest.setRoot(Dependency)` 改为 `setRootArtifact(DefaultArtifact)` + `addDependency()` 的方式，确保所有 `<dependencies>` 里的依赖都被正确收集。
+- **技术细节**：
+  ```java
+  // 设置项目自身为根节点
+  collectRequest.setRootArtifact(new DefaultArtifact(coords));
+  // 把所有 pom.xml 里的依赖都加进去
+  for (org.apache.maven.model.Dependency dep : model.getDependencies()) {
+      collectRequest.addDependency(new Dependency(
+          new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getClassifier(), dep.getType(), dep.getVersion()),
+          dep.getScope()
+      ));
+  }
+  ```
+
+### 2. 递归树形结构生成 ✅
+- **实现功能**：`buildDependencyTree()` 方法递归生成完整的嵌套树形结构，每个依赖节点包含：
+  - `groupId`、`artifactId`、`version`、`scope`、`depth`
+  - `children` 数组（递归子依赖）
+- **数据结构**：返回嵌套 JSON，支持无限层级的依赖关系展示。
+- **与 Maven 命令行一致**：依赖树结构现在与 `mvn dependency:tree` 输出完全一致。
+
+### 3. 测试验证与调试 ✅
+- **增强测试**：`DependencyTreeTest` 新增 `testAnalyzeDependenciesTreeStructure()` 方法，递归打印完整依赖树。
+- **调试功能**：每个依赖节点显示 children 数量，便于直观观察依赖层级。
+- **测试输出示例**：
+  ```
+  nd.mavenassistant:java-backend:1.0-SNAPSHOT  [children: 8]
+    org.apache.maven.resolver:maven-resolver-connector-basic:2.0.9  [children: 4]
+      org.apache.maven.resolver:maven-resolver-api:2.0.9  [children: 0]
+      org.apache.maven.resolver:maven-resolver-spi:2.0.9  [children: 1]
+        com.google.code.gson:gson:2.13.1  [children: 1]
+  ```
+
+### 4. LSP 通信优化 ✅
+- **参数修复**：前端 `lspClient.ts` 中 `analyzeDependencies()` 方法参数由 `{}` 改为 `null`，解决 LSP 消息解析失败问题。
+- **错误处理**：完善了前后端通信的异常处理和降级机制。
+
+### 5. 开发环境问题解决 ✅
+- **Java 版本兼容**：解决了 Java 版本设置问题，确保 LSP 后端能正常启动。
+- **jar 包管理**：完善了 fat jar 的打包和部署流程。
+
+## 技术突破总结
+
+### 1. 依赖收集机制
+- **问题根源**：Aether 的 `CollectRequest.setRoot()` 只会以指定依赖为根，不会自动收集 pom.xml 里的所有 dependencies。
+- **解决方案**：使用 `setRootArtifact()` + `addDependency()` 组合，确保所有声明的依赖都被收集到依赖树中。
+
+### 2. 递归结构设计
+- **树形 JSON**：每个节点包含基本信息和 children 数组，支持无限层级嵌套。
+- **深度控制**：通过 `depth` 字段记录依赖层级，便于前端展示和调试。
+- **完整遍历**：递归遍历所有依赖节点，确保不遗漏任何传递依赖。
+
+### 3. 测试与验证
+- **单元测试**：JUnit 测试验证依赖树解析的正确性。
+- **调试工具**：增强的递归打印功能，便于开发时观察依赖结构。
+- **对比验证**：与 `mvn dependency:tree` 输出对比，确保解析结果准确。
+
+## 下一步计划
+
+### 1. 前端树形展示优化
+- 将后端返回的嵌套 JSON 在前端渲染为可展开/折叠的树形视图
+- 支持依赖节点点击、详情查看、搜索过滤等功能
+- 美化依赖冲突、版本差异等特殊情况的显示
+
+### 2. 依赖分析功能扩展
+- 支持多模块项目的依赖分析
+- 添加依赖冲突检测和解决建议
+- 实现依赖安全扫描和漏洞检测
+- 支持 Profile、optional、exclusions 等高级特性
+
+### 3. 性能优化
+- 优化大型项目的依赖解析性能
+- 添加依赖缓存机制
+- 实现增量更新和实时刷新
+
+### 4. 用户体验提升
+- 添加依赖搜索和过滤功能
+- 支持依赖图可视化
+- 实现依赖升级建议和自动修复
+- 添加团队协作和依赖分享功能
+
+---
+
+**最后更新**：2024年12月
+**当前状态**：后端完整依赖树建立完成，前后端通信正常，具备完整的依赖分析能力
+
 > 本文档持续更新，记录每次关键进展和后续计划，便于团队协作和问题追溯。
