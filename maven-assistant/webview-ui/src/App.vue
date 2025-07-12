@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
+import DependencyTree from './components/DependencyTree.vue'
 </script>
 
 <template>
   <div id="app">
-    <HelloWorld msg="Vue in VSCode Webview" />
+    <DependencyTree />
   </div>
 </template>
 
