@@ -1,9 +1,18 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import DependencyTree from './components/DependencyTree.vue'
+import DependencyPaths from './components/DependencyPaths.vue'
 
 const leftWidth = ref(320)
 let dragging = false
+
+const selectedDependency = ref<any>(null)
+const dependencyTreeData = ref<any>(null) // 依赖树原始数据
+
+const onSelectDependency = (dep: any, treeData: any) => {
+  selectedDependency.value = dep
+  dependencyTreeData.value = treeData
+}
 
 const startDrag = () => {
   dragging = true
@@ -34,11 +43,14 @@ onBeforeUnmount(() => {
 <template>
   <div class="split-pane">
     <div class="left-pane" :style="{ width: leftWidth + 'px' }">
-      <DependencyTree />
+      <DependencyTree @select-dependency="onSelectDependency" />
     </div>
     <div class="splitter" @mousedown="startDrag"></div>
     <div class="right-pane">
-      <!-- 右侧内容可放依赖详情等，暂时留空 -->
+      <DependencyPaths
+        :dependencyTree="dependencyTreeData"
+        :selectedDependency="selectedDependency"
+      />
     </div>
   </div>
 </template>

@@ -154,6 +154,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+const emit = defineEmits(['select-dependency'])
 
 // 声明VSCode API
 declare function acquireVsCodeApi(): any
@@ -192,7 +193,13 @@ const refreshDependencies = () => {
 // 选择节点
 const selectNode = (node: DependencyNode) => {
   selectedNode.value = node
-  // 可以在这里发送消息给扩展端，显示依赖详情等
+  // 发送选中依赖和依赖树原始数据给父组件
+  emit('select-dependency', {
+    groupId: node.groupId,
+    artifactId: node.artifactId,
+    version: node.version,
+    scope: node.scope
+  }, dependencyData.value)
   vscode.postMessage({ 
     type: 'selectNode', 
     node: {
