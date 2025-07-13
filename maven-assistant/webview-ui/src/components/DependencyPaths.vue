@@ -1,6 +1,7 @@
 <template>
   <div class="dependency-paths-container">
-    <div v-if="!selectedDependency">
+    
+    <div v-if="!props.selectedDependency">
       <div class="placeholder">请选择左侧依赖节点，右侧将显示所有来源路径</div>
     </div>
     <div v-else>
@@ -14,6 +15,7 @@
           :style="{ paddingLeft: nodeIdx * 28 + 'px' }" 
           :class="['dep-path-node', { 'selected': isNodeSelected(pathIdx, nodeIdx) }]"
           @click="handleNodeClick(pathIdx, nodeIdx, node, path)"
+          @contextmenu="handleNodeContextMenu(pathIdx, nodeIdx, node, path, $event)"
         >
           <span :class="['dep-label', node.droppedByConflict ? 'dropped' : '', nodeIdx === 0 ? 'target' : '']">
             {{ node.groupId }}:{{ node.artifactId }}:{{ node.version }} <span v-if="node.scope">[{{ node.scope }}]</span>
@@ -21,16 +23,79 @@
         </div>
       </div>
     </div>
+    <!-- 右键菜单组件 -->
+    <ContextMenu
+      :visible="menuVisible"
+      :x="menuX"
+      :y="menuY"
+      :items="menuItems"
+      @select="handleMenuSelect"
+      @close="menuVisible = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { watch, ref } from 'vue'
+import ContextMenu from './ContextMenu.vue'
 
 const props = defineProps({
   dependencyTree: { type: Array, default: () => [] },
-  selectedDependency: { type: Object, default: null }
+  selectedDependency: { type: Object, default: null },
+  vscodeApi: { type: Object, required: true }
 })
+
+// 右键菜单状态
+const menuVisible = ref(false)
+const menuX = ref(0)
+const menuY = ref(0)
+const menuNode = ref<any>(null)
+const menuPathIndex = ref<number>(-1)
+const menuNodeIndex = ref<number>(-1)
+
+// 右键菜单项
+const menuItems = [
+  { label: '跳转到 pom.xml', value: 'goto-pom' },
+  { label: '排除此依赖', value: 'exclude' }
+]
+
+// 右键事件处理
+function handleNodeContextMenu(pathIndex: number, nodeIndex: number, node: any, path: any[], event: MouseEvent) {
+  event.preventDefault()
+  menuVisible.value = true
+  menuX.value = event.clientX
+  menuY.value = event.clientY
+  menuNode.value = { node, path }
+  menuPathIndex.value = pathIndex
+  menuNodeIndex.value = nodeIndex
+}
+
+// 菜单项选择
+function handleMenuSelect(action: string) {
+  if (!menuNode.value) return
+  const { node, path } = menuNode.value
+  // 通过vscodeApi发送消息
+  props.vscodeApi.postMessage({
+    type: 'showContextMenu',
+    data: {
+      node: {
+        groupId: node.groupId,
+        artifactId: node.artifactId,
+        version: node.version,
+        scope: node.scope
+      },
+      pathIndex: menuPathIndex.value,
+      nodeIndex: menuNodeIndex.value,
+      pathInfo: path.map((pathNode: any) => ({
+        groupId: pathNode.groupId,
+        artifactId: pathNode.artifactId,
+        version: pathNode.version,
+        scope: pathNode.scope
+      })),
+      action // 你可以直接传递action到后端
+    }
+  })
+}
 
 // 定义选中状态的数据结构
 interface SelectedNodeInfo {
@@ -96,11 +161,11 @@ function handleNodeClick(pathIndex: number, nodeIndex: number, node: any, path: 
     }
   }
   
-  console.log('选中依赖信息：', selectedNodeInfo.value)
-  
   // 这里可以emit事件通知父组件，或者后续添加更多逻辑
   // emit('nodeSelected', selectedNodeInfo.value)
 }
+
+
 
 watch(
   () => [props.dependencyTree, props.selectedDependency],
@@ -114,7 +179,7 @@ watch(
       selectedNodeInfo.value = null
     }
   },
-  { immediate: true }
+  { immediate: true, deep: true }
 )
 </script>
 

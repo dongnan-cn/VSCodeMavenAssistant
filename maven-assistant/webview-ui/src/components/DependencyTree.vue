@@ -156,8 +156,10 @@
 import { ref, onMounted } from 'vue'
 const emit = defineEmits(['select-dependency'])
 
-// 声明VSCode API
-declare function acquireVsCodeApi(): any
+// 接收vscodeApi作为prop
+const props = defineProps({
+  vscodeApi: { type: Object, required: true }
+})
 
 // 定义依赖节点接口
 interface DependencyNode {
@@ -180,14 +182,11 @@ const error = ref('')
 const dependencyData = ref<DependencyNode[]>([])
 const selectedNode = ref<DependencyNode | null>(null)
 
-// 获取VSCode API
-const vscode = acquireVsCodeApi()
-
 // 刷新依赖数据
 const refreshDependencies = () => {
   loading.value = true
   error.value = ''
-  vscode.postMessage({ type: 'refresh' })
+  props.vscodeApi.postMessage({ type: 'refresh' })
 }
 
 // 选择节点
@@ -200,7 +199,7 @@ const selectNode = (node: DependencyNode) => {
     version: node.version,
     scope: node.scope
   }, dependencyData.value)
-  vscode.postMessage({ 
+  props.vscodeApi.postMessage({ 
     type: 'selectNode', 
     node: {
       groupId: node.groupId,

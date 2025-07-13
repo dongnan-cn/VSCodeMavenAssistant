@@ -142,6 +142,257 @@ public class SimpleLanguageServer implements LanguageServer {
         });
     }
 
+    /**
+     * 获取依赖的完整路径信息，用于定位到上一级依赖的pom文件
+     * @param request 包含groupId、artifactId、version等依赖信息的JSON字符串
+     */
+    @JsonRequest("maven/getDependencyPath")
+    public CompletableFuture<String> getDependencyPath(String request) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                // 解析请求参数
+                Map<String, String> params = new Gson().fromJson(request, Map.class);
+                String targetGroupId = params.get("groupId");
+                String targetArtifactId = params.get("artifactId");
+                String targetVersion = params.get("version");
+                
+                // 验证必要参数
+                if (targetGroupId == null || targetArtifactId == null) {
+                    return "{\"success\":false,\"error\":\"缺少必要参数：groupId、artifactId\"}";
+                }
+                
+                // 获取当前项目的pom.xml路径
+                String pomPath = (StringUtils.isBlank(params.get("pomPath")))
+                        ? new File("pom.xml").getAbsolutePath()
+                        : params.get("pomPath");
+                
+                // 解析依赖树，找到目标依赖的完整路径
+                Model model = getModel(pomPath);
+                String coords = model.getGroupId() + ":" + model.getArtifactId() + ":" + model.getVersion();
+                Artifact artifact = new DefaultArtifact(coords);
+                
+                try (RepositorySystem system = new RepositorySystemSupplier().get();
+                     CloseableSession session = new SessionBuilderSupplier(system)
+                            .get()
+                            .withLocalRepositoryBaseDirectories(
+                                    new File(System.getProperty("user.home") + "/.m2/repository").toPath())
+                            .setDependencySelector(new CustomScopeDependencySelector())
+                            .setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, ConflictResolver.Verbosity.STANDARD)
+                            .build()) {
+                    
+                    CollectRequest collectRequest = getEffectiveCollectRequest(artifact, 
+                            getDirectDependencies(model), getManagedDependencies(model), repos);
+                    DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
+                    
+                    // 查找目标依赖的路径
+                    DependencyPathInfo pathInfo = findDependencyPath(rootNode, targetGroupId, targetArtifactId, targetVersion);
+                    
+                    if (pathInfo != null) {
+                        return new Gson().toJson(pathInfo);
+                    } else {
+                        return "{\"success\":false,\"error\":\"未找到依赖路径\"}";
+                    }
+                }
+                
+            } catch (Exception e) {
+                return "{\"success\":false,\"error\":\"获取依赖路径失败: " + e.getMessage() + "\"}";
+            }
+        });
+    }
+
+    /**
+     * 依赖路径信息
+     */
+    private static class DependencyPathInfo {
+        public boolean success = true;
+        public String parentPomPath; // 上一级依赖的pom文件路径
+        public String parentGroupId; // 上一级依赖的groupId
+        public String parentArtifactId; // 上一级依赖的artifactId
+        public String parentVersion; // 上一级依赖的version
+        public int lineNumber; // 依赖在pom文件中的行号
+        public int artifactIdStart; // artifactId在行中的起始位置
+        public int artifactIdEnd; // artifactId在行中的结束位置
+        public String error;
+    }
+
+    /**
+     * 查找依赖的完整路径
+     */
+    private DependencyPathInfo findDependencyPath(DependencyNode rootNode, String targetGroupId, 
+            String targetArtifactId, String targetVersion) {
+        List<DependencyNode> path = new ArrayList<>();
+        if (findDependencyPathRecursive(rootNode, targetGroupId, targetArtifactId, targetVersion, path)) {
+            // 找到路径，获取上一级依赖的信息
+            if (path.size() >= 2) {
+                DependencyNode parentNode = path.get(path.size() - 2); // 上一级依赖
+                DependencyNode targetNode = path.get(path.size() - 1); // 目标依赖
+                
+                DependencyPathInfo pathInfo = new DependencyPathInfo();
+                Artifact parentArtifact = parentNode.getArtifact();
+                Artifact targetArtifact = targetNode.getArtifact();
+                
+                // 构建上一级依赖的pom文件路径
+                String parentPomPath = buildPomPath(parentArtifact);
+                pathInfo.parentPomPath = parentPomPath;
+                pathInfo.parentGroupId = parentArtifact.getGroupId();
+                pathInfo.parentArtifactId = parentArtifact.getArtifactId();
+                pathInfo.parentVersion = parentArtifact.getVersion();
+                
+                // 解析pom文件，找到目标依赖的位置信息
+                try {
+                    Map<String, Object> positionInfo = parseDependencyPosition(parentPomPath, 
+                            targetArtifact.getGroupId(), targetArtifact.getArtifactId());
+                    pathInfo.lineNumber = (Integer) positionInfo.get("lineNumber");
+                    pathInfo.artifactIdStart = (Integer) positionInfo.get("artifactIdStart");
+                    pathInfo.artifactIdEnd = (Integer) positionInfo.get("artifactIdEnd");
+                } catch (Exception e) {
+                    pathInfo.error = "解析pom文件位置失败: " + e.getMessage();
+                }
+                
+                return pathInfo;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 递归查找依赖路径
+     */
+    private boolean findDependencyPathRecursive(DependencyNode node, String targetGroupId, 
+            String targetArtifactId, String targetVersion, List<DependencyNode> path) {
+        if (node == null) return false;
+        
+        path.add(node);
+        
+        // 检查当前节点是否为目标依赖
+        Artifact artifact = node.getArtifact();
+        if (artifact != null && 
+            artifact.getGroupId().equals(targetGroupId) && 
+            artifact.getArtifactId().equals(targetArtifactId) &&
+            (targetVersion == null || artifact.getVersion().equals(targetVersion))) {
+            return true;
+        }
+        
+        // 递归查找子节点
+        for (DependencyNode child : node.getChildren()) {
+            if (findDependencyPathRecursive(child, targetGroupId, targetArtifactId, targetVersion, path)) {
+                return true;
+            }
+        }
+        
+        // 回溯
+        path.remove(path.size() - 1);
+        return false;
+    }
+
+    /**
+     * 构建pom文件路径
+     */
+    private String buildPomPath(Artifact artifact) {
+        String groupId = artifact.getGroupId().replace('.', '/');
+        String artifactId = artifact.getArtifactId();
+        String version = artifact.getVersion();
+        String home = System.getProperty("user.home");
+        return home + "/.m2/repository/" + groupId + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".pom";
+    }
+
+    /**
+     * 解析pom文件中依赖的位置信息
+     */
+    private Map<String, Object> parseDependencyPosition(String pomPath, String groupId, String artifactId) throws Exception {
+        Map<String, Object> result = new HashMap<>();
+        
+        // 读取pom文件内容
+        List<String> lines = java.nio.file.Files.readAllLines(java.nio.file.Paths.get(pomPath));
+        
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            // 查找dependency标签
+            if (line.trim().startsWith("<dependency>")) {
+                // 查找groupId和artifactId
+                boolean foundGroupId = false;
+                boolean foundArtifactId = false;
+                String currentGroupId = null;
+                String currentArtifactId = null;
+                
+                // 向前查找groupId和artifactId
+                for (int j = i; j < lines.size(); j++) {
+                    String currentLine = lines.get(j);
+                    if (currentLine.trim().startsWith("</dependency>")) {
+                        break;
+                    }
+                    
+                    if (currentLine.trim().startsWith("<groupId>")) {
+                        currentGroupId = extractTagContent(currentLine);
+                        foundGroupId = true;
+                    } else if (currentLine.trim().startsWith("<artifactId>")) {
+                        currentArtifactId = extractTagContent(currentLine);
+                        foundArtifactId = true;
+                        
+                        // 检查是否匹配目标依赖
+                        if (foundGroupId && foundArtifactId && 
+                            currentGroupId.equals(groupId) && currentArtifactId.equals(artifactId)) {
+                            // 找到目标依赖，记录位置信息
+                            result.put("lineNumber", j + 1); // 行号从1开始
+                            
+                            // 计算artifactId在行中的位置
+                            int start = currentLine.indexOf("<artifactId>") + "<artifactId>".length();
+                            int end = currentLine.indexOf("</artifactId>");
+                            result.put("artifactIdStart", start);
+                            result.put("artifactIdEnd", end);
+                            
+                            return result;
+                        }
+                    }
+                }
+            }
+        }
+        
+        throw new Exception("未找到目标依赖: " + groupId + ":" + artifactId);
+    }
+
+    /**
+     * 提取XML标签内容
+     */
+    private String extractTagContent(String line) {
+        int start = line.indexOf('>') + 1;
+        int end = line.indexOf("</");
+        if (start > 0 && end > start) {
+            return line.substring(start, end);
+        }
+        return "";
+    }
+
+    /**
+     * 获取直接依赖列表
+     */
+    private List<Dependency> getDirectDependencies(Model model) {
+        List<Dependency> dependencies = new ArrayList<>();
+        model.getDependencies().forEach(dep -> {
+            dependencies.add(new org.eclipse.aether.graph.Dependency(
+                    new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
+                            dep.getClassifier(), dep.getVersion()),
+                    dep.getScope()));
+        });
+        return dependencies;
+    }
+
+    /**
+     * 获取管理依赖列表
+     */
+    private List<Dependency> getManagedDependencies(Model model) {
+        List<Dependency> dependencies = new ArrayList<>();
+        if (model.getDependencyManagement() != null) {
+            model.getDependencyManagement().getDependencies().forEach(dep -> {
+                dependencies.add(new org.eclipse.aether.graph.Dependency(
+                        new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
+                                dep.getClassifier(), dep.getVersion()),
+                        dep.getScope()));
+            });
+        }
+        return dependencies;
+    }
+
     public Set<String> collectAllArtifacts(DependencyNode rootNode) {
         Set<String> artifacts = new HashSet<>();
         collectArtifactsRecursive(rootNode, artifacts);

@@ -55,6 +55,9 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
         webviewPanel.webview.onDidReceiveMessage(async (msg) => {
             if (msg.type === 'refresh') {
                 await postDependencyData();
+            } else if (msg.type === 'showContextMenu') {
+                // 处理右键菜单请求
+                await this.handleContextMenu(msg.data);
             }
             // 可扩展：处理节点点击、详情等
         });
@@ -81,5 +84,97 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
             return match.replace(href, styleUri.toString());
         });
         return html;
+    }
+
+    /**
+     * 处理右键菜单请求
+     * @param data 菜单数据，包含节点信息和路径信息
+     */
+    private async handleContextMenu(data: any) {
+        try {
+            
+            const { node, pathIndex, nodeIndex, pathInfo } = data;
+            
+            // 显示右键菜单选项
+            const selected = await vscode.window.showQuickPick([
+                {
+                    label: '$(file-code) 跳转到 pom.xml',
+                    description: `查找 ${node.groupId}:${node.artifactId} 的声明`,
+                    value: 'goto-pom'
+                },
+                {
+                    label: '$(exclude) 排除此依赖',
+                    description: `从依赖树中排除 ${node.groupId}:${node.artifactId}`,
+                    value: 'exclude'
+                }
+            ], {
+                placeHolder: '选择操作...'
+            });
+            
+            if (!selected) {
+                return; // 用户取消了选择
+            }
+            
+            switch (selected.value) {
+                case 'goto-pom':
+                    await this.gotoPomXml(node);
+                    break;
+                case 'exclude':
+                    await this.excludeDependency(node);
+                    break;
+            }
+            
+        } catch (error) {
+            console.error('处理右键菜单失败:', error);
+            vscode.window.showErrorMessage(`处理右键菜单失败: ${error}`);
+        }
+    }
+    
+    /**
+     * 跳转到 pom.xml 文件
+     */
+    private async gotoPomXml(node: any) {
+        try {
+            // 查找当前工作区的 pom.xml 文件
+            const pomFiles = await vscode.workspace.findFiles('**/pom.xml');
+            
+            if (pomFiles.length === 0) {
+                vscode.window.showErrorMessage('未找到 pom.xml 文件');
+                return;
+            }
+            
+            // 打开第一个找到的 pom.xml 文件
+            const pomUri = pomFiles[0];
+            const document = await vscode.workspace.openTextDocument(pomUri);
+            const editor = await vscode.window.showTextDocument(document);
+            
+            // 查找依赖声明的位置
+            const text = document.getText();
+            const dependencyPattern = new RegExp(
+                `<dependency>\\s*<groupId>${node.groupId}</groupId>\\s*<artifactId>${node.artifactId}</artifactId>`,
+                'g'
+            );
+            
+            const match = dependencyPattern.exec(text);
+            if (match) {
+                const position = document.positionAt(match.index);
+                editor.selection = new vscode.Selection(position, position);
+                editor.revealRange(new vscode.Range(position, position));
+                vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置`);
+            } else {
+                vscode.window.showWarningMessage(`未在 pom.xml 中找到 ${node.groupId}:${node.artifactId} 的声明`);
+            }
+            
+        } catch (error) {
+            console.error('跳转到 pom.xml 失败:', error);
+            vscode.window.showErrorMessage(`跳转到 pom.xml 失败: ${error}`);
+        }
+    }
+    
+    /**
+     * 排除依赖（暂时只显示消息）
+     */
+    private async excludeDependency(node: any) {
+        vscode.window.showInformationMessage(`排除依赖功能正在开发中: ${node.groupId}:${node.artifactId}`);
     }
 } 

@@ -3,11 +3,17 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import DependencyTree from './components/DependencyTree.vue'
 import DependencyPaths from './components/DependencyPaths.vue'
 
+// 声明VSCode API
+declare function acquireVsCodeApi(): any
+
 const leftWidth = ref(320)
 let dragging = false
 
 const selectedDependency = ref<any>(null)
 const dependencyTreeData = ref<any>(null) // 依赖树原始数据
+
+// 获取VSCode API实例
+const vscodeApi = acquireVsCodeApi()
 
 const onSelectDependency = (dep: any, treeData: any) => {
   selectedDependency.value = dep
@@ -43,13 +49,14 @@ onBeforeUnmount(() => {
 <template>
   <div class="split-pane">
     <div class="left-pane" :style="{ width: leftWidth + 'px' }">
-      <DependencyTree @select-dependency="onSelectDependency" />
+      <DependencyTree @select-dependency="onSelectDependency" :vscodeApi="vscodeApi" />
     </div>
     <div class="splitter" @mousedown="startDrag"></div>
     <div class="right-pane">
       <DependencyPaths
         :dependencyTree="dependencyTreeData"
         :selectedDependency="selectedDependency"
+        :vscodeApi="vscodeApi"
       />
     </div>
   </div>
