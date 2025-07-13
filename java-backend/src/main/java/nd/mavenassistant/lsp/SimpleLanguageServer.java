@@ -11,7 +11,6 @@ import org.eclipse.aether.RepositorySystemSession.CloseableSession;
 import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.collection.CollectRequest;
-import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.DependencyNode;
 import org.eclipse.aether.repository.RemoteRepository;
 import org.eclipse.aether.supplier.RepositorySystemSupplier;
@@ -28,6 +27,16 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import org.eclipse.aether.graph.Dependency;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 /**
  * 最基础的 LanguageServer 实现
@@ -96,14 +105,14 @@ public class SimpleLanguageServer implements LanguageServer {
                 List<Dependency> directDependencies = new ArrayList<>();
                 List<Dependency> managedDependencies = new ArrayList<>();
                 model.getDependencies().forEach(dep -> {
-                    directDependencies.add(new org.eclipse.aether.graph.Dependency(
+                    directDependencies.add(new Dependency(
                             new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
                                     dep.getClassifier(), dep.getVersion()),
                             dep.getScope()));
                 });
                 if (model.getDependencyManagement() != null) {
                     model.getDependencyManagement().getDependencies().forEach(dep -> {
-                        managedDependencies.add(new org.eclipse.aether.graph.Dependency(
+                        managedDependencies.add(new Dependency(
                                 new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
                                         dep.getClassifier(), dep.getVersion()),
                                 dep.getScope()
@@ -199,6 +208,218 @@ public class SimpleLanguageServer implements LanguageServer {
             }
         });
     }
+
+    /**
+     * 插入 exclusion 到指定的依赖中
+     * 步骤 6：使用新的 Maven Model API 实现替换原有的字符串处理逻辑
+     */
+    @JsonRequest("maven/insertExclusion")
+    public CompletableFuture<String> insertExclusion(String request) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                // 解析参数
+                Map<String, Object> params = new Gson().fromJson(request, Map.class);
+                String pomPath = (String) params.getOrDefault("pomPath", "pom.xml");
+                Map<String, String> rootDep = (Map<String, String>) params.get("rootDependency");
+                Map<String, String> targetDep = (Map<String, String>) params.get("targetDependency");
+                if (rootDep == null || targetDep == null) {
+                    return "{\"success\":false,\"error\":\"缺少依赖参数\"}";
+                }
+                
+                // 调用新的 DOM 解析器实现（保留注释）
+                return insertExclusionWithDOM(pomPath, rootDep, targetDep);
+            } catch (Exception e) {
+                return "{\"success\":false,\"error\":\"插入exclusion失败: " + e.getMessage() + "\"}";
+            }
+        });
+    }
+
+
+
+    /**
+     * 使用 DOM 解析器插入 exclusion，保留注释（推荐方案）
+     * 使用 DOM 解析器读取和修改 pom.xml，可以完全保留原始格式和注释
+     */
+    private String insertExclusionWithDOM(String pomPath, Map<String, String> rootDep, Map<String, String> targetDep) {
+        try {
+            if (client != null) {
+                client.logMessage(new MessageParams(MessageType.Info, "Start processing exclusion with DOM parser"));
+            }
+            
+            // 解析参数
+            String targetGroupId = rootDep.get("groupId");
+            String targetArtifactId = rootDep.get("artifactId");
+            String targetVersion = rootDep.get("version");
+            String exclusionGroupId = targetDep.get("groupId");
+            String exclusionArtifactId = targetDep.get("artifactId");
+            
+            if (client != null) {
+                client.logMessage(new MessageParams(MessageType.Info, "Target dependency: " + targetGroupId + ":" + targetArtifactId + ":" + targetVersion));
+                client.logMessage(new MessageParams(MessageType.Info, "Exclusion to add: " + exclusionGroupId + ":" + exclusionArtifactId));
+            }
+            
+            // 解析 Maven 变量，获取解析后的依赖版本映射
+            Map<String, String> resolvedDependencies = resolveMavenVariables(pomPath);
+            
+            // 使用 DOM 解析器读取 pom.xml
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            Document doc = builder.parse(new File(pomPath));
+            doc.getDocumentElement().normalize();
+            
+            // 查找目标依赖
+            NodeList dependencies = doc.getElementsByTagName("dependency");
+            Element targetDependencyElement = null;
+            
+            for (int i = 0; i < dependencies.getLength(); i++) {
+                Element depElement = (Element) dependencies.item(i);
+                String groupId = getElementTextContent(depElement, "groupId");
+                String artifactId = getElementTextContent(depElement, "artifactId");
+                String version = getElementTextContent(depElement, "version");
+                
+                // 如果 version 包含变量，使用解析后的值
+                if (version != null && version.contains("${")) {
+                    String key = groupId + ":" + artifactId;
+                    String resolvedVersion = resolvedDependencies.get(key);
+                    if (resolvedVersion != null) {
+                        version = resolvedVersion;
+                        if (client != null) {
+                            client.logMessage(new MessageParams(MessageType.Info, "Resolved version for " + key + ": " + version));
+                        }
+                    }
+                }
+                
+                if (client != null) {
+                    client.logMessage(new MessageParams(MessageType.Info, "Checking dependency: " + groupId + ":" + artifactId + ":" + version));
+                }
+                
+                boolean groupIdMatch = groupId.equals(targetGroupId);
+                boolean artifactIdMatch = artifactId.equals(targetArtifactId);
+                boolean versionMatch = 
+                    (version == null && (targetVersion == null || targetVersion.isEmpty())) ||
+                    (version != null && version.equals(targetVersion));
+                
+                if (groupIdMatch && artifactIdMatch && versionMatch) {
+                    targetDependencyElement = depElement;
+                    if (client != null) {
+                        client.logMessage(new MessageParams(MessageType.Info, "Found target dependency!"));
+                    }
+                    break;
+                }
+            }
+            
+            if (targetDependencyElement == null) {
+                if (client != null) {
+                    client.logMessage(new MessageParams(MessageType.Error, "Root dependency not found"));
+                }
+                return "{\"success\":false,\"error\":\"Root dependency not found: " + targetGroupId + ":" + targetArtifactId + "\"}";
+            }
+            
+            // 检查是否已有 exclusions 元素
+            NodeList exclusionsList = targetDependencyElement.getElementsByTagName("exclusions");
+            Element exclusionsElement;
+            
+            if (exclusionsList.getLength() > 0) {
+                // 已有 exclusions 元素
+                exclusionsElement = (Element) exclusionsList.item(0);
+                if (client != null) {
+                    client.logMessage(new MessageParams(MessageType.Info, "Found existing <exclusions> element"));
+                }
+            } else {
+                // 创建新的 exclusions 元素
+                exclusionsElement = doc.createElement("exclusions");
+                targetDependencyElement.appendChild(exclusionsElement);
+                if (client != null) {
+                    client.logMessage(new MessageParams(MessageType.Info, "Created new <exclusions> element"));
+                }
+            }
+            
+            // 创建 exclusion 元素
+            Element exclusionElement = doc.createElement("exclusion");
+            
+            Element groupIdElement = doc.createElement("groupId");
+            groupIdElement.setTextContent(exclusionGroupId);
+            exclusionElement.appendChild(groupIdElement);
+            
+            Element artifactIdElement = doc.createElement("artifactId");
+            artifactIdElement.setTextContent(exclusionArtifactId);
+            exclusionElement.appendChild(artifactIdElement);
+            
+            exclusionsElement.appendChild(exclusionElement);
+            
+            if (client != null) {
+                client.logMessage(new MessageParams(MessageType.Info, "Exclusion element created successfully"));
+            }
+            
+            // 写回文件
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            Transformer transformer = transformerFactory.newTransformer();
+            DOMSource source = new DOMSource(doc);
+            StreamResult result = new StreamResult(new File(pomPath));
+            transformer.transform(source, result);
+            
+            if (client != null) {
+                client.logMessage(new MessageParams(MessageType.Info, "File written successfully"));
+            }
+            
+            // 返回成功信息，包含 highlightLine 字段以兼容旧接口
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Exclusion added successfully");
+            response.put("highlightLine", 0); // 添加 highlightLine 字段以兼容旧接口
+            return new Gson().toJson(response);
+            
+        } catch (Exception e) {
+            if (client != null) {
+                client.logMessage(new MessageParams(MessageType.Error, "DOM parser failed: " + e.getMessage()));
+            }
+            return "{\"success\":false,\"error\":\"DOM parser failed: " + e.getMessage() + "\"}";
+        }
+    }
+    
+    /**
+     * 解析 Maven 变量，获取解析后的依赖版本映射
+     * 使用 Maven Model API 解析 pom.xml 中的变量，返回 groupId:artifactId -> resolvedVersion 的映射
+     * 
+     * @param pomPath pom.xml 文件路径
+     * @return 解析后的依赖版本映射，key 为 groupId:artifactId，value 为解析后的版本
+     */
+    private Map<String, String> resolveMavenVariables(String pomPath) {
+        try {
+            // 使用 Maven Model API 解析变量，获取解析后的依赖列表
+            Model resolvedModel = getModel(pomPath);
+            Map<String, String> resolvedDependencies = new HashMap<>();
+            
+            for (org.apache.maven.model.Dependency dep : resolvedModel.getDependencies()) {
+                String key = dep.getGroupId() + ":" + dep.getArtifactId();
+                resolvedDependencies.put(key, dep.getVersion());
+            }
+            
+            if (client != null) {
+                client.logMessage(new MessageParams(MessageType.Info, "Resolved " + resolvedDependencies.size() + " dependencies with variables"));
+            }
+            
+            return resolvedDependencies;
+        } catch (Exception e) {
+            if (client != null) {
+                client.logMessage(new MessageParams(MessageType.Error, "Failed to resolve Maven variables: " + e.getMessage()));
+            }
+            return new HashMap<>();
+        }
+    }
+    
+    /**
+     * 获取元素的文本内容
+     */
+    private String getElementTextContent(Element parent, String tagName) {
+        NodeList elements = parent.getElementsByTagName(tagName);
+        if (elements.getLength() > 0) {
+            return elements.item(0).getTextContent();
+        }
+        return null;
+    }
+
+
 
     /**
      * 依赖路径信息
@@ -369,7 +590,7 @@ public class SimpleLanguageServer implements LanguageServer {
     private List<Dependency> getDirectDependencies(Model model) {
         List<Dependency> dependencies = new ArrayList<>();
         model.getDependencies().forEach(dep -> {
-            dependencies.add(new org.eclipse.aether.graph.Dependency(
+            dependencies.add(new Dependency(
                     new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
                             dep.getClassifier(), dep.getVersion()),
                     dep.getScope()));
@@ -384,7 +605,7 @@ public class SimpleLanguageServer implements LanguageServer {
         List<Dependency> dependencies = new ArrayList<>();
         if (model.getDependencyManagement() != null) {
             model.getDependencyManagement().getDependencies().forEach(dep -> {
-                dependencies.add(new org.eclipse.aether.graph.Dependency(
+                dependencies.add(new Dependency(
                         new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
                                 dep.getClassifier(), dep.getVersion()),
                         dep.getScope()));
@@ -431,6 +652,8 @@ public class SimpleLanguageServer implements LanguageServer {
 
         return result.getEffectiveModel();
     }
+
+
 
     private static CollectRequest getEffectiveCollectRequest(Artifact artifact, List<Dependency> directDependencies,
             List<Dependency> managedDependencies, List<RemoteRepository> repos) {
