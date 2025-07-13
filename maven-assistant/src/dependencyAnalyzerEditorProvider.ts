@@ -92,10 +92,19 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
      */
     private async handleContextMenu(data: any) {
         try {
-            
             const { node, pathIndex, nodeIndex, pathInfo } = data;
+
+            // 步骤1修正：根据nodeIndex动态获取父依赖GAV
+            const parentIndex = nodeIndex + 1;
+            let parent = null;
+            if (pathInfo && pathInfo.length > parentIndex) {
+                parent = pathInfo[parentIndex];
+                console.log('父依赖GAV:', parent.groupId, parent.artifactId, parent.version);
+            } else {
+                console.log('已到达依赖链顶端，父依赖为当前项目的pom.xml');
+            }
             
-            // 显示右键菜单选项
+            // 右键菜单选项逻辑保持不变
             const selected = await vscode.window.showQuickPick([
                 {
                     label: '$(file-code) 跳转到 pom.xml',
@@ -125,7 +134,6 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
             }
             
         } catch (error) {
-            console.error('处理右键菜单失败:', error);
             vscode.window.showErrorMessage(`处理右键菜单失败: ${error}`);
         }
     }
@@ -133,12 +141,14 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
     /**
      * 跳转到 pom.xml 文件
      */
+    // 异步方法，用于跳转到 pom.xml 文件中指定依赖声明的位置
     private async gotoPomXml(node: any) {
         try {
             // 查找当前工作区的 pom.xml 文件
             const pomFiles = await vscode.workspace.findFiles('**/pom.xml');
             
             if (pomFiles.length === 0) {
+                // 如果未找到 pom.xml 文件，则显示错误信息
                 vscode.window.showErrorMessage('未找到 pom.xml 文件');
                 return;
             }
@@ -157,15 +167,18 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
             
             const match = dependencyPattern.exec(text);
             if (match) {
+                // 如果找到依赖声明，则跳转到该位置
                 const position = document.positionAt(match.index);
                 editor.selection = new vscode.Selection(position, position);
                 editor.revealRange(new vscode.Range(position, position));
                 vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置`);
             } else {
+                // 如果未找到依赖声明，则显示警告信息
                 vscode.window.showWarningMessage(`未在 pom.xml 中找到 ${node.groupId}:${node.artifactId} 的声明`);
             }
             
         } catch (error) {
+            // 如果跳转失败，则显示错误信息
             console.error('跳转到 pom.xml 失败:', error);
             vscode.window.showErrorMessage(`跳转到 pom.xml 失败: ${error}`);
         }
