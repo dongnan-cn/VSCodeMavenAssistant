@@ -28,7 +28,7 @@
       :visible="menuVisible"
       :x="menuX"
       :y="menuY"
-      :items="menuItems"
+      :items="menuItemsRef"
       @select="handleMenuSelect"
       @close="menuVisible = false"
     />
@@ -53,11 +53,22 @@ const menuNode = ref<any>(null)
 const menuPathIndex = ref<number>(-1)
 const menuNodeIndex = ref<number>(-1)
 
-// 右键菜单项
-const menuItems = [
-  { label: '跳转到 pom.xml', value: 'goto-pom' },
-  { label: '排除此依赖', value: 'exclude' }
-]
+// 右键菜单项（注意：不再是常量，需根据节点动态生成）
+function getMenuItems(node: any, path: any[]): { label: string, value: string }[] {
+  // 判断是否为一级依赖（即 path 的最后一个节点）
+  const isTopLevel = path && path.length > 0 && node === path[path.length - 1]
+  // 如果是一级依赖，则不显示“排除此依赖”
+  if (isTopLevel) {
+    return [
+      { label: '跳转到 pom.xml', value: 'goto-pom' }
+    ]
+  } else {
+    return [
+      { label: '跳转到 pom.xml', value: 'goto-pom' },
+      { label: '排除此依赖', value: 'exclude' }
+    ]
+  }
+}
 
 // 右键事件处理
 function handleNodeContextMenu(pathIndex: number, nodeIndex: number, node: any, path: any[], event: MouseEvent) {
@@ -68,6 +79,8 @@ function handleNodeContextMenu(pathIndex: number, nodeIndex: number, node: any, 
   menuNode.value = { node, path }
   menuPathIndex.value = pathIndex
   menuNodeIndex.value = nodeIndex
+  // 动态设置菜单项
+  menuItemsRef.value = getMenuItems(node, path)
 }
 
 // 菜单项选择
@@ -96,6 +109,14 @@ function handleMenuSelect(action: string) {
     }
   })
 }
+
+// 右键菜单项响应式变量（替换原 menuItems 常量）
+const menuItemsRef = ref(getMenuItems(null, []))
+
+// 详细注释：
+// getMenuItems 用于判断当前右键节点是否为一级依赖，如果是则不显示“排除此依赖”菜单项。
+// handleNodeContextMenu 在弹出菜单时动态设置 menuItemsRef。
+// 这样可以确保一级依赖和当前项目直接依赖都无法被排除。
 
 // 定义选中状态的数据结构
 interface SelectedNodeInfo {
