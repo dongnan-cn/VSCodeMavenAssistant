@@ -99,8 +99,56 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
             let parent = null;
             if (pathInfo && pathInfo.length > parentIndex) {
                 parent = pathInfo[parentIndex];
-                // 有父依赖，后续实现
-                console.log('有父依赖，应该在本地仓库中查找父依赖pom.xml');
+                // 有父依赖，查找.m2仓库父依赖pom文件
+                // 1. 组装m2路径
+                const os = require('os');
+                const path = require('path');
+                const m2 = process.env.M2_REPO || path.join(os.homedir(), '.m2', 'repository');
+                const groupPath = parent.groupId.replace(/\./g, path.sep);
+                const pomPath = path.join(
+                    m2,
+                    groupPath,
+                    parent.artifactId,
+                    parent.version,
+                    `${parent.artifactId}-${parent.version}.pom`
+                );
+                const fs = require('fs');
+                if (!fs.existsSync(pomPath)) {
+                    vscode.window.showWarningMessage(`未在本地仓库找到父依赖的pom.xml: ${pomPath}`);
+                    return;
+                }
+                // 2. 打开pom文件
+                const pomUri = vscode.Uri.file(pomPath);
+                const document = await vscode.workspace.openTextDocument(pomUri);
+                const editor = await vscode.window.showTextDocument(document);
+                const text = document.getText();
+                // 3. 在父依赖pom中查找目标依赖artifactId
+                const dependencyBlockPattern = /<dependency>[\s\S]*?<\/dependency>/g;
+                let match: RegExpExecArray | null;
+                let found = false;
+                while ((match = dependencyBlockPattern.exec(text))) {
+                    const block = match[0];
+                    if (
+                        block.includes(`<groupId>${node.groupId}</groupId>`) &&
+                        block.includes(`<artifactId>${node.artifactId}</artifactId>`)
+                    ) {
+                        const artifactTag = `<artifactId>${node.artifactId}</artifactId>`;
+                        const relIndex = block.indexOf(artifactTag);
+                        if (relIndex !== -1) {
+                            const absIndex = match.index + relIndex;
+                            const position = document.positionAt(absIndex);
+                            editor.selection = new vscode.Selection(position, position);
+                            editor.revealRange(new vscode.Range(position, position));
+                            vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置（父依赖pom）`);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                if (!found) {
+                    vscode.window.showWarningMessage(`未在父依赖pom.xml中找到 ${node.groupId}:${node.artifactId} 的声明`);
+                }
+                return;
             } else {
                 // 依赖链顶端，当前项目pom.xml
                 console.log('当前为依赖链顶端，应该在当前项目pom.xml中查找依赖声明');
@@ -162,8 +210,8 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
             if (!selected) {
                 return; // 用户取消了选择
             }
-            
-            switch (selected.value) {
+            const sel = selected as { value: string };
+            switch (sel.value) {
                 case 'goto-pom':
                     await this.gotoPomXml(node);
                     break;
