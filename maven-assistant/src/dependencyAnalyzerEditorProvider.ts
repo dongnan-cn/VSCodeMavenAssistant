@@ -87,20 +87,48 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
     }
 
     /**
+     * 在指定 pom.xml 文件中查找依赖声明并跳转到 <artifactId> 标签
+     */
+    private async jumpToDependencyInPom(pomUri: vscode.Uri, groupId: string, artifactId: string): Promise<boolean> {
+        const document = await vscode.workspace.openTextDocument(pomUri);
+        const editor = await vscode.window.showTextDocument(document);
+        const text = document.getText();
+        const dependencyBlockPattern = /<dependency>[\s\S]*?<\/dependency>/g;
+        let match: RegExpExecArray | null;
+        let found = false;
+        while ((match = dependencyBlockPattern.exec(text))) {
+            const block = match[0];
+            if (
+                block.includes(`<groupId>${groupId}</groupId>`) &&
+                block.includes(`<artifactId>${artifactId}</artifactId>`)
+            ) {
+                const artifactTag = `<artifactId>${artifactId}</artifactId>`;
+                const relIndex = block.indexOf(artifactTag);
+                if (relIndex !== -1) {
+                    const absIndex = match.index + relIndex;
+                    const position = document.positionAt(absIndex);
+                    editor.selection = new vscode.Selection(position, position);
+                    editor.revealRange(new vscode.Range(position, position));
+                    found = true;
+                    break;
+                }
+            }
+        }
+        return found;
+    }
+
+    /**
      * 处理右键菜单请求
      * @param data 菜单数据，包含节点信息和路径信息
      */
     private async handleContextMenu(data: any) {
         try {
-            const { node, pathIndex, nodeIndex, pathInfo } = data;
-
-            // 步骤1修正：根据nodeIndex动态获取父依赖GAV
+            const { node, nodeIndex, pathInfo } = data;
             const parentIndex = nodeIndex + 1;
             let parent = null;
             if (pathInfo && pathInfo.length > parentIndex) {
                 parent = pathInfo[parentIndex];
                 // 有父依赖，查找.m2仓库父依赖pom文件
-                // 1. 组装m2路径
                 const os = require('os');
                 const path = require('path');
                 const m2 = process.env.M2_REPO || path.join(os.homedir(), '.m2', 'repository');
@@ -117,109 +145,30 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                     vscode.window.showWarningMessage(`未在本地仓库找到父依赖的pom.xml: ${pomPath}`);
                     return;
                 }
-                // 2. 打开pom文件
                 const pomUri = vscode.Uri.file(pomPath);
-                const document = await vscode.workspace.openTextDocument(pomUri);
-                const editor = await vscode.window.showTextDocument(document);
-                const text = document.getText();
-                // 3. 在父依赖pom中查找目标依赖artifactId
-                const dependencyBlockPattern = /<dependency>[\s\S]*?<\/dependency>/g;
-                let match: RegExpExecArray | null;
-                let found = false;
-                while ((match = dependencyBlockPattern.exec(text))) {
-                    const block = match[0];
-                    if (
-                        block.includes(`<groupId>${node.groupId}</groupId>`) &&
-                        block.includes(`<artifactId>${node.artifactId}</artifactId>`)
-                    ) {
-                        const artifactTag = `<artifactId>${node.artifactId}</artifactId>`;
-                        const relIndex = block.indexOf(artifactTag);
-                        if (relIndex !== -1) {
-                            const absIndex = match.index + relIndex;
-                            const position = document.positionAt(absIndex);
-                            editor.selection = new vscode.Selection(position, position);
-                            editor.revealRange(new vscode.Range(position, position));
-                            vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置（父依赖pom）`);
-                            found = true;
-                            break;
-                        }
-                    }
-                }
-                if (!found) {
+                const found = await this.jumpToDependencyInPom(pomUri, node.groupId, node.artifactId);
+                if (found) {
+                    vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置（父依赖pom）`);
+                } else {
                     vscode.window.showWarningMessage(`未在父依赖pom.xml中找到 ${node.groupId}:${node.artifactId} 的声明`);
                 }
                 return;
             } else {
                 // 依赖链顶端，当前项目pom.xml
-                console.log('当前为依赖链顶端，应该在当前项目pom.xml中查找依赖声明');
-                // Step: 在当前项目pom.xml中查找依赖声明
                 const pomFiles = await vscode.workspace.findFiles('pom.xml', undefined, 1);
                 if (pomFiles.length === 0) {
                     vscode.window.showErrorMessage('未找到当前项目的 pom.xml 文件');
                     return;
                 }
                 const pomUri = pomFiles[0];
-                const document = await vscode.workspace.openTextDocument(pomUri);
-                const editor = await vscode.window.showTextDocument(document);
-                const text = document.getText();
-                // 精确定位artifactId标签
-                const dependencyBlockPattern = /<dependency>[\s\S]*?<\/dependency>/g;
-                let match: RegExpExecArray | null;
-                let found = false;
-                while ((match = dependencyBlockPattern.exec(text))) {
-                    const block = match[0];
-                    if (
-                        block.includes(`<groupId>${node.groupId}</groupId>`) &&
-                        block.includes(`<artifactId>${node.artifactId}</artifactId>`)
-                    ) {
-                        const artifactTag = `<artifactId>${node.artifactId}</artifactId>`;
-                        const relIndex = block.indexOf(artifactTag);
-                        if (relIndex !== -1) {
-                            const absIndex = match.index + relIndex;
-                            const position = document.positionAt(absIndex);
-                            editor.selection = new vscode.Selection(position, position);
-                            editor.revealRange(new vscode.Range(position, position));
-                            vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置`);
-                            found = true;
-                            break;
-                        }
-                    }
-                }
-                if (!found) {
+                const found = await this.jumpToDependencyInPom(pomUri, node.groupId, node.artifactId);
+                if (found) {
+                    vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置`);
+                } else {
                     vscode.window.showWarningMessage(`未在当前项目 pom.xml 中找到 ${node.groupId}:${node.artifactId} 的声明`);
                 }
                 return;
             }
-            
-            // 右键菜单选项逻辑保持不变
-            const selected = await vscode.window.showQuickPick([
-                {
-                    label: '$(file-code) 跳转到 pom.xml',
-                    description: `查找 ${node.groupId}:${node.artifactId} 的声明`,
-                    value: 'goto-pom'
-                },
-                {
-                    label: '$(exclude) 排除此依赖',
-                    description: `从依赖树中排除 ${node.groupId}:${node.artifactId}`,
-                    value: 'exclude'
-                }
-            ], {
-                placeHolder: '选择操作...'
-            });
-            
-            if (!selected) {
-                return; // 用户取消了选择
-            }
-            const sel = selected as { value: string };
-            switch (sel.value) {
-                case 'goto-pom':
-                    await this.gotoPomXml(node);
-                    break;
-                case 'exclude':
-                    await this.excludeDependency(node);
-                    break;
-            }
-            
         } catch (error) {
             vscode.window.showErrorMessage(`处理右键菜单失败: ${error}`);
         }
