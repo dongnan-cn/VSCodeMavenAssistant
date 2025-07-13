@@ -99,9 +99,48 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
             let parent = null;
             if (pathInfo && pathInfo.length > parentIndex) {
                 parent = pathInfo[parentIndex];
-                console.log('父依赖GAV:', parent.groupId, parent.artifactId, parent.version);
+                // 有父依赖，后续实现
+                console.log('有父依赖，应该在本地仓库中查找父依赖pom.xml');
             } else {
-                console.log('已到达依赖链顶端，父依赖为当前项目的pom.xml');
+                // 依赖链顶端，当前项目pom.xml
+                console.log('当前为依赖链顶端，应该在当前项目pom.xml中查找依赖声明');
+                // Step: 在当前项目pom.xml中查找依赖声明
+                const pomFiles = await vscode.workspace.findFiles('pom.xml', undefined, 1);
+                if (pomFiles.length === 0) {
+                    vscode.window.showErrorMessage('未找到当前项目的 pom.xml 文件');
+                    return;
+                }
+                const pomUri = pomFiles[0];
+                const document = await vscode.workspace.openTextDocument(pomUri);
+                const editor = await vscode.window.showTextDocument(document);
+                const text = document.getText();
+                // 精确定位artifactId标签
+                const dependencyBlockPattern = /<dependency>[\s\S]*?<\/dependency>/g;
+                let match: RegExpExecArray | null;
+                let found = false;
+                while ((match = dependencyBlockPattern.exec(text))) {
+                    const block = match[0];
+                    if (
+                        block.includes(`<groupId>${node.groupId}</groupId>`) &&
+                        block.includes(`<artifactId>${node.artifactId}</artifactId>`)
+                    ) {
+                        const artifactTag = `<artifactId>${node.artifactId}</artifactId>`;
+                        const relIndex = block.indexOf(artifactTag);
+                        if (relIndex !== -1) {
+                            const absIndex = match.index + relIndex;
+                            const position = document.positionAt(absIndex);
+                            editor.selection = new vscode.Selection(position, position);
+                            editor.revealRange(new vscode.Range(position, position));
+                            vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置`);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                if (!found) {
+                    vscode.window.showWarningMessage(`未在当前项目 pom.xml 中找到 ${node.groupId}:${node.artifactId} 的声明`);
+                }
+                return;
             }
             
             // 右键菜单选项逻辑保持不变
