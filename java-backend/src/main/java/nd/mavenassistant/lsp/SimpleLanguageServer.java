@@ -37,6 +37,7 @@ import javax.xml.transform.stream.StreamResult;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
+import org.w3c.dom.Node;
 
 /**
  * 最基础的 LanguageServer 实现
@@ -317,6 +318,7 @@ public class SimpleLanguageServer implements LanguageServer {
             
             // 检查是否已有 exclusions 元素
             NodeList exclusionsList = targetDependencyElement.getElementsByTagName("exclusions");
+            String dependencyIndent = getIndent(targetDependencyElement);
             Element exclusionsElement;
             
             if (exclusionsList.getLength() > 0) {
@@ -328,7 +330,9 @@ public class SimpleLanguageServer implements LanguageServer {
             } else {
                 // 创建新的 exclusions 元素
                 exclusionsElement = doc.createElement("exclusions");
+                targetDependencyElement.appendChild(doc.createTextNode("  "));
                 targetDependencyElement.appendChild(exclusionsElement);
+                targetDependencyElement.appendChild(doc.createTextNode(dependencyIndent));
                 if (client != null) {
                     client.logMessage(new MessageParams(MessageType.Info, "Created new <exclusions> element"));
                 }
@@ -339,13 +343,18 @@ public class SimpleLanguageServer implements LanguageServer {
             
             Element groupIdElement = doc.createElement("groupId");
             groupIdElement.setTextContent(exclusionGroupId);
+            exclusionElement.appendChild(doc.createTextNode(dependencyIndent + "  ".repeat(3)));
             exclusionElement.appendChild(groupIdElement);
+            exclusionElement.appendChild(doc.createTextNode(dependencyIndent + "  ".repeat(3)));
             
             Element artifactIdElement = doc.createElement("artifactId");
             artifactIdElement.setTextContent(exclusionArtifactId);
             exclusionElement.appendChild(artifactIdElement);
-            
+            exclusionElement.appendChild(doc.createTextNode(dependencyIndent + "  ".repeat(2)));
+
+            exclusionsElement.appendChild(doc.createTextNode(dependencyIndent + "  ".repeat(2)));
             exclusionsElement.appendChild(exclusionElement);
+            exclusionsElement.appendChild(doc.createTextNode(dependencyIndent + "  "));
             
             if (client != null) {
                 client.logMessage(new MessageParams(MessageType.Info, "Exclusion element created successfully"));
@@ -376,7 +385,24 @@ public class SimpleLanguageServer implements LanguageServer {
             return "{\"success\":false,\"error\":\"DOM parser failed: " + e.getMessage() + "\"}";
         }
     }
-    
+
+    private static String getIndent(Element targetDependencyElement) {
+        String dynamicIndent = "\n"; // 默认4空格
+        if (targetDependencyElement != null) {
+            Node prev = targetDependencyElement.getPreviousSibling();
+            if (prev != null && prev.getNodeType() == Node.TEXT_NODE) {
+                String text = prev.getTextContent();
+                int lastNewline = text.lastIndexOf('\n');
+                if (lastNewline != -1) {
+                    dynamicIndent = text.substring(lastNewline);
+                } else {
+                    dynamicIndent = text;
+                }
+            }
+        }
+        return dynamicIndent;
+    }
+
     /**
      * 解析 Maven 变量，获取解析后的依赖版本映射
      * 使用 Maven Model API 解析 pom.xml 中的变量，返回 groupId:artifactId -> resolvedVersion 的映射
