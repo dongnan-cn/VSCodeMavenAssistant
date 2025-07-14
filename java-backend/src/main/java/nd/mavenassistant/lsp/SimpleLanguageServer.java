@@ -27,13 +27,16 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+
 import org.eclipse.aether.graph.Dependency;
+
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -46,8 +49,9 @@ import org.w3c.dom.Node;
 public class SimpleLanguageServer implements LanguageServer {
     // LanguageClient 用于与 VSCode 前端通信，推送日志等
     private LanguageClient client;
-    
-    public static record IndentRecord(String dependencyIndent, String indentUnit) {}
+
+    public static record IndentRecord(String dependencyIndent, String indentUnit) {
+    }
 
     private final List<RemoteRepository> repos = Collections.singletonList(
             new RemoteRepository.Builder(
@@ -98,12 +102,12 @@ public class SimpleLanguageServer implements LanguageServer {
         return CompletableFuture.supplyAsync(() -> {
             try (RepositorySystem system = new RepositorySystemSupplier().get();
                  CloseableSession session = new SessionBuilderSupplier(system)
-                            .get()
-                            .withLocalRepositoryBaseDirectories(
-                                    new File(System.getProperty("user.home") + "/.m2/repository").toPath())
-                            .setDependencySelector(new CustomScopeDependencySelector())
-                            .setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, ConflictResolver.Verbosity.STANDARD)
-                            .build()) {
+                         .get()
+                         .withLocalRepositoryBaseDirectories(
+                                 new File(System.getProperty("user.home") + "/.m2/repository").toPath())
+                         .setDependencySelector(new CustomScopeDependencySelector())
+                         .setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, ConflictResolver.Verbosity.STANDARD)
+                         .build()) {
                 Model model = getModel(pomPath);
                 List<Dependency> directDependencies = new ArrayList<>();
                 List<Dependency> managedDependencies = new ArrayList<>();
@@ -127,8 +131,6 @@ public class SimpleLanguageServer implements LanguageServer {
                 CollectRequest collectRequest = getEffectiveCollectRequest(artifact, directDependencies,
                         managedDependencies, repos);
                 DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
-
-
 
 
                 List<ArtifactGav> effectiveGavs = MavenClasspathFetcher.fetchGavList();
@@ -156,6 +158,7 @@ public class SimpleLanguageServer implements LanguageServer {
 
     /**
      * 获取依赖的完整路径信息，用于定位到上一级依赖的pom文件
+     *
      * @param request 包含groupId、artifactId、version等依赖信息的JSON字符串
      */
     @JsonRequest("maven/getDependencyPath")
@@ -167,45 +170,45 @@ public class SimpleLanguageServer implements LanguageServer {
                 String targetGroupId = params.get("groupId");
                 String targetArtifactId = params.get("artifactId");
                 String targetVersion = params.get("version");
-                
+
                 // 验证必要参数
                 if (targetGroupId == null || targetArtifactId == null) {
                     return "{\"success\":false,\"error\":\"缺少必要参数：groupId、artifactId\"}";
                 }
-                
+
                 // 获取当前项目的pom.xml路径
                 String pomPath = (StringUtils.isBlank(params.get("pomPath")))
                         ? new File("pom.xml").getAbsolutePath()
                         : params.get("pomPath");
-                
+
                 // 解析依赖树，找到目标依赖的完整路径
                 Model model = getModel(pomPath);
                 String coords = model.getGroupId() + ":" + model.getArtifactId() + ":" + model.getVersion();
                 Artifact artifact = new DefaultArtifact(coords);
-                
+
                 try (RepositorySystem system = new RepositorySystemSupplier().get();
                      CloseableSession session = new SessionBuilderSupplier(system)
-                            .get()
-                            .withLocalRepositoryBaseDirectories(
-                                    new File(System.getProperty("user.home") + "/.m2/repository").toPath())
-                            .setDependencySelector(new CustomScopeDependencySelector())
-                            .setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, ConflictResolver.Verbosity.STANDARD)
-                            .build()) {
-                    
-                    CollectRequest collectRequest = getEffectiveCollectRequest(artifact, 
+                             .get()
+                             .withLocalRepositoryBaseDirectories(
+                                     new File(System.getProperty("user.home") + "/.m2/repository").toPath())
+                             .setDependencySelector(new CustomScopeDependencySelector())
+                             .setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, ConflictResolver.Verbosity.STANDARD)
+                             .build()) {
+
+                    CollectRequest collectRequest = getEffectiveCollectRequest(artifact,
                             getDirectDependencies(model), getManagedDependencies(model), repos);
                     DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
-                    
+
                     // 查找目标依赖的路径
                     DependencyPathInfo pathInfo = findDependencyPath(rootNode, targetGroupId, targetArtifactId, targetVersion);
-                    
+
                     if (pathInfo != null) {
                         return new Gson().toJson(pathInfo);
                     } else {
                         return "{\"success\":false,\"error\":\"未找到依赖路径\"}";
                     }
                 }
-                
+
             } catch (Exception e) {
                 return "{\"success\":false,\"error\":\"获取依赖路径失败: " + e.getMessage() + "\"}";
             }
@@ -228,7 +231,7 @@ public class SimpleLanguageServer implements LanguageServer {
                 if (rootDep == null || targetDep == null) {
                     return "{\"success\":false,\"error\":\"缺少依赖参数\"}";
                 }
-                
+
                 // 调用新的 DOM 解析器实现（保留注释）
                 return insertExclusionWithDOM(pomPath, rootDep, targetDep);
             } catch (Exception e) {
@@ -236,7 +239,6 @@ public class SimpleLanguageServer implements LanguageServer {
             }
         });
     }
-
 
 
     /**
@@ -248,38 +250,38 @@ public class SimpleLanguageServer implements LanguageServer {
             if (client != null) {
                 client.logMessage(new MessageParams(MessageType.Info, "Start processing exclusion with DOM parser"));
             }
-            
+
             // 解析参数
             String targetGroupId = rootDep.get("groupId");
             String targetArtifactId = rootDep.get("artifactId");
             String targetVersion = rootDep.get("version");
             String exclusionGroupId = targetDep.get("groupId");
             String exclusionArtifactId = targetDep.get("artifactId");
-            
+
             if (client != null) {
                 client.logMessage(new MessageParams(MessageType.Info, "Target dependency: " + targetGroupId + ":" + targetArtifactId + ":" + targetVersion));
                 client.logMessage(new MessageParams(MessageType.Info, "Exclusion to add: " + exclusionGroupId + ":" + exclusionArtifactId));
             }
-            
+
             // 解析 Maven 变量，获取解析后的依赖版本映射
             Map<String, String> resolvedDependencies = resolveMavenVariables(pomPath);
-            
+
             // 使用 DOM 解析器读取 pom.xml
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             DocumentBuilder builder = factory.newDocumentBuilder();
             Document doc = builder.parse(new File(pomPath));
             doc.getDocumentElement().normalize();
-            
+
             // 查找目标依赖
             NodeList dependencies = doc.getElementsByTagName("dependency");
             Element targetDependencyElement = null;
-            
+
             for (int i = 0; i < dependencies.getLength(); i++) {
                 Element depElement = (Element) dependencies.item(i);
                 String groupId = getElementTextContent(depElement, "groupId");
                 String artifactId = getElementTextContent(depElement, "artifactId");
                 String version = getElementTextContent(depElement, "version");
-                
+
                 // 如果 version 包含变量，使用解析后的值
                 if (version != null && version.contains("${")) {
                     String key = groupId + ":" + artifactId;
@@ -291,17 +293,17 @@ public class SimpleLanguageServer implements LanguageServer {
                         }
                     }
                 }
-                
+
                 if (client != null) {
                     client.logMessage(new MessageParams(MessageType.Info, "Checking dependency: " + groupId + ":" + artifactId + ":" + version));
                 }
-                
+
                 boolean groupIdMatch = groupId.equals(targetGroupId);
                 boolean artifactIdMatch = artifactId.equals(targetArtifactId);
-                boolean versionMatch = 
-                    (version == null && (targetVersion == null || targetVersion.isEmpty())) ||
-                    (version != null && version.equals(targetVersion));
-                
+                boolean versionMatch =
+                        (version == null && (targetVersion == null || targetVersion.isEmpty())) ||
+                                (version != null && version.equals(targetVersion));
+
                 if (groupIdMatch && artifactIdMatch && versionMatch) {
                     targetDependencyElement = depElement;
                     if (client != null) {
@@ -310,57 +312,15 @@ public class SimpleLanguageServer implements LanguageServer {
                     break;
                 }
             }
-            
+
             if (targetDependencyElement == null) {
                 if (client != null) {
                     client.logMessage(new MessageParams(MessageType.Error, "Root dependency not found"));
                 }
                 return "{\"success\":false,\"error\":\"Root dependency not found: " + targetGroupId + ":" + targetArtifactId + "\"}";
             }
-            
-            // 检查是否已有 exclusions 元素
-            NodeList exclusionsList = targetDependencyElement.getElementsByTagName("exclusions");
-            IndentRecord dependencyIndent = getIndent(targetDependencyElement);
-            Element exclusionsElement;
-            
-            if (exclusionsList.getLength() > 0) {
-                // 已有 exclusions 元素
-                exclusionsElement = (Element) exclusionsList.item(0);
-                if (client != null) {
-                    client.logMessage(new MessageParams(MessageType.Info, "Found existing <exclusions> element"));
-                }
-            } else {
-                // 创建新的 exclusions 元素
-                exclusionsElement = doc.createElement("exclusions");
-                targetDependencyElement.appendChild(doc.createTextNode("  "));
-                targetDependencyElement.appendChild(exclusionsElement);
-                targetDependencyElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent()));
-                if (client != null) {
-                    client.logMessage(new MessageParams(MessageType.Info, "Created new <exclusions> element"));
-                }
-            }
-            
-            // 创建 exclusion 元素
-            Element exclusionElement = doc.createElement("exclusion");
-            
-            Element groupIdElement = doc.createElement("groupId");
-            groupIdElement.setTextContent(exclusionGroupId);
-            exclusionElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 3)));
-            exclusionElement.appendChild(groupIdElement);
-            exclusionElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 3)));
 
-            Element artifactIdElement = doc.createElement("artifactId");
-            artifactIdElement.setTextContent(exclusionArtifactId);
-            exclusionElement.appendChild(artifactIdElement);
-            exclusionElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 2)));
-
-            exclusionsElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 2)));
-            exclusionsElement.appendChild(exclusionElement);
-            exclusionsElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 1)));
-
-            if (client != null) {
-                client.logMessage(new MessageParams(MessageType.Info, "Exclusion element created successfully"));
-            }
+            fillExclude(exclusionGroupId, exclusionArtifactId, doc, targetDependencyElement);
 
             // 写回文件
             TransformerFactory transformerFactory = TransformerFactory.newInstance();
@@ -388,6 +348,60 @@ public class SimpleLanguageServer implements LanguageServer {
         }
     }
 
+    private void fillExclude(String exclusionGroupId, String exclusionArtifactId, Document doc,
+                             Element targetDependencyElement) {
+        // 检查是否已有 exclusions 元素
+        NodeList exclusionsList = targetDependencyElement.getElementsByTagName("exclusions");
+        IndentRecord dependencyIndent = getIndent(targetDependencyElement);
+        Element exclusionsElement;
+        boolean exclusionsExist = false;
+        if (exclusionsList.getLength() > 0) {
+            exclusionsExist = true;
+            // 已有 exclusions 元素
+            exclusionsElement = (Element) exclusionsList.item(0);
+            if (client != null) {
+                client.logMessage(new MessageParams(MessageType.Info, "Found existing <exclusions> element"));
+            }
+        } else {
+            exclusionsExist = false;
+            // 创建新的 exclusions 元素
+            exclusionsElement = doc.createElement("exclusions");
+            targetDependencyElement.appendChild(doc.createTextNode(dependencyIndent.indentUnit()));
+            targetDependencyElement.appendChild(exclusionsElement);
+            targetDependencyElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent()));
+            if (client != null) {
+                client.logMessage(new MessageParams(MessageType.Info, "Created new <exclusions> element"));
+            }
+        }
+
+        // 创建 exclusion 元素
+        Element exclusionElement = doc.createElement("exclusion");
+
+        Element groupIdElement = doc.createElement("groupId");
+        groupIdElement.setTextContent(exclusionGroupId);
+        exclusionElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 3)));
+        exclusionElement.appendChild(groupIdElement);
+        exclusionElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 3)));
+
+        Element artifactIdElement = doc.createElement("artifactId");
+        artifactIdElement.setTextContent(exclusionArtifactId);
+        exclusionElement.appendChild(artifactIdElement);
+        exclusionElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 2)));
+
+        if(!exclusionsExist){
+            exclusionsElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 2)));
+        } else {
+            exclusionsElement.appendChild(doc.createTextNode(dependencyIndent.indentUnit()));
+        }
+        exclusionsElement.appendChild(exclusionElement);
+        exclusionsElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 1)));
+
+
+        if (client != null) {
+            client.logMessage(new MessageParams(MessageType.Info, "Exclusion element created successfully"));
+        }
+    }
+
     private static String getLeveledIndent(IndentRecord dependencyIndent, int level) {
         return dependencyIndent.dependencyIndent() + dependencyIndent.indentUnit().repeat(level);
     }
@@ -395,7 +409,7 @@ public class SimpleLanguageServer implements LanguageServer {
     /**
      * 解析 Maven 变量，获取解析后的依赖版本映射
      * 使用 Maven Model API 解析 pom.xml 中的变量，返回 groupId:artifactId -> resolvedVersion 的映射
-     * 
+     *
      * @param pomPath pom.xml 文件路径
      * @return 解析后的依赖版本映射，key 为 groupId:artifactId，value 为解析后的版本
      */
@@ -432,7 +446,6 @@ public class SimpleLanguageServer implements LanguageServer {
     }
 
 
-
     /**
      * 依赖路径信息
      */
@@ -451,29 +464,29 @@ public class SimpleLanguageServer implements LanguageServer {
     /**
      * 查找依赖的完整路径
      */
-    private DependencyPathInfo findDependencyPath(DependencyNode rootNode, String targetGroupId, 
-            String targetArtifactId, String targetVersion) {
+    private DependencyPathInfo findDependencyPath(DependencyNode rootNode, String targetGroupId,
+                                                  String targetArtifactId, String targetVersion) {
         List<DependencyNode> path = new ArrayList<>();
         if (findDependencyPathRecursive(rootNode, targetGroupId, targetArtifactId, targetVersion, path)) {
             // 找到路径，获取上一级依赖的信息
             if (path.size() >= 2) {
                 DependencyNode parentNode = path.get(path.size() - 2); // 上一级依赖
                 DependencyNode targetNode = path.get(path.size() - 1); // 目标依赖
-                
+
                 DependencyPathInfo pathInfo = new DependencyPathInfo();
                 Artifact parentArtifact = parentNode.getArtifact();
                 Artifact targetArtifact = targetNode.getArtifact();
-                
+
                 // 构建上一级依赖的pom文件路径
                 String parentPomPath = buildPomPath(parentArtifact);
                 pathInfo.parentPomPath = parentPomPath;
                 pathInfo.parentGroupId = parentArtifact.getGroupId();
                 pathInfo.parentArtifactId = parentArtifact.getArtifactId();
                 pathInfo.parentVersion = parentArtifact.getVersion();
-                
+
                 // 解析pom文件，找到目标依赖的位置信息
                 try {
-                    Map<String, Object> positionInfo = parseDependencyPosition(parentPomPath, 
+                    Map<String, Object> positionInfo = parseDependencyPosition(parentPomPath,
                             targetArtifact.getGroupId(), targetArtifact.getArtifactId());
                     pathInfo.lineNumber = (Integer) positionInfo.get("lineNumber");
                     pathInfo.artifactIdStart = (Integer) positionInfo.get("artifactIdStart");
@@ -481,7 +494,7 @@ public class SimpleLanguageServer implements LanguageServer {
                 } catch (Exception e) {
                     pathInfo.error = "解析pom文件位置失败: " + e.getMessage();
                 }
-                
+
                 return pathInfo;
             }
         }
@@ -491,28 +504,28 @@ public class SimpleLanguageServer implements LanguageServer {
     /**
      * 递归查找依赖路径
      */
-    private boolean findDependencyPathRecursive(DependencyNode node, String targetGroupId, 
-            String targetArtifactId, String targetVersion, List<DependencyNode> path) {
+    private boolean findDependencyPathRecursive(DependencyNode node, String targetGroupId,
+                                                String targetArtifactId, String targetVersion, List<DependencyNode> path) {
         if (node == null) return false;
-        
+
         path.add(node);
-        
+
         // 检查当前节点是否为目标依赖
         Artifact artifact = node.getArtifact();
-        if (artifact != null && 
-            artifact.getGroupId().equals(targetGroupId) && 
-            artifact.getArtifactId().equals(targetArtifactId) &&
-            (targetVersion == null || artifact.getVersion().equals(targetVersion))) {
+        if (artifact != null &&
+                artifact.getGroupId().equals(targetGroupId) &&
+                artifact.getArtifactId().equals(targetArtifactId) &&
+                (targetVersion == null || artifact.getVersion().equals(targetVersion))) {
             return true;
         }
-        
+
         // 递归查找子节点
         for (DependencyNode child : node.getChildren()) {
             if (findDependencyPathRecursive(child, targetGroupId, targetArtifactId, targetVersion, path)) {
                 return true;
             }
         }
-        
+
         // 回溯
         path.remove(path.size() - 1);
         return false;
@@ -534,10 +547,10 @@ public class SimpleLanguageServer implements LanguageServer {
      */
     private Map<String, Object> parseDependencyPosition(String pomPath, String groupId, String artifactId) throws Exception {
         Map<String, Object> result = new HashMap<>();
-        
+
         // 读取pom文件内容
         List<String> lines = java.nio.file.Files.readAllLines(java.nio.file.Paths.get(pomPath));
-        
+
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
             // 查找dependency标签
@@ -547,40 +560,40 @@ public class SimpleLanguageServer implements LanguageServer {
                 boolean foundArtifactId = false;
                 String currentGroupId = null;
                 String currentArtifactId = null;
-                
+
                 // 向前查找groupId和artifactId
                 for (int j = i; j < lines.size(); j++) {
                     String currentLine = lines.get(j);
                     if (currentLine.trim().startsWith("</dependency>")) {
                         break;
                     }
-                    
+
                     if (currentLine.trim().startsWith("<groupId>")) {
                         currentGroupId = extractTagContent(currentLine);
                         foundGroupId = true;
                     } else if (currentLine.trim().startsWith("<artifactId>")) {
                         currentArtifactId = extractTagContent(currentLine);
                         foundArtifactId = true;
-                        
+
                         // 检查是否匹配目标依赖
-                        if (foundGroupId && foundArtifactId && 
-                            currentGroupId.equals(groupId) && currentArtifactId.equals(artifactId)) {
+                        if (foundGroupId && foundArtifactId &&
+                                currentGroupId.equals(groupId) && currentArtifactId.equals(artifactId)) {
                             // 找到目标依赖，记录位置信息
                             result.put("lineNumber", j + 1); // 行号从1开始
-                            
+
                             // 计算artifactId在行中的位置
                             int start = currentLine.indexOf("<artifactId>") + "<artifactId>".length();
                             int end = currentLine.indexOf("</artifactId>");
                             result.put("artifactIdStart", start);
                             result.put("artifactIdEnd", end);
-                            
+
                             return result;
                         }
                     }
                 }
             }
         }
-        
+
         throw new Exception("未找到目标依赖: " + groupId + ":" + artifactId);
     }
 
@@ -666,9 +679,8 @@ public class SimpleLanguageServer implements LanguageServer {
     }
 
 
-
     private static CollectRequest getEffectiveCollectRequest(Artifact artifact, List<Dependency> directDependencies,
-            List<Dependency> managedDependencies, List<RemoteRepository> repos) {
+                                                             List<Dependency> managedDependencies, List<RemoteRepository> repos) {
         CollectRequest collectRequest = new CollectRequest();
         // 直接将 effectiveModel 的 GAV 作为根 Artifact
         // collectRequest.setRoot(new Dependency(
@@ -682,9 +694,10 @@ public class SimpleLanguageServer implements LanguageServer {
 
     /**
      * 递归构建依赖树结构，并标记冲突（droppedByConflict）
-     * @param node 当前Aether依赖节点
-     * @param usedGAVSet 有效依赖GAV集合
-     * @param usedGASet 有效依赖groupId:artifactId集合
+     *
+     * @param node        当前Aether依赖节点
+     * @param usedGAVSet  有效依赖GAV集合
+     * @param usedGASet   有效依赖groupId:artifactId集合
      * @param gavScopeMap GAV到scope的映射
      * @return 树形依赖结构（Map表示）
      */
@@ -728,7 +741,7 @@ public class SimpleLanguageServer implements LanguageServer {
      * 根据所有artifact GAV字符串和实际用到的GAV对象列表，生成包含gav、scope、是否因冲突被放弃的json数组
      */
     public static String buildArtifactConflictJson(Set<String> allArtifacts, List<ArtifactGav> effectiveGavs,
-            Map<String, String> gavToScope) {
+                                                   Map<String, String> gavToScope) {
         Set<String> usedGASet = new HashSet<>();
         Set<String> usedGAVSet = new HashSet<>();
         // 建立GAV到scope的映射，便于后续查找
@@ -773,6 +786,7 @@ public class SimpleLanguageServer implements LanguageServer {
 
     /**
      * 获取<dependency>标签的缩进量和父子标签缩进量之差（单位缩进）
+     *
      * @param targetDependencyElement 依赖元素
      * @return IndentRecord对象，包含<dependency>标签的缩进和单位缩进
      */

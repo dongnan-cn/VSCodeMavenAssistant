@@ -185,22 +185,33 @@ public class SimpleLanguageServerTest {
         Path tempPom = tempDir.resolve("test-pom-multiple-versions.xml");
         Files.writeString(tempPom, pom);
 
-        // 构造请求参数，指定版本1.0
-        Map<String, Object> req = new HashMap<>();
-        req.put("pomPath", tempPom.toString());
+        // 构造请求参数，指定版本1.0，插入第一个exclusion
+        Map<String, Object> req1 = new HashMap<>();
+        req1.put("pomPath", tempPom.toString());
         Map<String, String> rootDep = new HashMap<>();
         rootDep.put("groupId", "org.example");
         rootDep.put("artifactId", "root");
         rootDep.put("version", "1.0");
-        req.put("rootDependency", rootDep);
-        Map<String, String> targetDep = new HashMap<>();
-        targetDep.put("groupId", "org.foo");
-        targetDep.put("artifactId", "bar");
-        req.put("targetDependency", targetDep);
+        req1.put("rootDependency", rootDep);
+        Map<String, String> targetDep1 = new HashMap<>();
+        targetDep1.put("groupId", "org.foo");
+        targetDep1.put("artifactId", "bar");
+        req1.put("targetDependency", targetDep1);
 
         SimpleLanguageServer server = new SimpleLanguageServer();
-        String result = server.insertExclusion(new com.google.gson.Gson().toJson(req)).get();
-        assertTrue(result.contains("success"));
+        String result1 = server.insertExclusion(new com.google.gson.Gson().toJson(req1)).get();
+        assertTrue(result1.contains("success"));
+
+        // 再插入第二个exclusion
+        Map<String, Object> req2 = new HashMap<>();
+        req2.put("pomPath", tempPom.toString());
+        req2.put("rootDependency", rootDep);
+        Map<String, String> targetDep2 = new HashMap<>();
+        targetDep2.put("groupId", "org.hello");
+        targetDep2.put("artifactId", "world");
+        req2.put("targetDependency", targetDep2);
+        String result2 = server.insertExclusion(new com.google.gson.Gson().toJson(req2)).get();
+        assertTrue(result2.contains("success"));
 
         // 检查写回后的pom内容
         String newContent = Files.readString(tempPom);
@@ -216,8 +227,11 @@ public class SimpleLanguageServerTest {
             if (depBlock.contains("<version>1.0</version>")) {
                 found1 = true;
                 assertTrue(depBlock.contains("<exclusions>"), "1.0依赖块应包含<exclusions>");
-                assertTrue(depBlock.contains("<groupId>org.foo</groupId>"));
-                assertTrue(depBlock.contains("<artifactId>bar</artifactId>"));
+                // 检查两个exclusion都存在
+                assertTrue(depBlock.contains("<groupId>org.foo</groupId>"), "应包含第一个exclusion");
+                assertTrue(depBlock.contains("<artifactId>bar</artifactId>"), "应包含第一个exclusion");
+                assertTrue(depBlock.contains("<groupId>org.hello</groupId>"), "应包含第二个exclusion");
+                assertTrue(depBlock.contains("<artifactId>world</artifactId>"), "应包含第二个exclusion");
             }
             if (depBlock.contains("<version>2.0</version>")) {
                 found2 = true;
@@ -272,5 +286,62 @@ public class SimpleLanguageServerTest {
         assertTrue(newContent.contains("<exclusions>"));
         assertTrue(newContent.contains("<groupId>org.foo</groupId>"));
         assertTrue(newContent.contains("<artifactId>bar</artifactId>"));
+    }
+
+    /**
+     * 测试插入n个exclusion
+     * @param n 要插入的exclusion数量
+     */
+    public void testInsertMultipleExclusions(int n) throws Exception {
+        // 构造一个包含单一依赖的 pom.xml 内容
+        String pom =
+                "<project>\n" +
+                "  <modelVersion>4.0.0</modelVersion>\n" +
+                "  <groupId>demo</groupId>\n" +
+                "  <artifactId>demo</artifactId>\n" +
+                "  <version>1.0</version>\n" +
+                "  <dependencies>\n" +
+                "    <dependency>\n" +
+                "      <groupId>org.example</groupId>\n" +
+                "      <artifactId>root</artifactId>\n" +
+                "      <version>1.0</version>\n" +
+                "    </dependency>\n" +
+                "  </dependencies>\n" +
+                "</project>\n";
+        // 写入临时文件
+        Path tempPom = tempDir.resolve("test-pom-multi-exclusions.xml");
+        Files.writeString(tempPom, pom);
+
+        Map<String, String> rootDep = new HashMap<>();
+        rootDep.put("groupId", "org.example");
+        rootDep.put("artifactId", "root");
+        rootDep.put("version", "1.0");
+
+        SimpleLanguageServer server = new SimpleLanguageServer();
+        for (int i = 1; i <= n; i++) {
+            Map<String, Object> req = new HashMap<>();
+            req.put("pomPath", tempPom.toString());
+            req.put("rootDependency", rootDep);
+            Map<String, String> targetDep = new HashMap<>();
+            targetDep.put("groupId", "org.foo" + i);
+            targetDep.put("artifactId", "bar" + i);
+            req.put("targetDependency", targetDep);
+            String result = server.insertExclusion(new com.google.gson.Gson().toJson(req)).get();
+            assertTrue(result.contains("success"));
+        }
+
+        // 检查写回后的pom内容
+        String newContent = Files.readString(tempPom);
+        System.out.println("写回后的pom内容：\n" + newContent);
+        // 检查所有exclusion都存在
+        for (int i = 1; i <= n; i++) {
+            assertTrue(newContent.contains("<groupId>org.foo" + i + "</groupId>"), "应包含第" + i + "个exclusion");
+            assertTrue(newContent.contains("<artifactId>bar" + i + "</artifactId>"), "应包含第" + i + "个exclusion");
+        }
+    }
+
+    @Test
+    public void testInsertMultipleExclusions5() throws Exception {
+        testInsertMultipleExclusions(5);
     }
 } 
