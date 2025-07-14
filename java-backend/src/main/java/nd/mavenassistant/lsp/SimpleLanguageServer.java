@@ -109,51 +109,46 @@ public class SimpleLanguageServer implements LanguageServer {
                          .setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, ConflictResolver.Verbosity.STANDARD)
                          .build()) {
                 Model model = getModel(pomPath);
-                List<Dependency> directDependencies = new ArrayList<>();
-                List<Dependency> managedDependencies = new ArrayList<>();
-                model.getDependencies().forEach(dep -> {
-                    directDependencies.add(new Dependency(
-                            new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
-                                    dep.getClassifier(), dep.getVersion()),
-                            dep.getScope()));
-                });
-                if (model.getDependencyManagement() != null) {
-                    model.getDependencyManagement().getDependencies().forEach(dep -> {
-                        managedDependencies.add(new Dependency(
-                                new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
-                                        dep.getClassifier(), dep.getVersion()),
-                                dep.getScope()
-                        ));
-                    });
-                }
+                List<Dependency> directDependencies = getDirectDependencies(model);
+                List<Dependency> managedDependencies = getManagedDependencies(model);
                 String coords = model.getGroupId() + ":" + model.getArtifactId() + ":" + model.getVersion();
                 Artifact artifact = new DefaultArtifact(coords);
                 CollectRequest collectRequest = getEffectiveCollectRequest(artifact, directDependencies,
                         managedDependencies, repos);
                 DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
 
-
                 List<ArtifactGav> effectiveGavs = MavenClasspathFetcher.fetchGavList();
                 Set<String> usedGAVSet = new HashSet<>();
                 Set<String> usedGASet = new HashSet<>();
                 Map<String, String> gavScopeMap = new HashMap<>();
-                for (ArtifactGav gav : effectiveGavs) {
-                    usedGAVSet.add(gav.getGroupId() + ":" + gav.getArtifactId() + ":" + gav.getVersion());
-                    usedGASet.add(gav.getGroupId() + ":" + gav.getArtifactId());
-                    if (gav.getScope() != null) {
-                        gavScopeMap.put(gav.getGroupId() + ":" + gav.getArtifactId() + ":" + gav.getVersion(), gav.getScope());
-                    }
-                }
-                // 打印所有 rootNode 的依赖以及子依赖，带缩进，便于调试
-//                printDependencyTree(rootNode, 0);
-
+                fillEffectiveGavSets(effectiveGavs, usedGAVSet, usedGASet, gavScopeMap);
                 // 构建树形结构并返回JSON
                 Map<String, Object> tree = buildDependencyTreeWithConflict(rootNode, usedGAVSet, usedGASet, gavScopeMap);
                 return new Gson().toJson(tree);
             } catch (Exception e) {
-                return "{\"error\":\"依赖解析异常: " + e.getMessage() + "\"}";
+                return errorJson("依赖解析异常: " + e.getMessage());
             }
         });
+    }
+
+    /**
+     * 填充有效依赖GAV集合和scope映射
+     */
+    private void fillEffectiveGavSets(List<ArtifactGav> effectiveGavs, Set<String> usedGAVSet, Set<String> usedGASet, Map<String, String> gavScopeMap) {
+        for (ArtifactGav gav : effectiveGavs) {
+            usedGAVSet.add(gav.getGroupId() + ":" + gav.getArtifactId() + ":" + gav.getVersion());
+            usedGASet.add(gav.getGroupId() + ":" + gav.getArtifactId());
+            if (gav.getScope() != null) {
+                gavScopeMap.put(gav.getGroupId() + ":" + gav.getArtifactId() + ":" + gav.getVersion(), gav.getScope());
+            }
+        }
+    }
+
+    /**
+     * 返回标准错误JSON
+     */
+    private String errorJson(String msg) {
+        return "{\"error\":\"" + msg + "\"}";
     }
 
     /**
