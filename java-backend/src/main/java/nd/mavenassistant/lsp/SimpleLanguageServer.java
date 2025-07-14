@@ -46,6 +46,8 @@ import org.w3c.dom.Node;
 public class SimpleLanguageServer implements LanguageServer {
     // LanguageClient 用于与 VSCode 前端通信，推送日志等
     private LanguageClient client;
+    
+    public static record IndentRecord(String dependencyIndent, String indentUnit) {}
 
     private final List<RemoteRepository> repos = Collections.singletonList(
             new RemoteRepository.Builder(
@@ -318,7 +320,7 @@ public class SimpleLanguageServer implements LanguageServer {
             
             // 检查是否已有 exclusions 元素
             NodeList exclusionsList = targetDependencyElement.getElementsByTagName("exclusions");
-            String dependencyIndent = getIndent(targetDependencyElement);
+            IndentRecord dependencyIndent = getIndent(targetDependencyElement);
             Element exclusionsElement;
             
             if (exclusionsList.getLength() > 0) {
@@ -332,7 +334,7 @@ public class SimpleLanguageServer implements LanguageServer {
                 exclusionsElement = doc.createElement("exclusions");
                 targetDependencyElement.appendChild(doc.createTextNode("  "));
                 targetDependencyElement.appendChild(exclusionsElement);
-                targetDependencyElement.appendChild(doc.createTextNode(dependencyIndent));
+                targetDependencyElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent()));
                 if (client != null) {
                     client.logMessage(new MessageParams(MessageType.Info, "Created new <exclusions> element"));
                 }
@@ -343,18 +345,18 @@ public class SimpleLanguageServer implements LanguageServer {
             
             Element groupIdElement = doc.createElement("groupId");
             groupIdElement.setTextContent(exclusionGroupId);
-            exclusionElement.appendChild(doc.createTextNode(dependencyIndent + "  ".repeat(3)));
+            exclusionElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent() + dependencyIndent.indentUnit().repeat(3)));
             exclusionElement.appendChild(groupIdElement);
-            exclusionElement.appendChild(doc.createTextNode(dependencyIndent + "  ".repeat(3)));
+            exclusionElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent() + dependencyIndent.indentUnit().repeat(3)));
             
             Element artifactIdElement = doc.createElement("artifactId");
             artifactIdElement.setTextContent(exclusionArtifactId);
             exclusionElement.appendChild(artifactIdElement);
-            exclusionElement.appendChild(doc.createTextNode(dependencyIndent + "  ".repeat(2)));
+            exclusionElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent() + dependencyIndent.indentUnit().repeat(2)));
 
-            exclusionsElement.appendChild(doc.createTextNode(dependencyIndent + "  ".repeat(2)));
+            exclusionsElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent() + dependencyIndent.indentUnit().repeat(2)));
             exclusionsElement.appendChild(exclusionElement);
-            exclusionsElement.appendChild(doc.createTextNode(dependencyIndent + "  "));
+            exclusionsElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent() + dependencyIndent.indentUnit()));
             
             if (client != null) {
                 client.logMessage(new MessageParams(MessageType.Info, "Exclusion element created successfully"));
@@ -386,23 +388,6 @@ public class SimpleLanguageServer implements LanguageServer {
         }
     }
 
-    private static String getIndent(Element targetDependencyElement) {
-        String dynamicIndent = "\n"; // 默认4空格
-        if (targetDependencyElement != null) {
-            Node prev = targetDependencyElement.getPreviousSibling();
-            if (prev != null && prev.getNodeType() == Node.TEXT_NODE) {
-                String text = prev.getTextContent();
-                int lastNewline = text.lastIndexOf('\n');
-                if (lastNewline != -1) {
-                    dynamicIndent = text.substring(lastNewline);
-                } else {
-                    dynamicIndent = text;
-                }
-            }
-        }
-        return dynamicIndent;
-    }
-
     /**
      * 解析 Maven 变量，获取解析后的依赖版本映射
      * 使用 Maven Model API 解析 pom.xml 中的变量，返回 groupId:artifactId -> resolvedVersion 的映射
@@ -415,16 +400,13 @@ public class SimpleLanguageServer implements LanguageServer {
             // 使用 Maven Model API 解析变量，获取解析后的依赖列表
             Model resolvedModel = getModel(pomPath);
             Map<String, String> resolvedDependencies = new HashMap<>();
-            
             for (org.apache.maven.model.Dependency dep : resolvedModel.getDependencies()) {
                 String key = dep.getGroupId() + ":" + dep.getArtifactId();
                 resolvedDependencies.put(key, dep.getVersion());
             }
-            
             if (client != null) {
                 client.logMessage(new MessageParams(MessageType.Info, "Resolved " + resolvedDependencies.size() + " dependencies with variables"));
             }
-            
             return resolvedDependencies;
         } catch (Exception e) {
             if (client != null) {
@@ -433,7 +415,7 @@ public class SimpleLanguageServer implements LanguageServer {
             return new HashMap<>();
         }
     }
-    
+
     /**
      * 获取元素的文本内容
      */
@@ -783,6 +765,51 @@ public class SimpleLanguageServer implements LanguageServer {
     @Override
     public void setTrace(SetTraceParams params) {
         // 这里可以根据 params.getValue() 设置日志级别，目前为空实现
+    }
+
+    /**
+     * 获取<dependency>标签的缩进量和父子标签缩进量之差（单位缩进）
+     * @param targetDependencyElement 依赖元素
+     * @return IndentRecord对象，包含<dependency>标签的缩进和单位缩进
+     */
+    private static IndentRecord getIndent(Element targetDependencyElement) {
+        String dependencyIndent = "\n";
+        String parentIndent = "\n";
+        if (targetDependencyElement != null) {
+            // 获取<dependency>标签的缩进
+            Node depPrev = targetDependencyElement.getPreviousSibling();
+            if (depPrev != null && depPrev.getNodeType() == Node.TEXT_NODE) {
+                String text = depPrev.getTextContent();
+                int lastNewline = text.lastIndexOf('\n');
+                if (lastNewline != -1) {
+                    dependencyIndent = text.substring(lastNewline);
+                } else {
+                    dependencyIndent = text;
+                }
+            }
+            // 获取父节点的缩进
+            Node parent = targetDependencyElement.getParentNode();
+            if (parent != null) {
+                Node parentPrev = parent.getPreviousSibling();
+                if (parentPrev != null && parentPrev.getNodeType() == Node.TEXT_NODE) {
+                    String text = parentPrev.getTextContent();
+                    int lastNewline = text.lastIndexOf('\n');
+                    if (lastNewline != -1) {
+                        parentIndent = text.substring(lastNewline);
+                    } else {
+                        parentIndent = text;
+                    }
+                }
+            }
+        }
+        // 计算单位缩进（父子标签缩进差值）
+        String indentUnit;
+        if (dependencyIndent.length() > parentIndent.length()) {
+            indentUnit = dependencyIndent.substring(parentIndent.length());
+        } else {
+            indentUnit = "  "; // 默认2空格
+        }
+        return new IndentRecord(dependencyIndent, indentUnit);
     }
 
     // 打印所有 rootNode 的依赖以及子依赖，带缩进，便于调试
