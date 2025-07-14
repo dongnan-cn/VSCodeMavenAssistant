@@ -19,129 +19,14 @@
     <!-- 依赖树内容 -->
     <div v-else-if="dependencyData" class="dependency-tree">
       <ul class="dep-tree">
-        <li 
-          v-for="(node, index) in dependencyData" 
+        <DependencyTreeNode
+          v-for="(node, index) in dependencyData"
           :key="index"
-          :class="{ expanded: node.expanded, collapsed: !node.expanded }"
-          :data-key="`node-${index}`"
-        >
-          <div 
-            class="dep-node-row"
-            :class="{ selected: selectedNode === node }"
-            @click="selectNode(node)"
-          >
-            <span 
-              v-if="node.hasChildren"
-              class="arrow"
-              :class="{ expanded: node.expanded, collapsed: !node.expanded }"
-              @click.stop="toggleNode(node)"
-            >
-              ▶
-            </span>
-            <span v-else class="arrow" style="visibility: hidden;">▶</span>
-            <span class="dep-label">
-              {{ node.label }}
-              <span 
-                v-if="node.status" 
-                :class="node.statusClass"
-              >
-                [{{ node.status }}]
-              </span>
-            </span>
-          </div>
-          <div v-if="node.hasChildren" class="dep-children">
-            <ul>
-              <li 
-                v-for="(child, childIndex) in node.children" 
-                :key="childIndex"
-                :class="{ expanded: child.expanded, collapsed: !child.expanded }"
-                :data-key="`node-${index}-${childIndex}`"
-              >
-                <div 
-                  class="dep-node-row"
-                  :class="{ selected: selectedNode === child }"
-                  @click="selectNode(child)"
-                >
-                  <span 
-                    v-if="child.hasChildren"
-                    class="arrow"
-                    :class="{ expanded: child.expanded, collapsed: !child.expanded }"
-                    @click.stop="toggleNode(child)"
-                  >
-                    ▶
-                  </span>
-                  <span v-else class="arrow" style="visibility: hidden;">▶</span>
-                  <span class="dep-label">
-                    {{ child.label }}
-                    <span 
-                      v-if="child.status" 
-                      :class="child.statusClass"
-                    >
-                      [{{ child.status }}]
-                    </span>
-                  </span>
-                </div>
-                <div v-if="child.hasChildren" class="dep-children">
-                  <ul>
-                    <li 
-                      v-for="(grandChild, grandChildIndex) in child.children" 
-                      :key="grandChildIndex"
-                      :class="{ expanded: grandChild.expanded, collapsed: !grandChild.expanded }"
-                      :data-key="`node-${index}-${childIndex}-${grandChildIndex}`"
-                    >
-                      <div 
-                        class="dep-node-row"
-                        :class="{ selected: selectedNode === grandChild }"
-                        @click="selectNode(grandChild)"
-                      >
-                        <span 
-                          v-if="grandChild.hasChildren"
-                          class="arrow"
-                          :class="{ expanded: grandChild.expanded, collapsed: !grandChild.expanded }"
-                          @click.stop="toggleNode(grandChild)"
-                        >
-                          ▶
-                        </span>
-                        <span v-else class="arrow" style="visibility: hidden;">▶</span>
-                        <span class="dep-label">
-                          {{ grandChild.label }}
-                          <span 
-                            v-if="grandChild.status" 
-                            :class="grandChild.statusClass"
-                          >
-                            [{{ grandChild.status }}]
-                          </span>
-                        </span>
-                      </div>
-                      <div v-if="grandChild.hasChildren" class="dep-children">
-                        <ul>
-                          <li 
-                            v-for="(greatGrandChild, greatGrandChildIndex) in grandChild.children" 
-                            :key="greatGrandChildIndex"
-                            class="dep-node-row"
-                            :class="{ selected: selectedNode === greatGrandChild }"
-                            @click="selectNode(greatGrandChild)"
-                          >
-                            <span class="arrow" style="visibility: hidden;">▶</span>
-                            <span class="dep-label">
-                              {{ greatGrandChild.label }}
-                              <span 
-                                v-if="greatGrandChild.status" 
-                                :class="greatGrandChild.statusClass"
-                              >
-                                [{{ greatGrandChild.status }}]
-                              </span>
-                            </span>
-                          </li>
-                        </ul>
-                      </div>
-                    </li>
-                  </ul>
-                </div>
-              </li>
-            </ul>
-          </div>
-        </li>
+          :node="node"
+          :dataKey="`node-${index}`"
+          :selectedNodeId="selectedNodeId"
+          @select="handleSelect"
+        />
       </ul>
     </div>
 
@@ -154,6 +39,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import DependencyTreeNode from './DependencyTreeNode.vue'
 const emit = defineEmits(['select-dependency'])
 
 // 接收vscodeApi作为prop
@@ -180,7 +66,7 @@ interface DependencyNode {
 const loading = ref(true)
 const error = ref('')
 const dependencyData = ref<DependencyNode[]>([])
-const selectedNode = ref<DependencyNode | null>(null)
+const selectedNodeId = ref<string>('')
 
 // 刷新依赖数据
 const refreshDependencies = () => {
@@ -189,10 +75,9 @@ const refreshDependencies = () => {
   props.vscodeApi.postMessage({ type: 'refresh' })
 }
 
-// 选择节点
-const selectNode = (node: DependencyNode) => {
-  selectedNode.value = node
-  // 发送选中依赖和依赖树原始数据给父组件
+// 选择节点（通过唯一id）
+function handleSelect(id: string, node: DependencyNode) {
+  selectedNodeId.value = id
   emit('select-dependency', {
     groupId: node.groupId,
     artifactId: node.artifactId,
@@ -210,27 +95,18 @@ const selectNode = (node: DependencyNode) => {
   })
 }
 
-// 切换节点展开/收起状态
-const toggleNode = (node: DependencyNode) => {
-  if (node.hasChildren) {
-    node.expanded = !node.expanded
-  }
-}
-
 // 处理依赖数据
-const processDependencyData = (data: any): DependencyNode[] => {
+function processDependencyData(data: any): DependencyNode[] {
   if (!data || !Array.isArray(data)) {
     return []
   }
-
   return data.map((node: any) => {
     const hasChildren = node.children && node.children.length > 0
     const status = node.droppedByConflict ? 'DROPPED' : 'USED'
     const statusClass = node.droppedByConflict ? 'dropped' : 'used'
-    
+    // 只显示artifactId:version，scope保留
     return {
       ...node,
-      // 只显示artifactId:version，scope保留
       label: `${node.artifactId}:${node.version}${node.scope ? ` [${node.scope}]` : ''}`,
       status,
       statusClass,
@@ -245,16 +121,13 @@ const processDependencyData = (data: any): DependencyNode[] => {
 onMounted(() => {
   window.addEventListener('message', (event) => {
     const message = event.data
-    
     switch (message.type) {
       case 'updateAnalysis':
         loading.value = false
         error.value = ''
-        
         try {
           // 解析依赖树JSON
           const dependencyTree = JSON.parse(message.data)
-          
           // 兼容根节点为 { children: [...] } 的格式
           let nodes: any[] = []
           if (dependencyTree && !dependencyTree.groupId && Array.isArray(dependencyTree.children)) {
@@ -262,20 +135,17 @@ onMounted(() => {
           } else if (dependencyTree && dependencyTree.groupId) {
             nodes = [dependencyTree]
           }
-          
           dependencyData.value = processDependencyData(nodes)
         } catch (err) {
           error.value = `解析失败: ${err}\n\n原始内容:\n${message.data}`
         }
         break
-        
       case 'error':
         loading.value = false
         error.value = message.message || '获取依赖数据失败'
         break
     }
   })
-
   // 初始化时请求数据
   refreshDependencies()
 })
