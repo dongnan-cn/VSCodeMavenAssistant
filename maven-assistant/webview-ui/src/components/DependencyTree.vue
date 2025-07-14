@@ -2,7 +2,7 @@
   <div class="dependency-tree-container">
     <!-- 工具栏 -->
     <div class="toolbar">
-      <h2 style="flex: 1;">依赖分析结果</h2>
+      <h2 style="flex: 1;">Dependency Analysis</h2>
       <button @click="refreshDependencies" class="refresh-btn">Refresh</button>
       <button @click="expandAll" class="refresh-btn">Expand All</button>
       <button @click="collapseAll" class="refresh-btn">Collapse All</button>
