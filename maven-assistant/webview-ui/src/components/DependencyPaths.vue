@@ -9,36 +9,20 @@
 
       <div v-if="paths.length === 0" class="no-paths">未找到任何路径</div>
       <div v-for="(path, pathIdx) in paths" :key="pathIdx" class="path-block">
-        <template v-for="(node, nodeIdx) in path">
-          <div 
-            v-if="nodeIdx === 0 || isExpanded(pathIdx, nodeIdx - 1)" 
-            :key="nodeIdx"
-            :style="{ paddingLeft: nodeIdx * 28 + 'px' }" 
-            :class="['dep-path-node', { 'selected': isNodeSelected(pathIdx, nodeIdx) }]"
-            @click="handleNodeClick(pathIdx, nodeIdx, node, path)"
-            @contextmenu="handleNodeContextMenu(pathIdx, nodeIdx, node, path, $event)"
-          >
-            <span
-              v-if="!isLeaf(path, nodeIdx)"
-              class="arrow"
-              :class="{ expanded: isExpanded(pathIdx, nodeIdx), collapsed: !isExpanded(pathIdx, nodeIdx) }"
-              @click.stop="toggleExpand(pathIdx, nodeIdx)"
-            >
-              ▶
-            </span>
-            <span v-else class="arrow" style="visibility: hidden;">▶</span>
-            <span :class="['dep-label', node.droppedByConflict ? 'dropped' : '', nodeIdx === 0 ? 'target' : '']">
-              <!-- 优化显示：GA相同只显示version，否则显示artifactId:version，scope保留 -->
-              <template v-if="isSameGA(node, props.selectedDependency)">
-                {{ node.version }}
-              </template>
-              <template v-else>
-                {{ node.artifactId }}:{{ node.version }}
-              </template>
-              <span v-if="node.scope"> [{{ node.scope }}]</span>
-            </span>
-          </div>
-        </template>
+        <DependencyPathNode
+          v-if="path.length > 0"
+          :node="path[0]"
+          :path="path"
+          :pathIdx="pathIdx"
+          :nodeIdx="0"
+          :expandState="expandState"
+          :selectedNodeInfo="selectedNodeInfo"
+          :selectedDependency="props.selectedDependency"
+          :menuItemsRef="menuItemsRef"
+          :vscodeApi="props.vscodeApi"
+          @node-click="handleNodeClick"
+          @node-contextmenu="handleNodeContextMenu"
+        />
       </div>
     </div>
     <!-- 右键菜单组件 -->
@@ -56,6 +40,7 @@
 <script setup lang="ts">
 import { watch, ref } from 'vue'
 import ContextMenu from './ContextMenu.vue'
+import DependencyPathNode from './DependencyPathNode.vue'
 
 const props = defineProps({
   dependencyTree: { type: Array, default: () => [] },
@@ -65,19 +50,6 @@ const props = defineProps({
 
 // 展开状态：记录每条路径每个节点的展开状态
 const expandState = ref<{ [key: string]: boolean }>({})
-function getExpandKey(pathIdx: number, nodeIdx: number) {
-  return `${pathIdx}-${nodeIdx}`
-}
-function isExpanded(pathIdx: number, nodeIdx: number) {
-  return expandState.value[getExpandKey(pathIdx, nodeIdx)] !== false // 默认展开
-}
-function toggleExpand(pathIdx: number, nodeIdx: number) {
-  const key = getExpandKey(pathIdx, nodeIdx)
-  expandState.value[key] = !isExpanded(pathIdx, nodeIdx)
-}
-function isLeaf(path: any[], nodeIdx: number) {
-  return nodeIdx === path.length - 1
-}
 
 // 右键菜单状态
 const menuVisible = ref(false)
@@ -147,21 +119,9 @@ function handleMenuSelect(action: string) {
 // 右键菜单项响应式变量（替换原 menuItems 常量）
 const menuItemsRef = ref(getMenuItems(null, []))
 
-// 详细注释：
-// getMenuItems 用于判断当前右键节点是否为一级依赖，如果是则不显示“排除此依赖”菜单项。
-// handleNodeContextMenu 在弹出菜单时动态设置 menuItemsRef。
-// 这样可以确保一级依赖和当前项目直接依赖都无法被排除。
-
-// 定义选中状态的数据结构
-interface SelectedNodeInfo {
-  pathIndex: number
-  nodeIndex: number
-  dependency: any // 当前选中的依赖节点
-  topLevelNode: any // 所在依赖树的最高节点（非当前项目）
-}
 
 // 当前选中的节点信息
-const selectedNodeInfo = ref<SelectedNodeInfo | null>(null)
+const selectedNodeInfo = ref<Record<string, any>>({})
 
 // 路径查找算法：递归遍历所有路径，收集所有到目标依赖（同groupId+artifactId）的路径
 function findAllPaths(tree: any[], target: any): any[][] {
@@ -185,12 +145,6 @@ function findAllPaths(tree: any[], target: any): any[][] {
 }
 
 const paths = ref<any[][]>([])
-
-// 判断节点是否被选中
-function isNodeSelected(pathIndex: number, nodeIndex: number): boolean {
-  if (!selectedNodeInfo.value) return false
-  return selectedNodeInfo.value.pathIndex === pathIndex && selectedNodeInfo.value.nodeIndex === nodeIndex
-}
 
 // 处理节点点击事件
 function handleNodeClick(pathIndex: number, nodeIndex: number, node: any, path: any[]) {
@@ -220,12 +174,6 @@ function handleNodeClick(pathIndex: number, nodeIndex: number, node: any, path: 
   // emit('nodeSelected', selectedNodeInfo.value)
 }
 
-// 判断GA是否相同
-function isSameGA(node: any, selected: any): boolean {
-  if (!node || !selected) return false
-  return node.groupId === selected.groupId && node.artifactId === selected.artifactId
-}
-
 
 watch(
   () => [props.dependencyTree, props.selectedDependency],
@@ -233,10 +181,10 @@ watch(
     if (tree && dep) {
       paths.value = findAllPaths(tree as any[], dep)
       // 当依赖树或选中依赖改变时，清空右侧选中状态
-      selectedNodeInfo.value = null
+      selectedNodeInfo.value = {}
     } else {
       paths.value = []
-      selectedNodeInfo.value = null
+      selectedNodeInfo.value = {}
     }
   },
   { immediate: true, deep: true }
