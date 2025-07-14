@@ -345,47 +345,51 @@ public class SimpleLanguageServer implements LanguageServer {
             
             Element groupIdElement = doc.createElement("groupId");
             groupIdElement.setTextContent(exclusionGroupId);
-            exclusionElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent() + dependencyIndent.indentUnit().repeat(3)));
+            exclusionElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 3)));
             exclusionElement.appendChild(groupIdElement);
-            exclusionElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent() + dependencyIndent.indentUnit().repeat(3)));
-            
+            exclusionElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 3)));
+
             Element artifactIdElement = doc.createElement("artifactId");
             artifactIdElement.setTextContent(exclusionArtifactId);
             exclusionElement.appendChild(artifactIdElement);
-            exclusionElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent() + dependencyIndent.indentUnit().repeat(2)));
+            exclusionElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 2)));
 
-            exclusionsElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent() + dependencyIndent.indentUnit().repeat(2)));
+            exclusionsElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 2)));
             exclusionsElement.appendChild(exclusionElement);
-            exclusionsElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent() + dependencyIndent.indentUnit()));
-            
+            exclusionsElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 1)));
+
             if (client != null) {
                 client.logMessage(new MessageParams(MessageType.Info, "Exclusion element created successfully"));
             }
-            
+
             // 写回文件
             TransformerFactory transformerFactory = TransformerFactory.newInstance();
             Transformer transformer = transformerFactory.newTransformer();
             DOMSource source = new DOMSource(doc);
             StreamResult result = new StreamResult(new File(pomPath));
             transformer.transform(source, result);
-            
+
             if (client != null) {
                 client.logMessage(new MessageParams(MessageType.Info, "File written successfully"));
             }
-            
+
             // 返回成功信息，包含 highlightLine 字段以兼容旧接口
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Exclusion added successfully");
             response.put("highlightLine", 0); // 添加 highlightLine 字段以兼容旧接口
             return new Gson().toJson(response);
-            
+
         } catch (Exception e) {
             if (client != null) {
                 client.logMessage(new MessageParams(MessageType.Error, "DOM parser failed: " + e.getMessage()));
             }
             return "{\"success\":false,\"error\":\"DOM parser failed: " + e.getMessage() + "\"}";
         }
+    }
+
+    private static String getLeveledIndent(IndentRecord dependencyIndent, int level) {
+        return dependencyIndent.dependencyIndent() + dependencyIndent.indentUnit().repeat(level);
     }
 
     /**
