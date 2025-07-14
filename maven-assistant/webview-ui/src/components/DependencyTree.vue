@@ -3,7 +3,9 @@
     <!-- 工具栏 -->
     <div class="toolbar">
       <h2 style="flex: 1;">依赖分析结果</h2>
-      <button @click="refreshDependencies" class="refresh-btn">刷新</button>
+      <button @click="refreshDependencies" class="refresh-btn">Refresh</button>
+      <button @click="expandAll" class="refresh-btn">Expand All</button>
+      <button @click="collapseAll" class="refresh-btn">Collapse All</button>
     </div>
 
     <!-- 加载状态 -->
@@ -115,6 +117,23 @@ function processDependencyData(data: any): DependencyNode[] {
       children: hasChildren ? processDependencyData(node.children) : undefined
     }
   })
+}
+
+function setAllExpanded(nodes: DependencyNode[], expanded: boolean) {
+  nodes.forEach(node => {
+    node.expanded = expanded
+    if (node.children && node.children.length > 0) {
+      setAllExpanded(node.children, expanded)
+    }
+  })
+}
+
+function expandAll() {
+  setAllExpanded(dependencyData.value, true)
+}
+
+function collapseAll() {
+  setAllExpanded(dependencyData.value, false)
 }
 
 // 监听来自扩展端的消息

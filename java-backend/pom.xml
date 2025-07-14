@@ -40,8 +40,8 @@
             <version>${maven.resolver.version}</version>
             <exclusions>
                 <exclusion>
-                    <artifactId>maven-resolver-api</artifactId>
                     <groupId>org.apache.maven.resolver</groupId>
+                    <artifactId>maven-resolver-impl</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
