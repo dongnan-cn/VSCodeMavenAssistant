@@ -8,6 +8,7 @@ java-backend/target/
 vscode-extension/node_modules/
 vscode-extension/dist/
 maven-assistant/out/
+maven-assistant/server/
 maven-assistant/node_modules/
 # 忽略日志和系统文件
 *.log

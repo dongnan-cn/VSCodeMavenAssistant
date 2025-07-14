@@ -9,25 +9,36 @@
 
       <div v-if="paths.length === 0" class="no-paths">未找到任何路径</div>
       <div v-for="(path, pathIdx) in paths" :key="pathIdx" class="path-block">
-        <div 
-          v-for="(node, nodeIdx) in path" 
-          :key="nodeIdx" 
-          :style="{ paddingLeft: nodeIdx * 28 + 'px' }" 
-          :class="['dep-path-node', { 'selected': isNodeSelected(pathIdx, nodeIdx) }]"
-          @click="handleNodeClick(pathIdx, nodeIdx, node, path)"
-          @contextmenu="handleNodeContextMenu(pathIdx, nodeIdx, node, path, $event)"
-        >
-          <span :class="['dep-label', node.droppedByConflict ? 'dropped' : '', nodeIdx === 0 ? 'target' : '']">
-            <!-- 优化显示：GA相同只显示version，否则显示artifactId:version，scope保留 -->
-            <template v-if="isSameGA(node, props.selectedDependency)">
-              {{ node.version }}
-            </template>
-            <template v-else>
-              {{ node.artifactId }}:{{ node.version }}
-            </template>
-            <span v-if="node.scope"> [{{ node.scope }}]</span>
-          </span>
-        </div>
+        <template v-for="(node, nodeIdx) in path">
+          <div 
+            v-if="nodeIdx === 0 || isExpanded(pathIdx, nodeIdx - 1)" 
+            :key="nodeIdx"
+            :style="{ paddingLeft: nodeIdx * 28 + 'px' }" 
+            :class="['dep-path-node', { 'selected': isNodeSelected(pathIdx, nodeIdx) }]"
+            @click="handleNodeClick(pathIdx, nodeIdx, node, path)"
+            @contextmenu="handleNodeContextMenu(pathIdx, nodeIdx, node, path, $event)"
+          >
+            <span
+              v-if="!isLeaf(path, nodeIdx)"
+              class="arrow"
+              :class="{ expanded: isExpanded(pathIdx, nodeIdx), collapsed: !isExpanded(pathIdx, nodeIdx) }"
+              @click.stop="toggleExpand(pathIdx, nodeIdx)"
+            >
+              ▶
+            </span>
+            <span v-else class="arrow" style="visibility: hidden;">▶</span>
+            <span :class="['dep-label', node.droppedByConflict ? 'dropped' : '', nodeIdx === 0 ? 'target' : '']">
+              <!-- 优化显示：GA相同只显示version，否则显示artifactId:version，scope保留 -->
+              <template v-if="isSameGA(node, props.selectedDependency)">
+                {{ node.version }}
+              </template>
+              <template v-else>
+                {{ node.artifactId }}:{{ node.version }}
+              </template>
+              <span v-if="node.scope"> [{{ node.scope }}]</span>
+            </span>
+          </div>
+        </template>
       </div>
     </div>
     <!-- 右键菜单组件 -->
@@ -51,6 +62,22 @@ const props = defineProps({
   selectedDependency: { type: Object, default: null },
   vscodeApi: { type: Object, required: true }
 })
+
+// 展开状态：记录每条路径每个节点的展开状态
+const expandState = ref<{ [key: string]: boolean }>({})
+function getExpandKey(pathIdx: number, nodeIdx: number) {
+  return `${pathIdx}-${nodeIdx}`
+}
+function isExpanded(pathIdx: number, nodeIdx: number) {
+  return expandState.value[getExpandKey(pathIdx, nodeIdx)] !== false // 默认展开
+}
+function toggleExpand(pathIdx: number, nodeIdx: number) {
+  const key = getExpandKey(pathIdx, nodeIdx)
+  expandState.value[key] = !isExpanded(pathIdx, nodeIdx)
+}
+function isLeaf(path: any[], nodeIdx: number) {
+  return nodeIdx === path.length - 1
+}
 
 // 右键菜单状态
 const menuVisible = ref(false)
@@ -273,5 +300,25 @@ watch(
 .dep-label.dropped {
   color: var(--vscode-errorForeground);
   font-weight: bold;
+}
+.arrow {
+  display: inline-block;
+  width: 1.2em;
+  font-size: 1.1em;
+  color: var(--vscode-foreground);
+  margin-right: 6px;
+  vertical-align: middle;
+  transition: transform 0.2s, color 0.2s;
+  cursor: pointer;
+  user-select: none;
+}
+.arrow.collapsed {
+  transform: rotate(0deg);
+}
+.arrow.expanded {
+  transform: rotate(90deg);
+}
+.arrow:hover {
+  color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
 }
 </style> 
