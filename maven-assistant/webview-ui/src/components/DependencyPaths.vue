@@ -18,7 +18,14 @@
           @contextmenu="handleNodeContextMenu(pathIdx, nodeIdx, node, path, $event)"
         >
           <span :class="['dep-label', node.droppedByConflict ? 'dropped' : '', nodeIdx === 0 ? 'target' : '']">
-            {{ node.groupId }}:{{ node.artifactId }}:{{ node.version }} <span v-if="node.scope">[{{ node.scope }}]</span>
+            <!-- 优化显示：GA相同只显示version，否则显示artifactId:version，scope保留 -->
+            <template v-if="isSameGA(node, props.selectedDependency)">
+              {{ node.version }}
+            </template>
+            <template v-else>
+              {{ node.artifactId }}:{{ node.version }}
+            </template>
+            <span v-if="node.scope"> [{{ node.scope }}]</span>
           </span>
         </div>
       </div>
@@ -186,6 +193,11 @@ function handleNodeClick(pathIndex: number, nodeIndex: number, node: any, path: 
   // emit('nodeSelected', selectedNodeInfo.value)
 }
 
+// 判断GA是否相同
+function isSameGA(node: any, selected: any): boolean {
+  if (!node || !selected) return false
+  return node.groupId === selected.groupId && node.artifactId === selected.artifactId
+}
 
 
 watch(
