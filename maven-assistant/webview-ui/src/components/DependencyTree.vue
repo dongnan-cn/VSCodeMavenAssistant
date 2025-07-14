@@ -36,7 +36,7 @@
               :class="{ expanded: node.expanded, collapsed: !node.expanded }"
               @click.stop="toggleNode(node)"
             >
-              {{ node.expanded ? '▼' : '▶' }}
+              ▶
             </span>
             <span v-else class="arrow" style="visibility: hidden;">▶</span>
             <span class="dep-label">
@@ -68,7 +68,7 @@
                     :class="{ expanded: child.expanded, collapsed: !child.expanded }"
                     @click.stop="toggleNode(child)"
                   >
-                    {{ child.expanded ? '▼' : '▶' }}
+                    ▶
                   </span>
                   <span v-else class="arrow" style="visibility: hidden;">▶</span>
                   <span class="dep-label">
@@ -100,7 +100,7 @@
                           :class="{ expanded: grandChild.expanded, collapsed: !grandChild.expanded }"
                           @click.stop="toggleNode(grandChild)"
                         >
-                          {{ grandChild.expanded ? '▼' : '▶' }}
+                          ▶
                         </span>
                         <span v-else class="arrow" style="visibility: hidden;">▶</span>
                         <span class="dep-label">
@@ -230,7 +230,8 @@ const processDependencyData = (data: any): DependencyNode[] => {
     
     return {
       ...node,
-      label: `${node.groupId}:${node.artifactId}:${node.version}${node.scope ? ` [${node.scope}]` : ''}`,
+      // 只显示artifactId:version，scope保留
+      label: `${node.artifactId}:${node.version}${node.scope ? ` [${node.scope}]` : ''}`,
       status,
       statusClass,
       hasChildren,
@@ -291,6 +292,8 @@ onMounted(() => {
   width: 100%;
   overflow-y: auto;
   box-sizing: border-box;
+  padding-left: 3%;
+  text-align: left; /* 内容整体靠左 */
 }
 
 .toolbar {
@@ -365,20 +368,23 @@ onMounted(() => {
 
 .arrow {
   display: inline-block;
-  width: 1em;
+  width: 1.2em; /* 增大宽度，保证对齐 */
+  font-size: 1.1em; /* 加大三角图标字体 */
+  color: var(--vscode-foreground); /* 适配主题色 */
+  margin-right: 6px; /* 图标与依赖名间距 */
+  vertical-align: middle;
+  transition: transform 0.2s, color 0.2s;
   cursor: pointer;
   user-select: none;
-  font-size: 12px;
-  margin-right: 2px;
-  transition: transform 0.2s;
 }
-
 .arrow.collapsed {
-  transform: rotate(0deg);
+  transform: rotate(0deg); /* 闭合时向右 */
 }
-
 .arrow.expanded {
-  transform: rotate(90deg);
+  transform: rotate(90deg); /* 展开时向下 */
+}
+.arrow:hover {
+  color: var(--vscode-list-hoverForeground, var(--vscode-foreground)); /* 悬停时高亮 */
 }
 
 .dep-label {

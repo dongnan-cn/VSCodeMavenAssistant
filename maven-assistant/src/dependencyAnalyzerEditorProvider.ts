@@ -123,52 +123,95 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
      */
     private async handleContextMenu(data: any) {
         try {
-            const { node, nodeIndex, pathInfo } = data;
-            const parentIndex = nodeIndex + 1;
-            let parent = null;
-            if (pathInfo && pathInfo.length > parentIndex) {
-                parent = pathInfo[parentIndex];
-                // 有父依赖，查找.m2仓库父依赖pom文件
-                const os = require('os');
-                const path = require('path');
-                const m2 = process.env.M2_REPO || path.join(os.homedir(), '.m2', 'repository');
-                const groupPath = parent.groupId.replace(/\./g, path.sep);
-                const pomPath = path.join(
-                    m2,
-                    groupPath,
-                    parent.artifactId,
-                    parent.version,
-                    `${parent.artifactId}-${parent.version}.pom`
-                );
-                const fs = require('fs');
-                if (!fs.existsSync(pomPath)) {
-                    vscode.window.showWarningMessage(`未在本地仓库找到父依赖的pom.xml: ${pomPath}`);
-                    return;
-                }
-                const pomUri = vscode.Uri.file(pomPath);
-                const found = await this.jumpToDependencyInPom(pomUri, node.groupId, node.artifactId);
-                if (found) {
-                    vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置（父依赖pom）`);
-                } else {
-                    vscode.window.showWarningMessage(`未在父依赖pom.xml中找到 ${node.groupId}:${node.artifactId} 的声明`);
-                }
-                return;
-            } else {
-                // 依赖链顶端，当前项目pom.xml
+            const { node, nodeIndex, pathInfo, action } = data;
+            if (action === 'exclude') {
+                // 1. 获取根依赖（pathInfo 最后一个节点）和目标依赖（node）
+                const root = pathInfo[pathInfo.length - 1];
+                const target = node;
+                // 2. 构造参数，调用后端插入exclusion
                 const pomFiles = await vscode.workspace.findFiles('pom.xml', undefined, 1);
                 if (pomFiles.length === 0) {
                     vscode.window.showErrorMessage('未找到当前项目的 pom.xml 文件');
                     return;
                 }
-                const pomUri = pomFiles[0];
-                const found = await this.jumpToDependencyInPom(pomUri, node.groupId, node.artifactId);
-                if (found) {
-                    vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置`);
+                const params = {
+                    pomPath: pomFiles[0].fsPath,
+                    rootDependency: {
+                        groupId: root.groupId,
+                        artifactId: root.artifactId,
+                        version: root.version,
+                        scope: root.scope
+                    },
+                    targetDependency: {
+                        groupId: target.groupId,
+                        artifactId: target.artifactId
+                    }
+                };
+                const result = await this.lspClient.insertExclusion(params);
+                console.log('传输的params:', params); 
+                console.log('insertExclusion result:', result); 
+                if (result && result.success) {
+                    // 高亮新加的 exclusion 行
+                    const document = await vscode.workspace.openTextDocument(pomFiles[0]);
+                    const editor = await vscode.window.showTextDocument(document);
+                    const line = (result.highlightLine ? result.highlightLine : 1) - 1;
+                    const pos = new vscode.Position(line, 0);
+                    editor.selection = new vscode.Selection(pos, pos);
+                    editor.revealRange(new vscode.Range(pos, pos));
+                    vscode.window.showInformationMessage(result.message || '已成功插入 exclusion');
                 } else {
-                    vscode.window.showWarningMessage(`未在当前项目 pom.xml 中找到 ${node.groupId}:${node.artifactId} 的声明`);
+                    vscode.window.showErrorMessage(result && result.error ? result.error : '插入 exclusion 失败');
                 }
                 return;
+            } else if (action === 'goto-pom') {
+                // 跳转到 pom.xml 逻辑（原有逻辑）
+                const parentIndex = nodeIndex + 1;
+                let parent = null;
+                if (pathInfo && pathInfo.length > parentIndex) {
+                    parent = pathInfo[parentIndex];
+                    // 有父依赖，查找.m2仓库父依赖pom文件
+                    const os = require('os');
+                    const path = require('path');
+                    const m2 = process.env.M2_REPO || path.join(os.homedir(), '.m2', 'repository');
+                    const groupPath = parent.groupId.replace(/\./g, path.sep);
+                    const pomPath = path.join(
+                        m2,
+                        groupPath,
+                        parent.artifactId,
+                        parent.version,
+                        `${parent.artifactId}-${parent.version}.pom`
+                    );
+                    const fs = require('fs');
+                    if (!fs.existsSync(pomPath)) {
+                        vscode.window.showWarningMessage(`未在本地仓库找到父依赖的pom.xml: ${pomPath}`);
+                        return;
+                    }
+                    const pomUri = vscode.Uri.file(pomPath);
+                    const found = await this.jumpToDependencyInPom(pomUri, node.groupId, node.artifactId);
+                    if (found) {
+                        vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置（父依赖pom）`);
+                    } else {
+                        vscode.window.showWarningMessage(`未在父依赖pom.xml中找到 ${node.groupId}:${node.artifactId} 的声明`);
+                    }
+                    return;
+                } else {
+                    // 依赖链顶端，当前项目pom.xml
+                    const pomFiles = await vscode.workspace.findFiles('pom.xml', undefined, 1);
+                    if (pomFiles.length === 0) {
+                        vscode.window.showErrorMessage('未找到当前项目的 pom.xml 文件');
+                        return;
+                    }
+                    const pomUri = pomFiles[0];
+                    const found = await this.jumpToDependencyInPom(pomUri, node.groupId, node.artifactId);
+                    if (found) {
+                        vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置`);
+                    } else {
+                        vscode.window.showWarningMessage(`未在当前项目 pom.xml 中找到 ${node.groupId}:${node.artifactId} 的声明`);
+                    }
+                    return;
+                }
             }
+            // 其他 action 或默认逻辑可在此扩展
         } catch (error) {
             vscode.window.showErrorMessage(`处理右键菜单失败: ${error}`);
         }

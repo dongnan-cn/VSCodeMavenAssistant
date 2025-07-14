@@ -247,6 +247,22 @@ export class LspClient {
 	}
 
 	/**
+	 * 插入依赖排除（exclusion）
+	 */
+	async insertExclusion(params: any): Promise<any> {
+		try {
+			if (!this.client) {
+				throw new Error('LSP客户端未启动');
+			}
+			const result = await this.client.sendRequest('maven/insertExclusion', JSON.stringify(params));
+			return result;
+		} catch (error) {
+			console.error('插入exclusion失败:', error);
+			return { success: false, error: String(error) };
+		}
+	}
+
+	/**
 	 * 检查LSP客户端是否已连接
 	 */
 	isConnected(): boolean {
