@@ -161,26 +161,16 @@ public class SimpleLanguageServer implements LanguageServer {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 // 解析请求参数
-                Map<String, String> params = new Gson().fromJson(request, Map.class);
+                Map<String, String> params = parseDependencyPathParams(request);
                 String targetGroupId = params.get("groupId");
                 String targetArtifactId = params.get("artifactId");
                 String targetVersion = params.get("version");
-
-                // 验证必要参数
-                if (targetGroupId == null || targetArtifactId == null) {
+                if (!validateDependencyPathParams(targetGroupId, targetArtifactId)) {
                     return "{\"success\":false,\"error\":\"缺少必要参数：groupId、artifactId\"}";
                 }
-
-                // 获取当前项目的pom.xml路径
-                String pomPath = (StringUtils.isBlank(params.get("pomPath")))
-                        ? new File("pom.xml").getAbsolutePath()
-                        : params.get("pomPath");
-
-                // 解析依赖树，找到目标依赖的完整路径
+                String pomPath = getPomPathFromParams(params);
                 Model model = getModel(pomPath);
-                String coords = model.getGroupId() + ":" + model.getArtifactId() + ":" + model.getVersion();
-                Artifact artifact = new DefaultArtifact(coords);
-
+                Artifact artifact = getArtifactFromModel(model);
                 try (RepositorySystem system = new RepositorySystemSupplier().get();
                      CloseableSession session = new SessionBuilderSupplier(system)
                              .get()
@@ -189,25 +179,51 @@ public class SimpleLanguageServer implements LanguageServer {
                              .setDependencySelector(new CustomScopeDependencySelector())
                              .setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, ConflictResolver.Verbosity.STANDARD)
                              .build()) {
-
                     CollectRequest collectRequest = getEffectiveCollectRequest(artifact,
                             getDirectDependencies(model), getManagedDependencies(model), repos);
                     DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
-
-                    // 查找目标依赖的路径
                     DependencyPathInfo pathInfo = findDependencyPath(rootNode, targetGroupId, targetArtifactId, targetVersion);
-
                     if (pathInfo != null) {
                         return new Gson().toJson(pathInfo);
                     } else {
                         return "{\"success\":false,\"error\":\"未找到依赖路径\"}";
                     }
                 }
-
             } catch (Exception e) {
                 return "{\"success\":false,\"error\":\"获取依赖路径失败: " + e.getMessage() + "\"}";
             }
         });
+    }
+
+    /**
+     * 解析依赖路径请求参数
+     */
+    private Map<String, String> parseDependencyPathParams(String request) {
+        return new Gson().fromJson(request, Map.class);
+    }
+
+    /**
+     * 校验依赖路径请求参数
+     */
+    private boolean validateDependencyPathParams(String groupId, String artifactId) {
+        return groupId != null && artifactId != null;
+    }
+
+    /**
+     * 从参数中获取pom.xml路径
+     */
+    private String getPomPathFromParams(Map<String, String> params) {
+        return (StringUtils.isBlank(params.get("pomPath")))
+                ? new File("pom.xml").getAbsolutePath()
+                : params.get("pomPath");
+    }
+
+    /**
+     * 从Model获取Artifact
+     */
+    private Artifact getArtifactFromModel(Model model) {
+        String coords = model.getGroupId() + ":" + model.getArtifactId() + ":" + model.getVersion();
+        return new DefaultArtifact(coords);
     }
 
     /**
