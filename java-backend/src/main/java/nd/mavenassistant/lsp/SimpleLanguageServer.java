@@ -331,7 +331,14 @@ public class SimpleLanguageServer implements LanguageServer {
                 return "{\"success\":false,\"error\":\"Root dependency not found: " + targetGroupId + ":" + targetArtifactId + "\"}";
             }
 
-            fillExclude(exclusionGroupId, exclusionArtifactId, doc, targetDependencyElement);
+            // 将检查和插入逻辑全部交给fillExclude
+            boolean inserted = fillExclude(exclusionGroupId, exclusionArtifactId, doc, targetDependencyElement);
+            if (!inserted) {
+                if (client != null) {
+                    client.logMessage(new MessageParams(MessageType.Info, "Exclusion already exists: " + exclusionGroupId + ":" + exclusionArtifactId));
+                }
+                return buildExclusionResponse(true, "Exclusion already exists");
+            }
 
             // 写回文件
             TransformerFactory transformerFactory = TransformerFactory.newInstance();
@@ -344,12 +351,7 @@ public class SimpleLanguageServer implements LanguageServer {
                 client.logMessage(new MessageParams(MessageType.Info, "File written successfully"));
             }
 
-            // 返回成功信息，包含 highlightLine 字段以兼容旧接口
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Exclusion added successfully");
-            response.put("highlightLine", 0); // 添加 highlightLine 字段以兼容旧接口
-            return new Gson().toJson(response);
+            return buildExclusionResponse(true, "Exclusion added successfully");
 
         } catch (Exception e) {
             if (client != null) {
@@ -359,7 +361,10 @@ public class SimpleLanguageServer implements LanguageServer {
         }
     }
 
-    private void fillExclude(String exclusionGroupId, String exclusionArtifactId, Document doc,
+    /**
+     * 填充exclusion，如果已存在则不插入，返回false，否则插入并返回true
+     */
+    private boolean fillExclude(String exclusionGroupId, String exclusionArtifactId, Document doc,
                              Element targetDependencyElement) {
         // 检查是否已有 exclusions 元素
         NodeList exclusionsList = targetDependencyElement.getElementsByTagName("exclusions");
@@ -370,8 +375,9 @@ public class SimpleLanguageServer implements LanguageServer {
             exclusionsExist = true;
             // 已有 exclusions 元素
             exclusionsElement = (Element) exclusionsList.item(0);
-            if (client != null) {
-                client.logMessage(new MessageParams(MessageType.Info, "Found existing <exclusions> element"));
+            // 使用独立方法判断是否已存在相同GA的exclusion
+            if (hasExclusion(exclusionsElement, exclusionGroupId, exclusionArtifactId)) {
+                return false; // 已存在
             }
         } else {
             exclusionsExist = false;
@@ -380,9 +386,6 @@ public class SimpleLanguageServer implements LanguageServer {
             targetDependencyElement.appendChild(doc.createTextNode(dependencyIndent.indentUnit()));
             targetDependencyElement.appendChild(exclusionsElement);
             targetDependencyElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent()));
-            if (client != null) {
-                client.logMessage(new MessageParams(MessageType.Info, "Created new <exclusions> element"));
-            }
         }
 
         // 创建 exclusion 元素
@@ -407,10 +410,23 @@ public class SimpleLanguageServer implements LanguageServer {
         exclusionsElement.appendChild(exclusionElement);
         exclusionsElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 1)));
 
+        return true; // 插入成功
+    }
 
-        if (client != null) {
-            client.logMessage(new MessageParams(MessageType.Info, "Exclusion element created successfully"));
+    /**
+     * 判断exclusionsElement下是否已存在指定GA的exclusion
+     */
+    private boolean hasExclusion(Element exclusionsElement, String groupId, String artifactId) {
+        NodeList exclusionNodes = exclusionsElement.getElementsByTagName("exclusion");
+        for (int i = 0; i < exclusionNodes.getLength(); i++) {
+            Element exclusion = (Element) exclusionNodes.item(i);
+            String existGroupId = getElementTextContent(exclusion, "groupId");
+            String existArtifactId = getElementTextContent(exclusion, "artifactId");
+            if (groupId.equals(existGroupId) && artifactId.equals(existArtifactId)) {
+                return true;
+            }
         }
+        return false;
     }
 
     private static String getLeveledIndent(IndentRecord dependencyIndent, int level) {
@@ -861,5 +877,16 @@ public class SimpleLanguageServer implements LanguageServer {
         for (DependencyNode child : node.getChildren()) {
             printDependencyTree(child, level + 1);
         }
+    }
+
+    /**
+     * 构建Exclusion相关的标准JSON响应
+     */
+    private String buildExclusionResponse(boolean success, String message) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", success);
+        response.put("message", message);
+        response.put("highlightLine", 0);
+        return new Gson().toJson(response);
     }
 }
