@@ -3,6 +3,7 @@
     <!-- 工具栏 -->
     <div class="toolbar">
       <h2 style="flex: 1;">Dependency Analysis</h2>
+      <input v-model="searchText" placeholder="Search artifact..." class="search-input" />
       <button @click="refreshDependencies" class="refresh-btn">Refresh</button>
       <button @click="expandAll" class="refresh-btn">Expand All</button>
       <button @click="collapseAll" class="refresh-btn">Collapse All</button>
@@ -40,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import DependencyTreeNode from './DependencyTreeNode.vue'
 const emit = defineEmits(['select-dependency'])
 
@@ -62,6 +63,7 @@ interface DependencyNode {
   label?: string
   status?: string
   statusClass?: string
+  matched?: boolean // 新增属性：用于高亮
 }
 
 // 响应式数据
@@ -69,6 +71,7 @@ const loading = ref(true)
 const error = ref('')
 const dependencyData = ref<DependencyNode[]>([])
 const selectedNodeId = ref<string>('')
+const searchText = ref('')
 
 // 刷新依赖数据
 const refreshDependencies = () => {
@@ -134,6 +137,41 @@ function expandAll() {
 
 function collapseAll() {
   setAllExpanded(dependencyData.value, false)
+}
+
+// 搜索与高亮递归逻辑
+function searchAndHighlight(nodes: DependencyNode[], keyword: string): boolean {
+  let foundInChildren = false
+  nodes.forEach(node => {
+    const matched = keyword && node.artifactId.toLowerCase().includes(keyword.toLowerCase())
+    let childMatched = false
+    if (node.children && node.children.length > 0) {
+      childMatched = searchAndHighlight(node.children, keyword)
+    }
+    node.matched = !!matched
+    node.expanded = !!(keyword && (childMatched || matched))
+    foundInChildren = foundInChildren || matched || childMatched
+  })
+  return foundInChildren
+}
+
+watch(searchText, (val) => {
+  if (!val) {
+    // 清空搜索时，全部取消高亮和自动展开
+    setAllExpanded(dependencyData.value, false)
+    clearMatched(dependencyData.value)
+    return
+  }
+  searchAndHighlight(dependencyData.value, val)
+})
+
+function clearMatched(nodes: DependencyNode[]) {
+  nodes.forEach(node => {
+    node.matched = false
+    if (node.children && node.children.length > 0) {
+      clearMatched(node.children)
+    }
+  })
 }
 
 // 监听来自扩展端的消息
@@ -302,5 +340,16 @@ li.collapsed > .dep-children {
 
 li.collapsed > .dep-children {
   display: block;
+}
+
+.search-input {
+  width: 180px;
+  margin-right: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 3px;
+  font-size: 13px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
 }
 </style> 

@@ -14,7 +14,7 @@
         ▶
       </span>
       <span v-else class="arrow" style="visibility: hidden;">▶</span>
-      <span class="dep-label">
+      <span class="dep-label" :class="{ matched: node.matched }">
         {{ node.label }}
         <span v-if="node.status" :class="node.statusClass">
           [{{ node.status }}]
@@ -111,6 +111,12 @@ ul, li {
 }
 .dep-label .used {
   color: var(--vscode-textPreformat-foreground);
+}
+.dep-label.matched {
+  background: var(--vscode-editor-findMatchHighlightBackground, #ffe564);
+  color: var(--vscode-editor-findMatchHighlightForeground, #000);
+  border-radius: 2px;
+  padding: 0 2px;
 }
 .dep-children {
   overflow: hidden;
