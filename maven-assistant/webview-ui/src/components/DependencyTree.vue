@@ -33,7 +33,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, defineExpose, computed } from 'vue'
 import DependencyTreeNode from './DependencyTreeNode.vue'
-const emit = defineEmits(['select-dependency'])
+const emit = defineEmits(['select-dependency', 'update:filterMode'])
 
 // 接收vscodeApi作为prop
 const props = defineProps({
@@ -194,6 +194,37 @@ function clearMatched(nodes: DependencyNode[]) {
   })
 }
 
+// 跳转并高亮：严格按 path 逐级递归展开和选中
+function gotoAndHighlightNodeByPath(path: any[]) {
+  console.log('gotoAndHighlightNodeByPath', path)
+  let nodes = dependencyData.value
+  let currentNode = null
+  // path: 从 root 到 target，正序遍历
+  for (let i = path.length - 1; i >= 0; i--) {
+    const seg = path[i]
+    console.log(`trying to find ${seg} from ${nodes}`)
+    currentNode = nodes.find((n: any) =>
+      n.groupId === seg.groupId &&
+      n.artifactId === seg.artifactId &&
+      n.version === seg.version &&
+      (seg.scope ? n.scope === seg.scope : true)
+    )
+    if (!currentNode) return // 跳转失败
+    currentNode.expanded = true
+    nodes = currentNode.children || []
+  }
+  if (currentNode) {
+    selectedNode.value = currentNode
+    emit('select-dependency', currentNode, dependencyData.value)
+    // 跳转时关闭filterMode，保证全树高亮
+    if (props.filterMode) {
+      emit('update:filterMode', false)
+    }
+    // 全树搜索高亮
+    searchAndHighlight(dependencyData.value, currentNode.artifactId)
+  }
+}
+
 // 监听来自扩展端的消息
 onMounted(() => {
   window.addEventListener('message', (event) => {
@@ -222,8 +253,8 @@ onMounted(() => {
         error.value = message.message || '获取依赖数据失败'
         break
       case 'gotoTreeNode': {
-        const { root, target } = message.data
-        gotoAndHighlightNodeByRoot(root, target)
+        const { path } = message
+        gotoAndHighlightNodeByPath(path)
         break
       }
     }
@@ -231,49 +262,6 @@ onMounted(() => {
   // 初始化时请求数据
   refreshDependencies()
 })
-
-// 跳转并高亮：先定位一级依赖Root，再递归展开到目标依赖
-function gotoAndHighlightNodeByRoot(root: any, target: any) {
-  // 1. 找到一级依赖Root
-  const rootNode = dependencyData.value.find((node: any) =>
-    node.groupId === root.groupId &&
-    node.artifactId === root.artifactId &&
-    node.version === root.version &&
-    (root.scope ? node.scope === root.scope : true)
-  )
-  if (!rootNode) return
-
-  // 2. 递归在rootNode下查找目标依赖
-  function dfs(node: any): boolean {
-    if (
-      node.groupId === target.groupId &&
-      node.artifactId === target.artifactId &&
-      node.version === target.version &&
-      (target.scope ? node.scope === target.scope : true)
-    ) {
-      node.expanded = true
-      node.matched = true
-      selectedNode.value = node // 只高亮唯一目标节点
-      return true
-    }
-    if (node.children && node.children.length > 0) {
-      for (const child of node.children) {
-        if (dfs(child)) {
-          node.expanded = true // 展开父节点
-          return true
-        }
-      }
-    }
-    return false
-  }
-
-  // 3. 先清除所有高亮和展开
-  setAllExpanded(dependencyData.value, false)
-  clearMatched(dependencyData.value)
-  rootNode.expanded = true
-  dfs(rootNode)
-  searchAndHighlight(dependencyData.value, target.artifactId)
-}
 
 defineExpose({ refreshDependencies, expandAll, collapseAll })
 </script>

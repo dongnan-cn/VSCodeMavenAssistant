@@ -75,9 +75,9 @@ function getMenuItems(node: any, path: any[]): { label: string, value: string }[
     ]
   } else {
     return [
-      { label: '跳转到 pom.xml', value: 'goto-pom' },
-      { label: '排除此依赖', value: 'exclude' },
-      { label: '跳转到左侧树', value: 'goto-tree' } // 新增
+      { label: 'Jump to pom.xml', value: 'goto-pom' },
+      { label: 'Exclulde', value: 'exclude' },
+      { label: 'Jump to Left Tree', value: 'goto-tree' } // 新增
     ]
   }
 }
@@ -100,26 +100,12 @@ function handleMenuSelect(action: string) {
   if (!menuNode.value) return
   const { node, path } = menuNode.value
   if (action === 'goto-tree') {
-    // 跳转到左侧依赖树，传递 root 和 target GAV，并通过 window.postMessage 设置搜索框内容
-    const root = path[path.length - 1]
+    // 跳转到左侧依赖树，传递完整 path，使用 window.postMessage
     window.postMessage({ type: 'setSearchText', artifactId: node.artifactId }, '*')
     window.postMessage({
       type: 'gotoTreeNode',
-      data: {
-        root: {
-          groupId: root.groupId,
-          artifactId: root.artifactId,
-          version: root.version,
-          scope: root.scope
-        },
-        target: {
-          groupId: node.groupId,
-          artifactId: node.artifactId,
-          version: node.version,
-          scope: node.scope
-        }
-      }
-    })
+      path: JSON.parse(JSON.stringify(path))
+    }, '*')
     return
   }
   // 通过vscodeApi发送消息
