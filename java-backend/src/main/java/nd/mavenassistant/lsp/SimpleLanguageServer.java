@@ -749,6 +749,8 @@ public class SimpleLanguageServer implements LanguageServer {
             depInfo.put("scope", scope);
             boolean dropped = !usedGAVSet.contains(key);
             depInfo.put("droppedByConflict", dropped);
+            // 依赖jar大小，单位字节
+            depInfo.put("size", getJarFileSize(artifact));
         }
         // 递归 children
         List<Map<String, Object>> children = new ArrayList<>();
@@ -888,5 +890,15 @@ public class SimpleLanguageServer implements LanguageServer {
         response.put("message", message);
         response.put("highlightLine", 0);
         return new Gson().toJson(response);
+    }
+
+    private long getJarFileSize(Artifact artifact) {
+        String groupIdPath = artifact.getGroupId().replace('.', '/');
+        String artifactId = artifact.getArtifactId();
+        String version = artifact.getVersion();
+        String home = System.getProperty("user.home");
+        String jarPath = home + "/.m2/repository/" + groupIdPath + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar";
+        File jarFile = new File(jarPath);
+        return jarFile.exists() ? jarFile.length() : 0L;
     }
 }

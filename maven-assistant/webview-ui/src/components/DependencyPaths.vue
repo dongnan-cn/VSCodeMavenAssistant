@@ -21,6 +21,7 @@
           :menuItemsRef="menuItemsRef"
           :vscodeApi="props.vscodeApi"
           :showGroupId="props.showGroupId"
+          :showSize="props.showSize"
           @node-click="handleNodeClick"
           @node-contextmenu="handleNodeContextMenu"
         />
@@ -47,7 +48,8 @@ const props = defineProps({
   dependencyTree: { type: Array, default: () => [] },
   selectedDependency: { type: Object, default: null },
   vscodeApi: { type: Object, required: true },
-  showGroupId: { type: Boolean, default: false }
+  showGroupId: { type: Boolean, default: false },
+  showSize: { type: Boolean, default: false } // 新增：控制依赖大小显示
 })
 
 // 展开状态：记录每条路径每个节点的展开状态

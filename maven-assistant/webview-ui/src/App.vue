@@ -19,6 +19,7 @@ const showGroupId = ref(false)
 const filterMode = ref(false)
 const searchHistory = ref<string[]>([])
 const showHistoryDropdown = ref(false)
+const showSize = ref(false)
 
 function toggleHistoryDropdown() {
   showHistoryDropdown.value = !showHistoryDropdown.value
@@ -129,6 +130,9 @@ onBeforeUnmount(() => {
         <label class="show-groupid-label">
           <input type="checkbox" v-model="showGroupId" /> Show GroupId
         </label>
+        <label class="show-size-label">
+          <input type="checkbox" v-model="showSize" /> Show size
+        </label>
       </div>
     </div>
     <div class="split-pane">
@@ -139,6 +143,7 @@ onBeforeUnmount(() => {
           :searchText="searchText"
           :showGroupId="showGroupId"
           :filterMode="filterMode"
+          :showSize="showSize"
           ref="dependencyTreeRef"
         />
       </div>
@@ -149,6 +154,7 @@ onBeforeUnmount(() => {
           :selectedDependency="selectedDependency"
           :vscodeApi="vscodeApi"
           :showGroupId="showGroupId"
+          :showSize="showSize"
         />
       </div>
     </div>
@@ -316,6 +322,14 @@ html, body, #app, .split-pane, .left-pane, .right-pane {
   gap: 4px;
 }
 .filter-label {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  margin-left: 12px;
+  user-select: none;
+  gap: 4px;
+}
+.show-size-label {
   display: flex;
   align-items: center;
   font-size: 13px;

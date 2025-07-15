@@ -14,6 +14,7 @@
         ▶
       </span>
       <span v-else class="arrow" style="visibility: hidden;">▶</span>
+      <span v-if="showSize && totalSizeKB > 0" class="dep-size">{{ totalSizeKB }} KB ({{ selfSizeKB }} KB)</span>
       <span class="dep-label" :class="{ matched: node.matched }">
         {{ nodeLabel }}
         <span v-if="node.status" :class="node.statusClass">
@@ -30,6 +31,7 @@
           :dataKey="`${dataKey}-${idx}`"
           :selectedNodeId="selectedNodeId"
           :showGroupId="showGroupId"
+          :showSize="showSize"
           @select="emitSelect"
         />
       </ul>
@@ -39,11 +41,13 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { calcNodeAndDirectChildrenSize } from '../utils'
 const props = defineProps({
   node: { type: Object, required: true },
   dataKey: { type: String, default: '' },
   selectedNodeId: { type: String, default: '' },
-  showGroupId: { type: Boolean, default: false }
+  showGroupId: { type: Boolean, default: false },
+  showSize: { type: Boolean, default: false }
 })
 const emit = defineEmits(['select'])
 
@@ -69,6 +73,11 @@ const nodeLabel = computed(() => {
   if (props.node.scope) base += ` [${props.node.scope}]`
   return base
 })
+
+// 依赖大小（单位KB，向上取整）
+const totalSizeKB = computed(() => props.showSize ? calcNodeAndDirectChildrenSize(props.node) : 0)
+// 本节点自身 jar 大小（单位KB，向上取整）
+const selfSizeKB = computed(() => props.showSize ? Math.ceil((props.node.size || 0) / 1024) : 0)
 </script>
 
 <style scoped>
@@ -142,5 +151,16 @@ li.collapsed > .dep-children {
 }
 :deep(.dep-children > ul) {
   padding-left: 20px;
+}
+.dep-size {
+  color: rgba(128,128,128,0.45);
+  font-size: 12px;
+  margin-right: 6px;
+  min-width: 48px;
+  display: inline-block;
+  text-align: left;
+  font-family: monospace;
+  vertical-align: middle;
+  user-select: text;
 }
 </style> 

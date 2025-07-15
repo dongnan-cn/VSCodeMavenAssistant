@@ -18,6 +18,7 @@
           :dataKey="`node-${index}`"
           :selectedNodeId="selectedNodeId"
           :showGroupId="showGroupId"
+          :showSize="showSize"
           @select="handleSelect"
         />
       </ul>
@@ -39,7 +40,8 @@ const props = defineProps({
   vscodeApi: { type: Object, required: true },
   searchText: { type: String, default: '' },
   showGroupId: { type: Boolean, default: false },
-  filterMode: { type: Boolean, default: false }
+  filterMode: { type: Boolean, default: false },
+  showSize: { type: Boolean, default: false } // 新增：控制依赖大小显示
 })
 
 // 定义依赖节点接口

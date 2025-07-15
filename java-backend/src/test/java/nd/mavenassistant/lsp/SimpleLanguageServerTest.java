@@ -11,6 +11,8 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.maven.model.Model;
+import org.eclipse.aether.artifact.DefaultArtifact;
+import org.eclipse.aether.artifact.Artifact;
 
 import static org.junit.jupiter.api.Assertions.*;
 

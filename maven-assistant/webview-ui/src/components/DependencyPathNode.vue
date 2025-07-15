@@ -15,6 +15,8 @@
         ▶
       </span>
       <span v-else class="arrow" style="visibility: hidden;">▶</span>
+      <!-- 新增：依赖大小展示 -->
+      <span v-if="showSize && nodeSizeText" class="dep-size">{{ nodeSizeText }}</span>
       <span :class="['dep-label', node.droppedByConflict ? 'dropped' : '', nodeIdx === 0 ? 'target' : '']">
         {{ nodeLabel }}<span v-if="node.scope"> [{{ node.scope }}]</span>
       </span>
@@ -32,6 +34,7 @@
         :menuItemsRef="menuItemsRef"
         :vscodeApi="vscodeApi"
         :showGroupId="showGroupId"
+        :showSize="showSize"
         @node-click="emitNodeClick"
         @node-contextmenu="emitNodeContextMenu"
       />
@@ -42,6 +45,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import DependencyPathNode from './DependencyPathNode.vue'
+import { calcNodeAndDirectChildrenSize } from '../utils'
 
 const props = defineProps({
   node: { type: Object as () => Record<string, any> | undefined, required: true },
@@ -53,7 +57,8 @@ const props = defineProps({
   selectedDependency: { type: Object, default: null },
   menuItemsRef: { type: Object, required: true },
   vscodeApi: { type: Object, required: true },
-  showGroupId: { type: Boolean, default: false }
+  showGroupId: { type: Boolean, default: false },
+  showSize: { type: Boolean, default: false } // 新增：控制是否显示依赖大小
 })
 const emit = defineEmits(['node-click', 'node-contextmenu'])
 
@@ -83,6 +88,17 @@ function emitNodeClick(...args: any[]) {
 function emitNodeContextMenu(...args: any[]) {
   emit('node-contextmenu', ...args)
 }
+
+// 本节点自身 jar 大小（单位KB，向上取整）
+const selfSizeKB = computed(() => props.showSize ? Math.ceil((props.node?.size || 0) / 1024) : 0)
+
+// 修改依赖大小文本，显示“总和 KB (自身 KB)”
+const nodeSizeText = computed(() => {
+  if (!props.showSize) return ''
+  const kb = calcNodeAndDirectChildrenSize(props.node)
+  const selfKB = selfSizeKB.value
+  return kb > 0 ? `${kb}KB (${selfKB}KB)` : ''
+})
 
 // 动态label
 const nodeLabel = computed(() => {
@@ -142,5 +158,13 @@ const nodeLabel = computed(() => {
 .dep-label.dropped {
   color: var(--vscode-errorForeground);
   font-weight: bold;
+}
+.dep-size {
+  font-size: 11px;
+  color: rgba(128,128,128,0.55);
+  margin-right: 6px;
+  font-family: monospace;
+  vertical-align: middle;
+  user-select: none;
 }
 </style> 
