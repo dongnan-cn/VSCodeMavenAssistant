@@ -9,10 +9,10 @@
       {{ error }}
     </div>
     <!-- 依赖树内容 -->
-    <div v-else-if="dependencyData" class="dependency-tree">
+    <div v-else-if="renderDependencyData && renderDependencyData.length > 0" class="dependency-tree">
       <ul class="dep-tree">
         <DependencyTreeNode
-          v-for="(node, index) in dependencyData"
+          v-for="(node, index) in renderDependencyData"
           :key="index"
           :node="node"
           :dataKey="`node-${index}`"
@@ -30,7 +30,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, defineExpose } from 'vue'
+import { ref, onMounted, watch, defineExpose, computed } from 'vue'
 import DependencyTreeNode from './DependencyTreeNode.vue'
 const emit = defineEmits(['select-dependency'])
 
@@ -38,7 +38,8 @@ const emit = defineEmits(['select-dependency'])
 const props = defineProps({
   vscodeApi: { type: Object, required: true },
   searchText: { type: String, default: '' },
-  showGroupId: { type: Boolean, default: false }
+  showGroupId: { type: Boolean, default: false },
+  filterMode: { type: Boolean, default: false }
 })
 
 // 定义依赖节点接口
@@ -143,6 +144,34 @@ function searchAndHighlight(nodes: DependencyNode[], keyword: string): boolean {
   })
   return foundInChildren
 }
+
+// 递归过滤依赖树，仅保留命中节点及其祖先链
+function filterDependencyTree(nodes: DependencyNode[], keyword: string): DependencyNode[] {
+  if (!nodes) return []
+  const result: DependencyNode[] = []
+  for (const node of nodes) {
+    const matched = keyword && node.artifactId.toLowerCase().includes(keyword.toLowerCase())
+    let filteredChildren: DependencyNode[] = []
+    if (node.children && node.children.length > 0) {
+      filteredChildren = filterDependencyTree(node.children, keyword)
+    }
+    if (matched || (filteredChildren && filteredChildren.length > 0)) {
+      result.push({
+        ...node,
+        children: filteredChildren
+      })
+    }
+  }
+  return result
+}
+
+// 计算实际用于渲染的依赖树数据
+const renderDependencyData = computed(() => {
+  if (props.filterMode && props.searchText) {
+    return filterDependencyTree(dependencyData.value, props.searchText)
+  }
+  return dependencyData.value
+})
 
 watch(() => props.searchText, (val) => {
   if (!val) {

@@ -16,6 +16,7 @@ const searchText = ref('')
 const dependencyTreeRef = ref()
 
 const showGroupId = ref(false)
+const filterMode = ref(false)
 
 function refreshDependencies() {
   dependencyTreeRef.value?.refreshDependencies?.()
@@ -72,6 +73,9 @@ onBeforeUnmount(() => {
         <label class="show-groupid-label">
           <input type="checkbox" v-model="showGroupId" /> Show GroupId
         </label>
+        <label class="filter-label">
+          <input type="checkbox" v-model="filterMode" /> filter
+        </label>
       </div>
     </div>
     <div class="split-pane">
@@ -81,6 +85,7 @@ onBeforeUnmount(() => {
           :vscodeApi="vscodeApi"
           :searchText="searchText"
           :showGroupId="showGroupId"
+          :filterMode="filterMode"
           ref="dependencyTreeRef"
         />
       </div>
@@ -182,6 +187,14 @@ html, body, #app, .split-pane, .left-pane, .right-pane {
   color: var(--vscode-input-foreground);
 }
 .show-groupid-label {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  margin-left: 12px;
+  user-select: none;
+  gap: 4px;
+}
+.filter-label {
   display: flex;
   align-items: center;
   font-size: 13px;
