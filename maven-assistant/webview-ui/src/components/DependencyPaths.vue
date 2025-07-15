@@ -20,6 +20,7 @@
           :selectedDependency="props.selectedDependency"
           :menuItemsRef="menuItemsRef"
           :vscodeApi="props.vscodeApi"
+          :showGroupId="props.showGroupId"
           @node-click="handleNodeClick"
           @node-contextmenu="handleNodeContextMenu"
         />
@@ -45,7 +46,8 @@ import DependencyPathNode from './DependencyPathNode.vue'
 const props = defineProps({
   dependencyTree: { type: Array, default: () => [] },
   selectedDependency: { type: Object, default: null },
-  vscodeApi: { type: Object, required: true }
+  vscodeApi: { type: Object, required: true },
+  showGroupId: { type: Boolean, default: false }
 })
 
 // 展开状态：记录每条路径每个节点的展开状态

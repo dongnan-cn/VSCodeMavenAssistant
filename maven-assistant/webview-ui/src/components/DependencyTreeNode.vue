@@ -15,7 +15,7 @@
       </span>
       <span v-else class="arrow" style="visibility: hidden;">▶</span>
       <span class="dep-label" :class="{ matched: node.matched }">
-        {{ node.label }}
+        {{ nodeLabel }}
         <span v-if="node.status" :class="node.statusClass">
           [{{ node.status }}]
         </span>
@@ -29,6 +29,7 @@
           :node="child"
           :dataKey="`${dataKey}-${idx}`"
           :selectedNodeId="selectedNodeId"
+          :showGroupId="showGroupId"
           @select="emitSelect"
         />
       </ul>
@@ -41,7 +42,8 @@ import { computed } from 'vue'
 const props = defineProps({
   node: { type: Object, required: true },
   dataKey: { type: String, default: '' },
-  selectedNodeId: { type: String, default: '' }
+  selectedNodeId: { type: String, default: '' },
+  showGroupId: { type: Boolean, default: false }
 })
 const emit = defineEmits(['select'])
 
@@ -58,6 +60,15 @@ function toggleNode() {
 function emitSelect(id: string, node: any) {
   emit('select', id, node)
 }
+
+// 动态label
+const nodeLabel = computed(() => {
+  let base = props.showGroupId
+    ? `${props.node.groupId}:${props.node.artifactId}:${props.node.version}`
+    : `${props.node.artifactId}:${props.node.version}`
+  if (props.node.scope) base += ` [${props.node.scope}]`
+  return base
+})
 </script>
 
 <style scoped>

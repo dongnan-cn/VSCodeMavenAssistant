@@ -16,13 +16,7 @@
       </span>
       <span v-else class="arrow" style="visibility: hidden;">▶</span>
       <span :class="['dep-label', node.droppedByConflict ? 'dropped' : '', nodeIdx === 0 ? 'target' : '']">
-        <template v-if="isSameGA(node, selectedDependency)">
-          {{ node.version }}
-        </template>
-        <template v-else>
-          {{ node.artifactId }}:{{ node.version }}
-        </template>
-        <span v-if="node.scope"> [{{ node.scope }}]</span>
+        {{ nodeLabel }}<span v-if="node.scope"> [{{ node.scope }}]</span>
       </span>
     </div>
     <!-- 递归渲染下一个节点，仅当存在下一个节点且当前节点展开时 -->
@@ -37,6 +31,7 @@
         :selectedDependency="selectedDependency"
         :menuItemsRef="menuItemsRef"
         :vscodeApi="vscodeApi"
+        :showGroupId="showGroupId"
         @node-click="emitNodeClick"
         @node-contextmenu="emitNodeContextMenu"
       />
@@ -57,7 +52,8 @@ const props = defineProps({
   selectedNodeInfo: { type: Object, default: () => ({}) },
   selectedDependency: { type: Object, default: null },
   menuItemsRef: { type: Object, required: true },
-  vscodeApi: { type: Object, required: true }
+  vscodeApi: { type: Object, required: true },
+  showGroupId: { type: Boolean, default: false }
 })
 const emit = defineEmits(['node-click', 'node-contextmenu'])
 
@@ -87,6 +83,18 @@ function emitNodeClick(...args: any[]) {
 function emitNodeContextMenu(...args: any[]) {
   emit('node-contextmenu', ...args)
 }
+
+// 动态label
+const nodeLabel = computed(() => {
+  if (!props.node) return ''
+  if (isSameGA(props.node, props.selectedDependency)) {
+    return props.node.version
+  }
+  let base = props.showGroupId
+    ? `${props.node.groupId}:${props.node.artifactId}:${props.node.version}`
+    : `${props.node.artifactId}:${props.node.version}`
+  return base
+})
 </script>
 
 <style scoped>

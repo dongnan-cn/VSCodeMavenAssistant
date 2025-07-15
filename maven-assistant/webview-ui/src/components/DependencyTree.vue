@@ -17,6 +17,7 @@
           :node="node"
           :dataKey="`node-${index}`"
           :selectedNodeId="selectedNodeId"
+          :showGroupId="showGroupId"
           @select="handleSelect"
         />
       </ul>
@@ -36,7 +37,8 @@ const emit = defineEmits(['select-dependency'])
 // 接收vscodeApi作为prop
 const props = defineProps({
   vscodeApi: { type: Object, required: true },
-  searchText: { type: String, default: '' }
+  searchText: { type: String, default: '' },
+  showGroupId: { type: Boolean, default: false }
 })
 
 // 定义依赖节点接口
@@ -97,10 +99,9 @@ function processDependencyData(data: any): DependencyNode[] {
     const hasChildren = node.children && node.children.length > 0
     const status = node.droppedByConflict ? 'DROPPED' : 'USED'
     const statusClass = node.droppedByConflict ? 'dropped' : 'used'
-    // 只显示artifactId:version，scope保留
+    // 不再拼接label，交由子组件处理
     return {
       ...node,
-      label: `${node.artifactId}:${node.version}${node.scope ? ` [${node.scope}]` : ''}`,
       status,
       statusClass,
       hasChildren,

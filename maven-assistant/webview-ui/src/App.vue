@@ -15,6 +15,8 @@ const dependencyTreeData = ref<any>(null) // 依赖树原始数据
 const searchText = ref('')
 const dependencyTreeRef = ref()
 
+const showGroupId = ref(false)
+
 function refreshDependencies() {
   dependencyTreeRef.value?.refreshDependencies?.()
 }
@@ -67,6 +69,9 @@ onBeforeUnmount(() => {
         <button @click="refreshDependencies" class="refresh-btn">Refresh</button>
         <button @click="expandAll" class="refresh-btn">Expand All</button>
         <button @click="collapseAll" class="refresh-btn">Collapse All</button>
+        <label class="show-groupid-label">
+          <input type="checkbox" v-model="showGroupId" /> Show GroupId
+        </label>
       </div>
     </div>
     <div class="split-pane">
@@ -75,6 +80,7 @@ onBeforeUnmount(() => {
           @select-dependency="onSelectDependency" 
           :vscodeApi="vscodeApi"
           :searchText="searchText"
+          :showGroupId="showGroupId"
           ref="dependencyTreeRef"
         />
       </div>
@@ -84,6 +90,7 @@ onBeforeUnmount(() => {
           :dependencyTree="dependencyTreeData"
           :selectedDependency="selectedDependency"
           :vscodeApi="vscodeApi"
+          :showGroupId="showGroupId"
         />
       </div>
     </div>
@@ -173,5 +180,13 @@ html, body, #app, .split-pane, .left-pane, .right-pane {
   font-size: 13px;
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
+}
+.show-groupid-label {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  margin-left: 12px;
+  user-select: none;
+  gap: 4px;
 }
 </style>
