@@ -218,6 +218,15 @@ vscode-extension/
 - ✅ 用 console.log/vscode.window.showInformationMessage 验证 activate 方法调用
 - ✅ 发现 Cursor 环境下 F5 无法激活插件，官方 VSCode 可正常激活
 
+### 5. 前端依赖树与搜索/过滤/历史/交互优化进展
+- ✅ 依赖树递归组件重构，支持无限层级、节点展开/收起，结构更清晰。
+- ✅ 工具栏支持 artifactId 实时模糊搜索，命中节点高亮，自动展开父节点。
+- ✅ 搜索支持 filter 模式：勾选后仅显示命中节点及其祖先链，支持可展开交互。
+- ✅ 工具栏支持 Show GroupId，切换 groupId:artifactId:version 显示。
+- ✅ 搜索框支持历史记录：左侧小三角弹出最近10条历史，点击可快速填充。
+- ✅ 搜索框右侧支持一键清空按钮（×），半透明风格，悬停高亮。
+- ✅ 所有交互和样式均适配 VSCode 主题，细节体验优化。
+
 ## 遇到的关键问题与解决方案
 
 ### 1. Maven Shade Plugin 签名文件冲突
