@@ -1,24 +1,13 @@
 <template>
   <div class="dependency-tree-container">
-    <!-- 工具栏 -->
-    <div class="toolbar">
-      <h2 style="flex: 1;">Dependency Analysis</h2>
-      <input v-model="searchText" placeholder="Search artifact..." class="search-input" />
-      <button @click="refreshDependencies" class="refresh-btn">Refresh</button>
-      <button @click="expandAll" class="refresh-btn">Expand All</button>
-      <button @click="collapseAll" class="refresh-btn">Collapse All</button>
-    </div>
-
     <!-- 加载状态 -->
     <div v-if="loading" class="loading">
       正在加载依赖分析...
     </div>
-
     <!-- 错误状态 -->
     <div v-else-if="error" class="error">
       {{ error }}
     </div>
-
     <!-- 依赖树内容 -->
     <div v-else-if="dependencyData" class="dependency-tree">
       <ul class="dep-tree">
@@ -32,7 +21,6 @@
         />
       </ul>
     </div>
-
     <!-- 空状态 -->
     <div v-else class="empty-state">
       暂无依赖数据
@@ -41,13 +29,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, defineExpose } from 'vue'
 import DependencyTreeNode from './DependencyTreeNode.vue'
 const emit = defineEmits(['select-dependency'])
 
 // 接收vscodeApi作为prop
 const props = defineProps({
-  vscodeApi: { type: Object, required: true }
+  vscodeApi: { type: Object, required: true },
+  searchText: { type: String, default: '' }
 })
 
 // 定义依赖节点接口
@@ -71,10 +60,9 @@ const loading = ref(true)
 const error = ref('')
 const dependencyData = ref<DependencyNode[]>([])
 const selectedNodeId = ref<string>('')
-const searchText = ref('')
 
 // 刷新依赖数据
-const refreshDependencies = () => {
+function refreshDependencies() {
   loading.value = true
   error.value = ''
   props.vscodeApi.postMessage({ type: 'refresh' })
@@ -155,7 +143,7 @@ function searchAndHighlight(nodes: DependencyNode[], keyword: string): boolean {
   return foundInChildren
 }
 
-watch(searchText, (val) => {
+watch(() => props.searchText, (val) => {
   if (!val) {
     // 清空搜索时，全部取消高亮和自动展开
     setAllExpanded(dependencyData.value, false)
@@ -206,6 +194,8 @@ onMounted(() => {
   // 初始化时请求数据
   refreshDependencies()
 })
+
+defineExpose({ refreshDependencies, expandAll, collapseAll })
 </script>
 
 <style scoped>
@@ -223,32 +213,7 @@ onMounted(() => {
   text-align: left; /* 内容整体靠左 */
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--vscode-panel-border);
-}
-
-.toolbar h2 {
-  margin: 0;
-  color: var(--vscode-editor-foreground);
-}
-
-.refresh-btn {
-  background-color: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-  border: 1px solid var(--vscode-button-border);
-  padding: 5px 10px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.refresh-btn:hover {
-  background-color: var(--vscode-button-hoverBackground);
-}
+/* 移除.toolbar相关样式 */
 
 .loading, .error, .empty-state {
   text-align: center;
@@ -342,14 +307,5 @@ li.collapsed > .dep-children {
   display: block;
 }
 
-.search-input {
-  width: 180px;
-  margin-right: 12px;
-  padding: 4px 8px;
-  border: 1px solid var(--vscode-input-border);
-  border-radius: 3px;
-  font-size: 13px;
-  background: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-}
+/* 移除.search-input相关样式 */
 </style> 

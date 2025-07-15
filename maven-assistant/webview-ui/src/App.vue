@@ -12,6 +12,19 @@ let dragging = false
 const selectedDependency = ref<any>(null)
 const dependencyTreeData = ref<any>(null) // 依赖树原始数据
 
+const searchText = ref('')
+const dependencyTreeRef = ref()
+
+function refreshDependencies() {
+  dependencyTreeRef.value?.refreshDependencies?.()
+}
+function expandAll() {
+  dependencyTreeRef.value?.expandAll?.()
+}
+function collapseAll() {
+  dependencyTreeRef.value?.collapseAll?.()
+}
+
 // 获取VSCode API实例
 const vscodeApi = acquireVsCodeApi()
 
@@ -47,17 +60,32 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="split-pane">
-    <div class="left-pane" :style="{ width: leftWidth + 'px' }">
-      <DependencyTree @select-dependency="onSelectDependency" :vscodeApi="vscodeApi" />
+  <div>
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <input v-model="searchText" placeholder="Search artifact..." class="search-input" />
+        <button @click="refreshDependencies" class="refresh-btn">Refresh</button>
+        <button @click="expandAll" class="refresh-btn">Expand All</button>
+        <button @click="collapseAll" class="refresh-btn">Collapse All</button>
+      </div>
     </div>
-    <div class="splitter" @mousedown="startDrag"></div>
-    <div class="right-pane">
-      <DependencyPaths
-        :dependencyTree="dependencyTreeData"
-        :selectedDependency="selectedDependency"
-        :vscodeApi="vscodeApi"
-      />
+    <div class="split-pane">
+      <div class="left-pane" :style="{ width: leftWidth + 'px' }">
+        <DependencyTree 
+          @select-dependency="onSelectDependency" 
+          :vscodeApi="vscodeApi"
+          :searchText="searchText"
+          ref="dependencyTreeRef"
+        />
+      </div>
+      <div class="splitter" @mousedown="startDrag"></div>
+      <div class="right-pane">
+        <DependencyPaths
+          :dependencyTree="dependencyTreeData"
+          :selectedDependency="selectedDependency"
+          :vscodeApi="vscodeApi"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -107,5 +135,43 @@ html, body, #app, .split-pane, .left-pane, .right-pane {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
+}
+.toolbar {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 24px 10px 24px;
+  margin: 0;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-editor-background);
+  display: flex;
+  align-items: center;
+  z-index: 2;
+}
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.refresh-btn {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: 1px solid var(--vscode-button-border);
+  padding: 5px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.refresh-btn:hover {
+  background-color: var(--vscode-button-hoverBackground);
+}
+.search-input {
+  width: 180px;
+  margin-right: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 3px;
+  font-size: 13px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
 }
 </style>
