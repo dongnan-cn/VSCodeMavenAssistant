@@ -2,7 +2,7 @@
   <li :class="{ expanded: node.expanded, collapsed: !node.expanded }" :data-key="dataKey" style="list-style: none;">
     <div 
       class="dep-node-row"
-      :class="{ selected: isSelected }"
+      :class="{ selected: isSelected, matched: node.matched }"
       @click="selectNode"
     >
       <span 
@@ -15,7 +15,7 @@
       </span>
       <span v-else class="arrow" style="visibility: hidden;">▶</span>
       <span v-if="showSize && totalSizeKB > 0" class="dep-size">{{ totalSizeKB }} KB ({{ selfSizeKB }} KB)</span>
-      <span class="dep-label" :class="{ matched: node.matched }">
+      <span class="dep-label" :class="{ matched: node.matched, selected: isSelected }">
         {{ nodeLabel }}
         <span v-if="node.status" :class="node.statusClass">
           [{{ node.status }}]
@@ -29,7 +29,7 @@
           :key="idx"
           :node="child"
           :dataKey="`${dataKey}-${idx}`"
-          :selectedNodeId="selectedNodeId"
+          :selectedNode="selectedNode"
           :showGroupId="showGroupId"
           :showSize="showSize"
           @select="emitSelect"
@@ -45,18 +45,17 @@ import { calcNodeAndDirectChildrenSize } from '../utils'
 const props = defineProps({
   node: { type: Object, required: true },
   dataKey: { type: String, default: '' },
-  selectedNodeId: { type: String, default: '' },
+  selectedNode: { type: Object, default: null },
   showGroupId: { type: Boolean, default: false },
   showSize: { type: Boolean, default: false }
 })
 const emit = defineEmits(['select'])
 
-// 判断是否选中（用唯一id artifactId:version:scope）
-const nodeId = computed(() => `${props.node.artifactId}:${props.node.version}${props.node.scope ? ':' + props.node.scope : ''}`)
-const isSelected = computed(() => nodeId.value === props.selectedNodeId)
+// 判断是否选中（用对象引用）
+const isSelected = computed(() => props.node === props.selectedNode)
 
 function selectNode() {
-  emit('select', nodeId.value, props.node)
+  emit('select', props.node.artifactId, props.node)
 }
 function toggleNode() {
   props.node.expanded = !props.node.expanded
@@ -115,11 +114,18 @@ ul, li {
   cursor: pointer;
 }
 .dep-node-row.selected {
-  background: var(--vscode-list-activeSelectionBackground);
+  /* 跳转高亮，宽度略窄，仅label区域 */
+  background: linear-gradient(to right, var(--vscode-list-activeSelectionBackground) 80%, transparent 100%);
   color: var(--vscode-list-activeSelectionForeground);
+  border-left: 3px solid var(--vscode-focusBorder);
+  z-index: 2;
 }
-.dep-node-row:hover {
-  background: var(--vscode-list-hoverBackground);
+.dep-node-row.matched {
+  /* 搜索高亮，覆盖整行 */
+  background: var(--vscode-editor-findMatchHighlightBackground, #ffe564);
+  color: var(--vscode-editor-findMatchHighlightForeground, #000);
+  border-radius: 2px;
+  z-index: 1;
 }
 .dep-label {
   flex: 1;
@@ -132,11 +138,20 @@ ul, li {
 .dep-label .used {
   color: var(--vscode-textPreformat-foreground);
 }
+.dep-label.selected {
+  /* 跳转高亮，label区域再加一层边框或阴影 */
+  box-shadow: 0 0 0 2px var(--vscode-focusBorder) inset;
+  border-radius: 2px;
+  position: relative;
+  z-index: 3;
+}
 .dep-label.matched {
+  /* 搜索高亮，label区域也有背景色 */
   background: var(--vscode-editor-findMatchHighlightBackground, #ffe564);
   color: var(--vscode-editor-findMatchHighlightForeground, #000);
   border-radius: 2px;
   padding: 0 2px;
+  z-index: 2;
 }
 .dep-children {
   overflow: hidden;

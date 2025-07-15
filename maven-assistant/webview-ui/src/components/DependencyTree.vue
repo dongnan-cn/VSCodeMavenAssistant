@@ -16,7 +16,7 @@
           :key="index"
           :node="node"
           :dataKey="`node-${index}`"
-          :selectedNodeId="selectedNodeId"
+          :selectedNode="selectedNode"
           :showGroupId="showGroupId"
           :showSize="showSize"
           @select="handleSelect"
@@ -64,7 +64,7 @@ interface DependencyNode {
 const loading = ref(true)
 const error = ref('')
 const dependencyData = ref<DependencyNode[]>([])
-const selectedNodeId = ref<string>('')
+const selectedNode = ref<any>(null)
 
 // 刷新依赖数据
 function refreshDependencies() {
@@ -74,8 +74,8 @@ function refreshDependencies() {
 }
 
 // 选择节点（通过唯一id）
-function handleSelect(id: string, node: DependencyNode) {
-  selectedNodeId.value = id
+function handleSelect(_: string, node: DependencyNode) {
+  selectedNode.value = node
   emit('select-dependency', {
     groupId: node.groupId,
     artifactId: node.artifactId,
@@ -221,11 +221,59 @@ onMounted(() => {
         loading.value = false
         error.value = message.message || '获取依赖数据失败'
         break
+      case 'gotoTreeNode': {
+        const { root, target } = message.data
+        gotoAndHighlightNodeByRoot(root, target)
+        break
+      }
     }
   })
   // 初始化时请求数据
   refreshDependencies()
 })
+
+// 跳转并高亮：先定位一级依赖Root，再递归展开到目标依赖
+function gotoAndHighlightNodeByRoot(root: any, target: any) {
+  // 1. 找到一级依赖Root
+  const rootNode = dependencyData.value.find((node: any) =>
+    node.groupId === root.groupId &&
+    node.artifactId === root.artifactId &&
+    node.version === root.version &&
+    (root.scope ? node.scope === root.scope : true)
+  )
+  if (!rootNode) return
+
+  // 2. 递归在rootNode下查找目标依赖
+  function dfs(node: any): boolean {
+    if (
+      node.groupId === target.groupId &&
+      node.artifactId === target.artifactId &&
+      node.version === target.version &&
+      (target.scope ? node.scope === target.scope : true)
+    ) {
+      node.expanded = true
+      node.matched = true
+      selectedNode.value = node // 只高亮唯一目标节点
+      return true
+    }
+    if (node.children && node.children.length > 0) {
+      for (const child of node.children) {
+        if (dfs(child)) {
+          node.expanded = true // 展开父节点
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  // 3. 先清除所有高亮和展开
+  setAllExpanded(dependencyData.value, false)
+  clearMatched(dependencyData.value)
+  rootNode.expanded = true
+  dfs(rootNode)
+  searchAndHighlight(dependencyData.value, target.artifactId)
+}
 
 defineExpose({ refreshDependencies, expandAll, collapseAll })
 </script>

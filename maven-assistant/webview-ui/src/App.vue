@@ -64,7 +64,15 @@ function collapseAll() {
 // 获取VSCode API实例
 const vscodeApi = acquireVsCodeApi()
 
+// 允许外部设置搜索框内容
+function setSearchText(val: string) {
+  searchText.value = val
+  addToSearchHistory(val)
+}
+defineExpose({ setSearchText })
+
 const onSelectDependency = (dep: any, treeData: any) => {
+  console.log('onSelectDependency', dep, treeData)
   selectedDependency.value = dep
   dependencyTreeData.value = treeData
 }
@@ -88,6 +96,12 @@ const stopDrag = () => {
 onMounted(() => {
   window.addEventListener('mousemove', onDrag)
   window.addEventListener('mouseup', stopDrag)
+  // 新增：监听 setSearchText 消息
+  window.addEventListener('message', (event) => {
+    if (event.data?.type === 'setSearchText') {
+      setSearchText(event.data.artifactId)
+    }
+  })
 })
 onBeforeUnmount(() => {
   window.removeEventListener('mousemove', onDrag)

@@ -70,12 +70,14 @@ function getMenuItems(node: any, path: any[]): { label: string, value: string }[
   // 如果是一级依赖，则不显示“排除此依赖”
   if (isTopLevel) {
     return [
-      { label: '跳转到 pom.xml', value: 'goto-pom' }
+      { label: '跳转到 pom.xml', value: 'goto-pom' },
+      { label: '跳转到左侧树', value: 'goto-tree' } // 新增
     ]
   } else {
     return [
       { label: '跳转到 pom.xml', value: 'goto-pom' },
-      { label: '排除此依赖', value: 'exclude' }
+      { label: '排除此依赖', value: 'exclude' },
+      { label: '跳转到左侧树', value: 'goto-tree' } // 新增
     ]
   }
 }
@@ -97,6 +99,29 @@ function handleNodeContextMenu(pathIndex: number, nodeIndex: number, node: any, 
 function handleMenuSelect(action: string) {
   if (!menuNode.value) return
   const { node, path } = menuNode.value
+  if (action === 'goto-tree') {
+    // 跳转到左侧依赖树，传递 root 和 target GAV，并通过 window.postMessage 设置搜索框内容
+    const root = path[path.length - 1]
+    window.postMessage({ type: 'setSearchText', artifactId: node.artifactId }, '*')
+    window.postMessage({
+      type: 'gotoTreeNode',
+      data: {
+        root: {
+          groupId: root.groupId,
+          artifactId: root.artifactId,
+          version: root.version,
+          scope: root.scope
+        },
+        target: {
+          groupId: node.groupId,
+          artifactId: node.artifactId,
+          version: node.version,
+          scope: node.scope
+        }
+      }
+    })
+    return
+  }
   // 通过vscodeApi发送消息
   props.vscodeApi.postMessage({
     type: 'showContextMenu',
