@@ -15,10 +15,12 @@
           v-for="(node, index) in renderDependencyData"
           :key="index"
           :node="node"
+          :path="[]"
           :dataKey="`node-${index}`"
           :selectedNode="selectedNode"
           :showGroupId="showGroupId"
           :showSize="showSize"
+          :vscodeApi="props.vscodeApi"
           @select="handleSelect"
         />
       </ul>
@@ -238,7 +240,6 @@ function gotoAndHighlightNodeByPath(path: any[]) {
     currentNode.expanded = true
     nodes = currentNode.children || []
   }
-  console.log('currentNode', currentNode)
   // --- 新增：filter 模式下 selectedNode 指向 filter 结果树中的节点 ---
   if (props.filterMode && props.searchText) {
     const filtered = renderDependencyData.value
@@ -289,8 +290,6 @@ onMounted(() => {
         break
       case 'gotoTreeNode': {
         const { path } = message
-        console.log('we are going into gotoTreeNode', path)
-        console.log('now search Text is: ', props.searchText)
         gotoAndHighlightNodeByPath(path)
         break
       }

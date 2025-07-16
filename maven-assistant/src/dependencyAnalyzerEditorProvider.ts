@@ -124,6 +124,9 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
     private async handleContextMenu(data: any) {
         try {
             const { node, nodeIndex, pathInfo, action } = data;
+            console.log('右键菜单数据 node:',node);
+            console.log('右键菜单数据 nodeIndex:', nodeIndex);
+            console.log('右键菜单数据 pathInfo:', pathInfo);
             if (action === 'exclude') {
                 // 1. 获取根依赖（pathInfo 最后一个节点）和目标依赖（node）
                 const root = pathInfo[pathInfo.length - 1];
@@ -147,9 +150,7 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                         artifactId: target.artifactId
                     }
                 };
-                const result = await this.lspClient.insertExclusion(params);
-                console.log('传输的params:', params); 
-                console.log('insertExclusion result:', result); 
+                const result = JSON.parse(await this.lspClient.insertExclusion(params));
                 if (result && result.success) {
                     // 高亮新加的 exclusion 行
                     const document = await vscode.workspace.openTextDocument(pomFiles[0]);
@@ -160,6 +161,7 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                     editor.revealRange(new vscode.Range(pos, pos));
                     vscode.window.showInformationMessage(result.message || '已成功插入 exclusion');
                 } else {
+                    console.log('result error:', result.error);
                     vscode.window.showErrorMessage(result && result.error ? result.error : '插入 exclusion 失败');
                 }
                 return;

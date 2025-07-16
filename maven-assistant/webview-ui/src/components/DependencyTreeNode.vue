@@ -4,6 +4,7 @@
       class="dep-node-row"
       :class="{ selected: isSelected, matched: node.matched }"
       @click="selectNode"
+      @contextmenu="handleContextMenu"
     >
       <span 
         v-if="node.hasChildren"
@@ -28,26 +29,39 @@
           v-for="(child, idx) in node.children"
           :key="idx"
           :node="child"
+          :path="[...path, node]"
           :dataKey="`${dataKey}-${idx}`"
           :selectedNode="selectedNode"
           :showGroupId="showGroupId"
           :showSize="showSize"
+          :vscodeApi="vscodeApi"
           @select="emitSelect"
         />
       </ul>
     </div>
+    <ContextMenu
+      :visible="menuVisible"
+      :x="menuX"
+      :y="menuY"
+      :items="menuItemsRef"
+      @select="handleMenuSelect"
+      @close="menuVisible = false"
+    />
   </li>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { calcNodeAndDirectChildrenSize } from '../utils'
+import ContextMenu from './ContextMenu.vue'
 const props = defineProps({
   node: { type: Object, required: true },
+  path: { type: Array as () => any[], default: () => [] },
   dataKey: { type: String, default: '' },
   selectedNode: { type: Object, default: null },
   showGroupId: { type: Boolean, default: false },
-  showSize: { type: Boolean, default: false }
+  showSize: { type: Boolean, default: false },
+  vscodeApi: { type: Object, required: true }
 })
 const emit = defineEmits(['select'])
 
@@ -91,6 +105,64 @@ const nodeLabel = computed(() => {
 const totalSizeKB = computed(() => props.showSize ? calcNodeAndDirectChildrenSize(props.node) : 0)
 // 本节点自身 jar 大小（单位KB，向上取整）
 const selfSizeKB = computed(() => props.showSize ? Math.ceil((props.node.size || 0) / 1024) : 0)
+
+// 右键菜单相关响应式状态
+const menuVisible = ref(false)
+const menuX = ref(0)
+const menuY = ref(0)
+const menuNode = ref<any>(null)
+const menuItemsRef = ref<{ label: string, value: string }[]>([])
+
+// 生成菜单项（不含“跳转到左侧树”）
+function getMenuItems(_node: any) {
+  // 判断是否为顶级依赖（即当前 pom.xml 直接依赖）
+  const isTopLevel = props.path.length === 0
+  if (isTopLevel) {
+    return [
+      { label: 'Jump to pom.xml', value: 'goto-pom' }
+    ]
+  } else {
+    return [
+      { label: 'Jump to pom.xml', value: 'goto-pom' },
+      { label: 'Exclude', value: 'exclude' }
+    ]
+  }
+}
+
+function handleContextMenu(event: MouseEvent) {
+  event.preventDefault()
+  menuVisible.value = true
+  menuX.value = event.clientX
+  menuY.value = event.clientY
+  menuNode.value = props.node
+  menuItemsRef.value = getMenuItems(props.node)
+}
+
+function handleMenuSelect(action: string) {
+  if (!menuNode.value) return
+  const node = menuNode.value
+  const pathInfo = [node, ...props.path].map(n => ({
+    groupId: n.groupId,
+    artifactId: n.artifactId,
+    version: n.version,
+    scope: n.scope
+  }))
+  props.vscodeApi.postMessage({
+    type: 'showContextMenu',
+    data: {
+      node: {
+        groupId: node.groupId,
+        artifactId: node.artifactId,
+        version: node.version,
+        scope: node.scope
+      },
+      action,
+      pathInfo,
+      nodeIndex: 0
+    }
+  })
+  menuVisible.value = false
+}
 </script>
 
 <style scoped>
