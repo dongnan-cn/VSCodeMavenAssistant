@@ -70,8 +70,8 @@ function getMenuItems(node: any, path: any[]): { label: string, value: string }[
   // 如果是一级依赖，则不显示“排除此依赖”
   if (isTopLevel) {
     return [
-      { label: '跳转到 pom.xml', value: 'goto-pom' },
-      { label: '跳转到左侧树', value: 'goto-tree' } // 新增
+      { label: 'Jump to pom.xml', value: 'goto-pom' },
+      { label: 'Jump to Left Tree', value: 'goto-tree' } // 新增
     ]
   } else {
     return [
@@ -91,6 +91,9 @@ function handleNodeContextMenu(pathIndex: number, nodeIndex: number, node: any, 
   menuNode.value = { node, path }
   menuPathIndex.value = pathIndex
   menuNodeIndex.value = nodeIndex
+  console.log('pathIndex', pathIndex)
+  console.log('nodeIndex', nodeIndex)
+  console.log('node', node)
   // 动态设置菜单项
   menuItemsRef.value = getMenuItems(node, path)
 }
@@ -101,10 +104,12 @@ function handleMenuSelect(action: string) {
   const { node, path } = menuNode.value
   if (action === 'goto-tree') {
     // 跳转到左侧依赖树，传递完整 path，使用 window.postMessage
+    console.log('goto-tree=>setSearchText', node.artifactId)
+    console.log('goto-tree=>path', path.slice(menuNodeIndex.value, path.length))
     window.postMessage({ type: 'setSearchText', artifactId: node.artifactId }, '*')
     window.postMessage({
       type: 'gotoTreeNode',
-      path: JSON.parse(JSON.stringify(path))
+      path: JSON.parse(JSON.stringify(path.slice(menuNodeIndex.value, path.length)))
     }, '*')
     return
   }

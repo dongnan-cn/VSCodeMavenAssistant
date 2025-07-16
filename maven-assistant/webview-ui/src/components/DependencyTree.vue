@@ -170,6 +170,7 @@ function filterDependencyTree(nodes: DependencyNode[], keyword: string): Depende
 // 计算实际用于渲染的依赖树数据
 const renderDependencyData = computed(() => {
   if (props.filterMode && props.searchText) {
+    console.log('filterDependencyTree', props.searchText, dependencyData.value)
     return filterDependencyTree(dependencyData.value, props.searchText)
   }
   return dependencyData.value
@@ -194,6 +195,31 @@ function clearMatched(nodes: DependencyNode[]) {
   })
 }
 
+// 递归查找 filter 结果树中与 path 匹配的节点
+function findNodeByPath(nodes: DependencyNode[], path: any[]): DependencyNode | null {
+  if (!nodes || !path || path.length === 0) return null
+  const seg = path[path.length - 1]
+  for (const node of nodes) {
+    if (
+      node.groupId === seg.groupId &&
+      node.artifactId === seg.artifactId &&
+      node.version === seg.version &&
+      (seg.scope ? node.scope === seg.scope : true)
+    ) {
+      // 路径完全匹配
+      if (path.length === 1) return node
+      // 递归查找子节点
+      if (node.children && node.children.length > 0) {
+        const found = findNodeByPath(node.children, path.slice(0, -1))
+        if (found) return found
+      }
+      // 没有子节点或未找到，返回当前
+      return node
+    }
+  }
+  return null
+}
+
 // 跳转并高亮：严格按 path 逐级递归展开和选中
 function gotoAndHighlightNodeByPath(path: any[]) {
   console.log('gotoAndHighlightNodeByPath', path)
@@ -202,7 +228,6 @@ function gotoAndHighlightNodeByPath(path: any[]) {
   // path: 从 root 到 target，正序遍历
   for (let i = path.length - 1; i >= 0; i--) {
     const seg = path[i]
-    console.log(`trying to find ${seg} from ${nodes}`)
     currentNode = nodes.find((n: any) =>
       n.groupId === seg.groupId &&
       n.artifactId === seg.artifactId &&
@@ -213,15 +238,25 @@ function gotoAndHighlightNodeByPath(path: any[]) {
     currentNode.expanded = true
     nodes = currentNode.children || []
   }
-  if (currentNode) {
-    selectedNode.value = currentNode
-    emit('select-dependency', currentNode, dependencyData.value)
-    // 跳转时关闭filterMode，保证全树高亮
-    if (props.filterMode) {
-      emit('update:filterMode', false)
+  console.log('currentNode', currentNode)
+  // --- 新增：filter 模式下 selectedNode 指向 filter 结果树中的节点 ---
+  if (props.filterMode && props.searchText) {
+    const filtered = renderDependencyData.value
+    const filteredNode = findNodeByPath(filtered, path)
+    if (filteredNode) {
+      selectedNode.value = filteredNode
+    } else {
+      selectedNode.value = null
     }
-    // 全树搜索高亮
-    searchAndHighlight(dependencyData.value, currentNode.artifactId)
+  } else {
+    selectedNode.value = currentNode
+  }
+  if (selectedNode.value) {
+    emit('select-dependency', selectedNode.value, dependencyData.value)
+    // 跳转时直接设置搜索框内容，确保搜索高亮和搜索框同步
+    if (currentNode) {
+      searchAndHighlight(dependencyData.value, currentNode.artifactId)
+    }
   }
 }
 
@@ -254,6 +289,8 @@ onMounted(() => {
         break
       case 'gotoTreeNode': {
         const { path } = message
+        console.log('we are going into gotoTreeNode', path)
+        console.log('now search Text is: ', props.searchText)
         gotoAndHighlightNodeByPath(path)
         break
       }

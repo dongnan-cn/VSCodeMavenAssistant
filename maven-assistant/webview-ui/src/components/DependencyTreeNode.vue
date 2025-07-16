@@ -51,8 +51,22 @@ const props = defineProps({
 })
 const emit = defineEmits(['select'])
 
-// 判断是否选中（用对象引用）
-const isSelected = computed(() => props.node === props.selectedNode)
+// 判断是否选中（用唯一标识而不是对象引用）
+const isSelected = computed(() => {
+  if (!props.selectedNode) return false
+  // 以 groupId, artifactId, version, scope, path 唯一标识节点
+  const n = props.node
+  const s = props.selectedNode
+  // 路径可选，如果有 path 字段则也比较
+  const pathEqual = !n.path || !s.path || JSON.stringify(n.path) === JSON.stringify(s.path)
+  return (
+    n.groupId === s.groupId &&
+    n.artifactId === s.artifactId &&
+    n.version === s.version &&
+    (n.scope || '') === (s.scope || '') &&
+    pathEqual
+  )
+})
 
 function selectNode() {
   emit('select', props.node.artifactId, props.node)
