@@ -107,8 +107,10 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                 if (relIndex !== -1) {
                     const absIndex = match.index + relIndex;
                     const position = document.positionAt(absIndex);
-                    editor.selection = new vscode.Selection(position, position);
-                    editor.revealRange(new vscode.Range(position, position));
+                    const lineNumber = position.line;
+                    const lineRange = document.lineAt(lineNumber).range;
+                    editor.selection = new vscode.Selection(lineRange.start, lineRange.end);
+                    editor.revealRange(lineRange, vscode.TextEditorRevealType.InCenter);
                     found = true;
                     break;
                 }

@@ -2,12 +2,12 @@
   <div class="dependency-paths-container">
     
     <div v-if="!props.selectedDependency">
-      <div class="placeholder">请选择左侧依赖节点，右侧将显示所有来源路径</div>
+      <div class="placeholder">Please select a dependency node</div>
     </div>
     <div v-else>
-      <div class="title">所有来源路径（共 {{ paths.length }} 条）：</div>
+      <div class="title">All paths to the dependency (total: {{ paths.length }}):</div>
 
-      <div v-if="paths.length === 0" class="no-paths">未找到任何路径</div>
+      <div v-if="paths.length === 0" class="no-paths">No path found</div>
       <div v-for="(path, pathIdx) in paths" :key="pathIdx" class="path-block">
         <DependencyPathNode
           v-if="path.length > 0"
