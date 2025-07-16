@@ -71,6 +71,10 @@ const isSelected = computed(() => {
   // 以 groupId, artifactId, version, scope, path 唯一标识节点
   const n = props.node
   const s = props.selectedNode
+  console.log('node', props.node);
+  console.log('selectedNode', props.selectedNode);
+  console.log('node path', props.node.path);
+  console.log('selectedNode path', props.selectedNode.path);
   // 路径可选，如果有 path 字段则也比较
   const pathEqual = !n.path || !s.path || JSON.stringify(n.path) === JSON.stringify(s.path)
   return (

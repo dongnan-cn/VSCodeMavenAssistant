@@ -104,8 +104,6 @@ function handleMenuSelect(action: string) {
   const { node, path } = menuNode.value
   if (action === 'goto-tree') {
     // 跳转到左侧依赖树，传递完整 path，使用 window.postMessage
-    console.log('goto-tree=>setSearchText', node.artifactId)
-    console.log('goto-tree=>path', path.slice(menuNodeIndex.value, path.length))
     window.postMessage({ type: 'setSearchText', artifactId: node.artifactId }, '*')
     window.postMessage({
       type: 'gotoTreeNode',

@@ -80,7 +80,6 @@ function handleNodeClick() {
   emit('node-click', props.pathIdx, props.nodeIdx, props.node, props.path)
 }
 function handleNodeContextMenu(e: MouseEvent) {
-  console.log('handleNodeContextMenu====>path', JSON.stringify(props.path), 'nodeIdx', props.nodeIdx, 'pathIdx', props.pathIdx)
   emit('node-contextmenu', props.pathIdx, props.nodeIdx, props.node, props.path, e)
 }
 function emitNodeClick(...args: any[]) {
