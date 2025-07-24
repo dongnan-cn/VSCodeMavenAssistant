@@ -21,6 +21,9 @@ const searchHistory = ref<string[]>([])
 const showHistoryDropdown = ref(false)
 const showSize = ref(false)
 
+// 新增：显示模式选择，默认显示依赖树
+const displayMode = ref('dependency-tree') // 'dependency-tree' 或 'dependency-conflicts'
+
 function toggleHistoryDropdown() {
   showHistoryDropdown.value = !showHistoryDropdown.value
 }
@@ -111,26 +114,18 @@ onBeforeUnmount(() => {
 
 <template>
   <div>
+    <!-- 主工具栏区域 -->
     <div class="toolbar">
       <div class="toolbar-left">
         <div class="search-input-wrapper">
           <span class="search-icon">🔍</span>
           <span class="search-history-toggle" @click="toggleHistoryDropdown">▼</span>
-          <input
-            v-model="searchText"
-            placeholder="Search artifact..."
-            class="search-input"
-            @keydown="handleSearchInputKeydown"
-            @blur="handleSearchInputBlur"
-          />
+          <input v-model="searchText" placeholder="Search artifact..." class="search-input"
+            @keydown="handleSearchInputKeydown" @blur="handleSearchInputBlur" />
           <span v-if="searchText" class="search-clear-btn" @click="searchText = ''">×</span>
           <div v-if="showHistoryDropdown && searchHistory.length > 0" class="search-history-dropdown">
-            <div
-              v-for="(item, idx) in searchHistory"
-              :key="idx"
-              class="search-history-item"
-              @mousedown.prevent="selectHistoryItem(item)"
-            >
+            <div v-for="(item, idx) in searchHistory" :key="idx" class="search-history-item"
+              @mousedown.prevent="selectHistoryItem(item)">
               {{ item }}
             </div>
           </div>
@@ -148,60 +143,78 @@ onBeforeUnmount(() => {
           <input type="checkbox" v-model="showSize" /> Show size
         </label>
       </div>
+      <!-- 显示模式选择栏 - 使用与 toolbar-left 相同的样式 -->
+      <div class="display-mode-bar">
+        <div class="display-mode-group">
+          <label class="radio-label">
+            <input type="radio" v-model="displayMode" value="dependency-tree" name="displayMode" />
+            Dependency Tree
+          </label>
+          <label class="radio-label">
+            <input type="radio" v-model="displayMode" value="dependency-conflicts" name="displayMode" />
+            Dependency Conflicts
+          </label>
+        </div>
+      </div>
     </div>
+
+
+
+    <!-- 主内容分割面板 -->
     <div class="split-pane">
       <div class="left-pane" :style="{ width: leftWidth + 'px' }">
-        <DependencyTree 
-          @select-dependency="onSelectDependency" 
-          :vscodeApi="vscodeApi"
-          :searchText="searchText"
-          :showGroupId="showGroupId"
-          :filterMode="filterMode"
-          :showSize="showSize"
-          ref="dependencyTreeRef"
-        />
+        <!-- 根据选择的显示模式切换左侧内容 -->
+        <DependencyTree v-if="displayMode === 'dependency-tree'" @select-dependency="onSelectDependency"
+          :vscodeApi="vscodeApi" :searchText="searchText" :showGroupId="showGroupId" :filterMode="filterMode"
+          :showSize="showSize" ref="dependencyTreeRef" />
+        <!-- 依赖冲突视图的占位符 -->
+        <div v-else-if="displayMode === 'dependency-conflicts'" class="conflicts-placeholder">
+          <div class="placeholder-text">Dependency Conflicts view coming soon...</div>
+        </div>
       </div>
       <div class="splitter" @mousedown="startDrag"></div>
       <div class="right-pane">
-        <DependencyPaths
-          :dependencyTree="dependencyTreeData"
-          :selectedDependency="selectedDependency"
-          :vscodeApi="vscodeApi"
-          :showGroupId="showGroupId"
-          :showSize="showSize"
-        />
+        <DependencyPaths :dependencyTree="dependencyTreeData" :selectedDependency="selectedDependency"
+          :vscodeApi="vscodeApi" :showGroupId="showGroupId" :showSize="showSize" />
       </div>
     </div>
   </div>
 </template>
 
 <style>
-html, body, #app, .split-pane, .left-pane, .right-pane {
+html,
+body,
+#app {
   margin: 0 !important;
   padding: 0 !important;
   box-sizing: border-box;
   height: 100vh;
   width: 100vw;
 }
+
+/* 主分割面板 - 调整高度以适应新的布局 */
 .split-pane {
   display: flex;
-  height: 100vh;
+  height: calc(100vh - 90px);
+  /* 减去工具栏和显示模式栏的高度 */
   width: 100vw;
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
+
 .left-pane {
   background: var(--vscode-sideBar-background);
   min-width: 180px;
   max-width: 80vw;
-  height: 100vh;
+  height: 100%;
   width: 100%;
   box-sizing: border-box;
   padding: 0;
   margin: 0;
   transition: width 0.1s;
 }
+
 .splitter {
   width: 5px;
   cursor: col-resize;
@@ -209,146 +222,195 @@ html, body, #app, .split-pane, .left-pane, .right-pane {
   transition: background 0.2s;
   z-index: 10;
 }
+
 .splitter:hover {
   background: var(--vscode-panelTitle-activeBorder);
 }
+
 .right-pane {
   flex: 1;
   background: var(--vscode-editor-background);
-  height: 100vh;
+  height: 100%;
   width: 100%;
   box-sizing: border-box;
   padding: 0;
   margin: 0;
 }
+
+/* 主工具栏样式 - 修改为垂直布局 */
 .toolbar {
   width: 100%;
   box-sizing: border-box;
-  padding: 0 24px 10px 24px;
+  padding: 8px 24px;
   margin: 0;
   border-bottom: 1px solid var(--vscode-panel-border);
   background: var(--vscode-editor-background);
   display: flex;
-  align-items: center;
+  flex-direction: column; /* 改为垂直布局 */
   z-index: 2;
 }
+
 .toolbar-left {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.refresh-btn {
-  background-color: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-  border: 1px solid var(--vscode-button-border);
-  padding: 5px 10px;
-  border-radius: 3px;
+
+/* 显示模式栏样式 - 使用与 toolbar-left 相同的样式 */
+.display-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px; /* 添加上边距分隔两行 */
+}
+
+/* 显示模式选择组样式 */
+.display-mode-group {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Radio button 标签样式 */
+.radio-label {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  user-select: none;
+  gap: 6px;
   cursor: pointer;
-  font-size: 12px;
+  color: var(--vscode-foreground);
+  font-weight: 500;
+  transition: color 0.2s;
 }
-.refresh-btn:hover {
-  background-color: var(--vscode-button-hoverBackground);
+
+.radio-label:hover {
+  color: var(--vscode-textLink-foreground);
 }
+
+.radio-label input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--vscode-textLink-foreground);
+}
+
+/* 依赖冲突视图占位符样式 */
+.conflicts-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+}
+
+.placeholder-text {
+  color: var(--vscode-descriptionForeground);
+  font-size: 14px;
+  font-style: italic;
+}
+
+/* 搜索输入框相关样式 */
 .search-input-wrapper {
   position: relative;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-}
-.search-icon {
-  position: absolute;
-  left: 8px;
-  font-size: 15px;
-  color: var(--vscode-input-foreground);
-  pointer-events: none;
-  z-index: 2;
-}
-.search-history-toggle {
-  position: absolute;
-  left: 28px;
-  font-size: 8px;
-  color: var(--vscode-input-foreground);
-  cursor: pointer;
-  z-index: 2;
-  user-select: none;
-  padding: 0 2px;
-}
-.search-input {
-  width: 180px;
-  margin-right: 0;
-  padding: 4px 8px 4px 44px;
+  background: var(--vscode-input-background);
   border: 1px solid var(--vscode-input-border);
   border-radius: 3px;
-  font-size: 13px;
-  background: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  box-sizing: border-box;
+  padding: 4px 8px;
+  min-width: 200px;
 }
+
+.search-icon {
+  margin-right: 6px;
+  color: var(--vscode-input-placeholderForeground);
+  font-size: 12px;
+}
+
+.search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--vscode-input-foreground);
+  font-size: 13px;
+}
+
+.search-input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+.search-clear-btn {
+  margin-left: 6px;
+  cursor: pointer;
+  color: var(--vscode-input-placeholderForeground);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.search-clear-btn:hover {
+  color: var(--vscode-input-foreground);
+}
+
+.search-history-toggle {
+  margin-left: 6px;
+  cursor: pointer;
+  color: var(--vscode-input-placeholderForeground);
+  font-size: 10px;
+  transform: rotate(0deg);
+  transition: transform 0.2s;
+}
+
 .search-history-dropdown {
   position: absolute;
-  top: 110%;
+  top: 100%;
   left: 0;
-  width: 180px;
-  background: var(--vscode-editorWidget-background, #252526);
-  color: var(--vscode-editorWidget-foreground, #cccccc);
-  border: 1px solid var(--vscode-widget-border, #454545);
+  right: 0;
+  background: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-dropdown-border);
   border-radius: 3px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  z-index: 10;
-  max-height: 220px;
+  max-height: 200px;
   overflow-y: auto;
-  font-size: 13px;
-  padding: 4px 0;
+  z-index: 1000;
+  margin-top: 2px;
 }
+
 .search-history-item {
-  padding: 4px 16px 4px 32px;
+  padding: 6px 12px;
   cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.2s;
+  color: var(--vscode-dropdown-foreground);
+  font-size: 13px;
 }
+
 .search-history-item:hover {
-  background: var(--vscode-list-hoverBackground, #2a2d2e);
-  color: var(--vscode-list-hoverForeground, #fff);
+  background: var(--vscode-list-hoverBackground);
 }
-.search-clear-btn {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 13px;
-  color: rgba(128,128,128,0.45); /* 更浅半透明灰色 */
-  cursor: pointer;
-  z-index: 2;
-  user-select: none;
-  padding: 0 2px;
-  border-radius: 50%;
-  transition: background 0.15s, color 0.15s;
-}
-.search-clear-btn:hover {
-  background: var(--vscode-list-hoverBackground, #2a2d2e);
-  color: var(--vscode-list-hoverForeground, #fff);
-}
-.show-groupid-label {
-  display: flex;
-  align-items: center;
-  font-size: 13px;
-  margin-left: 12px;
-  user-select: none;
-  gap: 4px;
-}
-.filter-label {
-  display: flex;
-  align-items: center;
-  font-size: 13px;
-  margin-left: 12px;
-  user-select: none;
-  gap: 4px;
-}
+
+/* 其他控件样式 */
+.filter-label,
+.show-groupid-label,
 .show-size-label {
   display: flex;
   align-items: center;
   font-size: 13px;
-  margin-left: 12px;
   user-select: none;
   gap: 4px;
+  cursor: pointer;
+  color: var(--vscode-foreground);
+}
+
+.refresh-btn {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background-color 0.2s;
+}
+
+.refresh-btn:hover {
+  background-color: var(--vscode-button-hoverBackground);
 }
 </style>
