@@ -297,6 +297,7 @@ const onSelectConflict = (conflict: any) => {
           @cache-conflict-data="onCacheConflictData"
           :vscodeApi="vscodeApi" 
           :showGroupId="showGroupId"
+          :showSize="showSize"
           :cachedData="conflictDataCache"
           :isDataLoaded="conflictDataLoaded"
           ref="dependencyConflictsRef" 

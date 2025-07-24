@@ -30,6 +30,8 @@
         >
           <div class="conflict-main">
             <div class="conflict-gav">
+              <!-- 显示文件大小（如果启用） -->
+              <span v-if="showSize && conflict.size" class="dependency-size">[{{ conflict.size }}]</span>
               <span v-if="showGroupId" class="group-id">{{ conflict.groupId }}:</span>
               <span class="artifact-id">{{ conflict.artifactId }}</span>
               <span class="version">:{{ conflict.usedVersion }}</span>
@@ -67,6 +69,7 @@ import type { ConflictDependency } from '../types/dependency'
 const props = defineProps<{
   vscodeApi?: any
   showGroupId?: boolean
+  showSize?: boolean  // 新增：控制是否显示文件大小
   // 新增：缓存相关属性
   cachedData?: any
   isDataLoaded?: boolean
@@ -135,7 +138,8 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
     usedVersion: string | null,
     conflictVersions: Set<string>,
     groupId: string,
-    artifactId: string
+    artifactId: string,
+    size?: string  // 新增：JAR文件大小
   }>();
   
   let totalNodes = 0;
@@ -170,13 +174,19 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
           usedVersion: null,
           conflictVersions: new Set(),
           groupId: node.groupId,
-          artifactId: node.artifactId
+          artifactId: node.artifactId,
+          size: node.size || node.sizeKB  // 新增：收集size信息
         });
         console.log(`${indent}[节点 ${totalNodes}] 🆕 创建新依赖映射: ${key}`);
       }
       
       const depInfo = dependencyMap.get(key)!;
       
+      // 如果当前节点有size信息且映射中还没有，则更新
+      if ((node.size || node.sizeKB) && !depInfo.size) {
+        depInfo.size = node.size || node.sizeKB;
+        console.log(`${indent}[节点 ${totalNodes}] 📏 更新size信息: ${key} -> ${depInfo.size}`);
+      }
       if (isDropped) {
         // 被冲突丢弃的版本
         depInfo.conflictVersions.add(version);
@@ -245,7 +255,8 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
         artifactId: depInfo.artifactId,
         usedVersion: depInfo.usedVersion!,
         conflictVersions: Array.from(depInfo.conflictVersions).sort(),
-        conflictCount: depInfo.conflictVersions.size
+        conflictCount: depInfo.conflictVersions.size,
+        size: depInfo.size  // 新增：包含size信息
       };
       conflicts.push(conflict);
       console.log(`  ✅ 添加到冲突列表:`, conflict);
@@ -555,5 +566,12 @@ defineExpose({
   color: var(--vscode-descriptionForeground);
   max-width: 300px;
   line-height: 1.4;
+}
+
+.dependency-size {
+  color: #666;
+  font-size: 0.85em;
+  margin-right: 8px;
+  font-weight: 500;
 }
 </style>
