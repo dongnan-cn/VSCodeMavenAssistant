@@ -2,7 +2,7 @@
   <div class="dependency-tree-container">
     <!-- 加载状态 -->
     <div v-if="loading" class="loading">
-      正在加载依赖分析...
+      Loading dependency tree...
     </div>
     <!-- 错误状态 -->
     <div v-else-if="error" class="error">
