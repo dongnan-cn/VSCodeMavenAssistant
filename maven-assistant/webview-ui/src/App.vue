@@ -296,6 +296,7 @@ const onSelectConflict = (conflict: any) => {
           @select-conflict="onSelectConflict"
           @cache-conflict-data="onCacheConflictData"
           :vscodeApi="vscodeApi" 
+          :searchText="searchText"
           :showGroupId="showGroupId"
           :showSize="showSize"
           :cachedData="conflictDataCache"

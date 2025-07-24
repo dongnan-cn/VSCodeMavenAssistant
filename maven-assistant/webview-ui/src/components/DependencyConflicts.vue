@@ -15,11 +15,17 @@
         <!-- 冲突列表 -->
         <div v-else-if="conflictData.length > 0" class="conflicts-list">
             <div class="conflicts-header">
-                <div class="conflicts-title">Dependency Conflicts ({{ conflictData.length }})</div>
+                <div class="conflicts-title">
+                    Dependency Conflicts 
+                    <span v-if="props.searchText && props.searchText.trim()">
+                        ({{ filteredConflictData.length }} of {{ conflictData.length }})
+                    </span>
+                    <span v-else>({{ conflictData.length }})</span>
+                </div>
             </div>
 
             <div class="conflicts-items">
-                <div v-for="conflict in conflictData" :key="`${conflict.groupId}:${conflict.artifactId}`"
+                <div v-for="conflict in filteredConflictData" :key="`${conflict.groupId}:${conflict.artifactId}`"
                     class="conflict-item" :class="{
                         selected: selectedConflict?.groupId === conflict.groupId && selectedConflict?.artifactId === conflict.artifactId
                     }" @click="selectConflict(conflict)">
@@ -58,12 +64,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import type { ConflictDependency } from '../types/dependency'
 
 // 组件属性定义
 const props = defineProps<{
     vscodeApi?: any
+    searchText?: string  // 新增：搜索文本
     showGroupId?: boolean
     showSize?: boolean  // 新增：控制是否显示文件大小
     // 新增：缓存相关属性
@@ -83,12 +90,41 @@ const error = ref('')
 const conflictData = ref<ConflictDependency[]>([])
 const selectedConflict = ref<ConflictDependency | null>(null)
 
+// 搜索过滤函数 - 专门在groupId和artifactId中搜索
+function searchConflicts(conflicts: ConflictDependency[], searchText: string): ConflictDependency[] {
+    if (!searchText || !searchText.trim()) {
+        return conflicts
+    }
+    
+    const searchLower = searchText.toLowerCase().trim()
+    
+    return conflicts.filter(conflict => {
+        // 在groupId中搜索
+        const groupIdMatch = conflict.groupId.toLowerCase().includes(searchLower)
+        // 在artifactId中搜索
+        const artifactIdMatch = conflict.artifactId.toLowerCase().includes(searchLower)
+        
+        return groupIdMatch || artifactIdMatch
+    })
+}
+
+// 计算属性：过滤后的冲突数据
+const filteredConflictData = computed(() => {
+    return searchConflicts(conflictData.value, props.searchText || '')
+})
+
 // 选择冲突依赖
 function selectConflict(conflict: ConflictDependency) {
     console.log('🎯 选择冲突依赖:', conflict)
     selectedConflict.value = conflict
     emit('select-conflict', conflict)
 }
+
+// 监听搜索文本变化
+watch(() => props.searchText, (newSearchText) => {
+    console.log('🔍 搜索文本变化:', newSearchText)
+    // 搜索逻辑已通过计算属性自动处理
+}, { immediate: true })
 
 // 修改：刷新冲突数据，支持缓存检查
 const refreshConflicts = async () => {
