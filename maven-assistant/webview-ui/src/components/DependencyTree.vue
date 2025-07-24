@@ -43,7 +43,10 @@ const props = defineProps({
   searchText: { type: String, default: '' },
   showGroupId: { type: Boolean, default: false },
   filterMode: { type: Boolean, default: false },
-  showSize: { type: Boolean, default: false } // 新增：控制依赖大小显示
+  showSize: { type: Boolean, default: false },
+  // 新增：接收缓存数据和加载状态
+  cachedData: { type: Object, default: null },
+  isDataLoaded: { type: Boolean, default: false }
 })
 
 // 定义依赖节点接口
@@ -70,8 +73,11 @@ const selectedNode = ref<any>(null)
 
 // 刷新依赖数据
 function refreshDependencies() {
+  console.log('🔄 DependencyTree: 开始刷新依赖数据')
   loading.value = true
   error.value = ''
+  dependencyData.value = [] // 清空当前数据
+  console.log('📤 DependencyTree: 发送刷新请求到扩展端')
   props.vscodeApi.postMessage({ type: 'refresh' })
 }
 
@@ -97,23 +103,33 @@ function handleSelect(_: string, node: DependencyNode) {
 
 // 处理依赖数据
 function processDependencyData(data: any): DependencyNode[] {
+  console.log('⚙️ DependencyTree: 处理依赖数据:', {
+    hasData: !!data,
+    isArray: Array.isArray(data),
+    dataLength: Array.isArray(data) ? data.length : 0
+  })
+  
   if (!data || !Array.isArray(data)) {
+    console.log('❌ DependencyTree: 数据无效，返回空数组')
     return []
   }
-  return data.map((node: any) => {
+  
+  const processed = data.map((node: any) => {
     const hasChildren = node.children && node.children.length > 0
     const status = node.droppedByConflict ? 'DROPPED' : 'USED'
     const statusClass = node.droppedByConflict ? 'dropped' : 'used'
-    // 不再拼接label，交由子组件处理
     return {
       ...node,
       status,
       statusClass,
       hasChildren,
-      expanded: false, // 默认全部收起
+      expanded: false,
       children: hasChildren ? processDependencyData(node.children) : undefined
     }
   })
+  
+  console.log('✅ DependencyTree: 数据处理完成，节点数量:', processed.length)
+  return processed
 }
 
 function setAllExpanded(nodes: DependencyNode[], expanded: boolean) {
@@ -263,40 +279,83 @@ function gotoAndHighlightNodeByPath(path: any[]) {
 
 // 监听来自扩展端的消息
 onMounted(() => {
+  console.log('🚀 DependencyTree: 组件挂载')
+  console.log('📊 DependencyTree: 检查缓存状态:', {
+    hasCachedData: !!props.cachedData,
+    isDataLoaded: props.isDataLoaded,
+    currentDataLength: dependencyData.value.length
+  })
+  
   window.addEventListener('message', (event) => {
     const message = event.data
+    console.log('📨 DependencyTree: 收到消息:', message.type)
+    
     switch (message.type) {
       case 'updateAnalysis':
+        console.log('📥 DependencyTree: 收到依赖分析数据')
         loading.value = false
         error.value = ''
         try {
           // 解析依赖树JSON
           const dependencyTree = JSON.parse(message.data)
+          console.log('📊 DependencyTree: 解析依赖树数据:', {
+            hasTree: !!dependencyTree,
+            hasGroupId: !!dependencyTree?.groupId,
+            hasChildren: !!dependencyTree?.children,
+            childrenLength: dependencyTree?.children?.length || 0
+          })
+          
           // 兼容根节点为 { children: [...] } 的格式
           let nodes: any[] = []
           if (dependencyTree && !dependencyTree.groupId && Array.isArray(dependencyTree.children)) {
             nodes = dependencyTree.children
+            console.log('📋 DependencyTree: 使用children格式，节点数:', nodes.length)
           } else if (dependencyTree && dependencyTree.groupId) {
             nodes = [dependencyTree]
+            console.log('📋 DependencyTree: 使用单节点格式')
           }
+          
           dependencyData.value = processDependencyData(nodes)
+          console.log('✅ DependencyTree: 依赖数据更新完成，触发select-dependency事件')
+          
+          // 触发父组件的缓存逻辑
+          if (dependencyData.value.length > 0) {
+            emit('select-dependency', null, dependencyData.value)
+          }
         } catch (err) {
+          console.error('❌ DependencyTree: 解析依赖数据失败:', err)
           error.value = `解析失败: ${err}\n\n原始内容:\n${message.data}`
         }
         break
       case 'error':
+        console.error('❌ DependencyTree: 收到错误消息:', message.message)
         loading.value = false
         error.value = message.message || '获取依赖数据失败'
         break
       case 'gotoTreeNode': {
+        console.log('🎯 DependencyTree: 跳转到节点:', message.path)
         const { path } = message
         gotoAndHighlightNodeByPath(path)
         break
       }
     }
   })
-  // 初始化时请求数据
-  refreshDependencies()
+  
+  // 修改：检查缓存数据，避免重复加载
+  if (props.cachedData && props.isDataLoaded) {
+    console.log('💾 DependencyTree: 使用缓存数据，跳过网络请求')
+    dependencyData.value = processDependencyData(
+      Array.isArray(props.cachedData) ? props.cachedData : 
+      (props.cachedData.children || [props.cachedData])
+    )
+    loading.value = false
+    console.log('✅ DependencyTree: 缓存数据加载完成，节点数:', dependencyData.value.length)
+  } else if (dependencyData.value.length === 0) {
+    console.log('🌐 DependencyTree: 没有缓存数据，发起网络请求')
+    refreshDependencies()
+  } else {
+    console.log('📋 DependencyTree: 已有数据，跳过加载')
+  }
 })
 
 defineExpose({ refreshDependencies, expandAll, collapseAll })
@@ -412,4 +471,4 @@ li.collapsed > .dep-children {
 }
 
 /* 移除.search-input相关样式 */
-</style> 
+</style>

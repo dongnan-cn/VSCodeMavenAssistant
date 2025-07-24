@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import DependencyTree from './components/DependencyTree.vue'
 import DependencyPaths from './components/DependencyPaths.vue'
 
@@ -23,6 +23,29 @@ const showSize = ref(false)
 
 // 新增：显示模式选择，默认显示依赖树
 const displayMode = ref('dependency-tree') // 'dependency-tree' 或 'dependency-conflicts'
+
+// 新增：缓存机制相关变量
+const dependencyTreeCache = ref<any>(null) // 缓存依赖树数据
+const dependencyTreeLoaded = ref(false) // 标记依赖树是否已加载
+const dependencyTreeKey = ref(0) // 用于强制重新渲染组件
+
+// 添加日志：监听显示模式变化
+watch(displayMode, (newMode, oldMode) => {
+  console.log('🔄 显示模式切换:', { from: oldMode, to: newMode })
+  console.log('📊 缓存状态:', {
+    hasCache: !!dependencyTreeCache.value,
+    isLoaded: dependencyTreeLoaded.value,
+    cacheSize: dependencyTreeCache.value ? JSON.stringify(dependencyTreeCache.value).length : 0
+  })
+  
+  if (newMode === 'dependency-tree') {
+    if (dependencyTreeCache.value && dependencyTreeLoaded.value) {
+      console.log('✅ 使用缓存数据，避免重新加载')
+    } else {
+      console.log('❌ 没有缓存数据，将触发重新加载')
+    }
+  }
+})
 
 function toggleHistoryDropdown() {
   showHistoryDropdown.value = !showHistoryDropdown.value
@@ -54,9 +77,25 @@ function selectHistoryItem(item: string) {
   showHistoryDropdown.value = false
 }
 
+// 修改：刷新依赖数据时清除缓存
 function refreshDependencies() {
+  console.log('🔄 手动刷新依赖数据')
+  console.log('🗑️ 清除缓存数据')
+  
+  // 清除缓存，强制重新加载
+  dependencyTreeCache.value = null
+  dependencyTreeLoaded.value = false
+  dependencyTreeKey.value++ // 强制重新渲染组件
+  
+  console.log('📊 刷新后缓存状态:', {
+    hasCache: !!dependencyTreeCache.value,
+    isLoaded: dependencyTreeLoaded.value,
+    componentKey: dependencyTreeKey.value
+  })
+  
   dependencyTreeRef.value?.refreshDependencies?.()
 }
+
 function expandAll() {
   dependencyTreeRef.value?.expandAll?.()
 }
@@ -74,10 +113,29 @@ function setSearchText(val: string) {
 }
 defineExpose({ setSearchText })
 
+// 修改：依赖选择处理，同时缓存数据
 const onSelectDependency = (dep: any, treeData: any) => {
-  console.log('onSelectDependency', dep, treeData)
+  console.log('🎯 选择依赖:', dep)
+  console.log('📦 接收到树数据:', {
+    hasData: !!treeData,
+    dataSize: treeData ? JSON.stringify(treeData).length : 0
+  })
+  
   selectedDependency.value = dep
   dependencyTreeData.value = treeData
+  
+  // 缓存依赖树数据
+  if (!dependencyTreeCache.value && treeData) {
+    console.log('💾 首次缓存依赖树数据')
+    dependencyTreeCache.value = treeData
+    dependencyTreeLoaded.value = true
+    console.log('✅ 缓存完成:', {
+      cacheSize: JSON.stringify(dependencyTreeCache.value).length,
+      isLoaded: dependencyTreeLoaded.value
+    })
+  } else if (dependencyTreeCache.value) {
+    console.log('📋 已有缓存数据，跳过缓存')
+  }
 }
 
 const startDrag = () => {
@@ -164,9 +222,20 @@ onBeforeUnmount(() => {
     <div class="split-pane">
       <div class="left-pane" :style="{ width: leftWidth + 'px' }">
         <!-- 根据选择的显示模式切换左侧内容 -->
-        <DependencyTree v-if="displayMode === 'dependency-tree'" @select-dependency="onSelectDependency"
-          :vscodeApi="vscodeApi" :searchText="searchText" :showGroupId="showGroupId" :filterMode="filterMode"
-          :showSize="showSize" ref="dependencyTreeRef" />
+        <!-- 修改：使用 key 和缓存机制优化 DependencyTree 组件 -->
+        <DependencyTree 
+          v-if="displayMode === 'dependency-tree'" 
+          :key="dependencyTreeKey"
+          @select-dependency="onSelectDependency"
+          :vscodeApi="vscodeApi" 
+          :searchText="searchText" 
+          :showGroupId="showGroupId" 
+          :filterMode="filterMode"
+          :showSize="showSize" 
+          :cachedData="dependencyTreeCache"
+          :isDataLoaded="dependencyTreeLoaded"
+          ref="dependencyTreeRef" 
+        />
         <!-- 依赖冲突视图的占位符 -->
         <div v-else-if="displayMode === 'dependency-conflicts'" class="conflicts-placeholder">
           <div class="placeholder-text">Dependency Conflicts view coming soon...</div>
@@ -174,8 +243,14 @@ onBeforeUnmount(() => {
       </div>
       <div class="splitter" @mousedown="startDrag"></div>
       <div class="right-pane">
-        <DependencyPaths :dependencyTree="dependencyTreeData" :selectedDependency="selectedDependency"
-          :vscodeApi="vscodeApi" :showGroupId="showGroupId" :showSize="showSize" />
+        <!-- 修改：使用缓存的依赖树数据 -->
+        <DependencyPaths 
+          :dependencyTree="dependencyTreeCache || dependencyTreeData" 
+          :selectedDependency="selectedDependency"
+          :vscodeApi="vscodeApi" 
+          :showGroupId="showGroupId" 
+          :showSize="showSize" 
+        />
       </div>
     </div>
   </div>
