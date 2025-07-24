@@ -278,8 +278,9 @@ const onSelectConflict = (conflict: any) => {
           <input type="checkbox" v-model="filterMode" /> filter
         </label>
         <button @click="refreshDependencies" class="refresh-btn">Refresh</button>
-        <button @click="expandAll" class="refresh-btn">Expand All</button>
-        <button @click="collapseAll" class="refresh-btn">Collapse All</button>
+        <!-- 只在依赖树模式下显示展开/折叠按钮 -->
+        <button v-if="displayMode === 'dependency-tree'" @click="expandAll" class="refresh-btn">Expand All</button>
+        <button v-if="displayMode === 'dependency-tree'" @click="collapseAll" class="refresh-btn">Collapse All</button>
         <label class="show-groupid-label">
           <input type="checkbox" v-model="showGroupId" /> Show GroupId
         </label>
