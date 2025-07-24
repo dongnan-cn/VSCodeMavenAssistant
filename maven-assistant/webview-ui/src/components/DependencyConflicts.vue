@@ -30,8 +30,8 @@
         >
           <div class="conflict-main">
             <div class="conflict-gav">
-              <!-- 显示文件大小（如果启用） -->
-              <span v-if="showSize && conflict.size" class="dependency-size">[{{ conflict.size }}]</span>
+              <!-- 显示文件大小（如果启用），size已经是KB单位 -->
+              <span v-if="showSize && conflict.size" class="dependency-size">[{{ conflict.size }} KB]</span>
               <span v-if="showGroupId" class="group-id">{{ conflict.groupId }}:</span>
               <span class="artifact-id">{{ conflict.artifactId }}</span>
               <span class="version">:{{ conflict.usedVersion }}</span>
@@ -175,7 +175,7 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
           conflictVersions: new Set(),
           groupId: node.groupId,
           artifactId: node.artifactId,
-          size: node.size || node.sizeKB  // 新增：收集size信息
+          size: undefined
         });
         console.log(`${indent}[节点 ${totalNodes}] 🆕 创建新依赖映射: ${key}`);
       }
@@ -183,22 +183,21 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
       const depInfo = dependencyMap.get(key)!;
       
       // 如果当前节点有size信息且映射中还没有，则更新
-      if ((node.size || node.sizeKB) && !depInfo.size) {
-        depInfo.size = node.size || node.sizeKB;
-        console.log(`${indent}[节点 ${totalNodes}] 📏 更新size信息: ${key} -> ${depInfo.size}`);
-      }
+      console.log('node.size', node.size, 'depInfo.size', depInfo.size)
+      
       if (isDropped) {
         // 被冲突丢弃的版本
         depInfo.conflictVersions.add(version);
-        droppedNodes++;
         console.log(`${indent}[节点 ${totalNodes}] 🔥 添加冲突版本: ${key}:${version}`);
       } else {
         // 实际使用的版本
         if (depInfo.usedVersion === null) {
           depInfo.usedVersion = version;
-          console.log(`${indent}[节点 ${totalNodes}] ✅ 设置使用版本: ${key}:${version}`);
-        } else if (depInfo.usedVersion !== version) {
-          console.log(`${indent}[节点 ${totalNodes}] ⚠️ 发现不同的使用版本: ${key} 已有=${depInfo.usedVersion}, 当前=${version}`);
+        } 
+        if (node.size && !depInfo.size) {
+        // 将字节转换为KB（向上取整），与DependencyTreeNode.vue保持一致
+          const sizeInBytes = node.size || 0;
+          depInfo.size = Math.ceil(sizeInBytes / 1024).toString();
         }
       }
     } else {
