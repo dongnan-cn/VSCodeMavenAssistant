@@ -99,8 +99,8 @@ function emitSelect(id: string, node: any) {
 // 动态label
 const nodeLabel = computed(() => {
   let base = props.showGroupId
-    ? `${props.node.groupId}:${props.node.artifactId}:${props.node.version}`
-    : `${props.node.artifactId}:${props.node.version}`
+    ? `${props.node.groupId} : ${props.node.artifactId} : ${props.node.version}`
+    : `${props.node.artifactId} : ${props.node.version}`
   if (props.node.scope) base += ` [${props.node.scope}]`
   return base
 })

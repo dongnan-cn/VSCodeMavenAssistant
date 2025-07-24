@@ -34,9 +34,9 @@
                             <!-- 显示文件大小（如果启用），size已经是KB单位 -->
                             <span v-if="showSize && conflict.size" class="dependency-size">[{{ conflict.size }}
                                 KB]</span>
-                            <span v-if="showGroupId" class="group-id">{{ conflict.groupId }}:</span>
+                            <span v-if="showGroupId" class="group-id">{{ conflict.groupId }} : </span>
                             <span class="artifact-id">{{ conflict.artifactId }}</span>
-                            <span class="version">:{{ conflict.usedVersion }}</span>
+                            <span class="version"> : {{ conflict.usedVersion }}</span>
                         </div>
                         <div class="conflict-badge">
                             <span class="conflict-count">{{ conflict.conflictCount }}</span>

@@ -107,8 +107,8 @@ const nodeLabel = computed(() => {
     return props.node.version
   }
   let base = props.showGroupId
-    ? `${props.node.groupId}:${props.node.artifactId}:${props.node.version}`
-    : `${props.node.artifactId}:${props.node.version}`
+    ? `${props.node.groupId} : ${props.node.artifactId} : ${props.node.version}`
+    : `${props.node.artifactId} : ${props.node.version}`
   return base
 })
 </script>
@@ -167,4 +167,4 @@ const nodeLabel = computed(() => {
   vertical-align: middle;
   user-select: none;
 }
-</style> 
+</style>
