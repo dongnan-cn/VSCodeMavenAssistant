@@ -241,7 +241,7 @@ const onSelectConflict = (conflict: any) => {
             </div>
           </div>
         </div>
-        <label class="filter-label">
+        <label class="filter-label" v-if="displayMode === 'dependency-tree'">
           <input type="checkbox" v-model="filterMode" /> filter
         </label>
         <button @click="refreshDependencies" class="refresh-btn">Refresh</button>
