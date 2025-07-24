@@ -153,7 +153,11 @@ function collapseAll() {
 function searchAndHighlight(nodes: DependencyNode[], keyword: string): boolean {
   let foundInChildren = false
   nodes.forEach(node => {
-    const matched = keyword && node.artifactId.toLowerCase().includes(keyword.toLowerCase())
+    // 在 groupId 和 artifactId 中搜索
+    const groupIdMatch = keyword && node.groupId.toLowerCase().includes(keyword.toLowerCase())
+    const artifactIdMatch = keyword && node.artifactId.toLowerCase().includes(keyword.toLowerCase())
+    const matched = groupIdMatch || artifactIdMatch
+    
     let childMatched = false
     if (node.children && node.children.length > 0) {
       childMatched = searchAndHighlight(node.children, keyword)
@@ -170,7 +174,11 @@ function filterDependencyTree(nodes: DependencyNode[], keyword: string): Depende
   if (!nodes) return []
   const result: DependencyNode[] = []
   for (const node of nodes) {
-    const matched = keyword && node.artifactId.toLowerCase().includes(keyword.toLowerCase())
+    // 在 groupId 和 artifactId 中搜索
+    const groupIdMatch = keyword && node.groupId.toLowerCase().includes(keyword.toLowerCase())
+    const artifactIdMatch = keyword && node.artifactId.toLowerCase().includes(keyword.toLowerCase())
+    const matched = groupIdMatch || artifactIdMatch
+    
     let filteredChildren: DependencyNode[] = []
     if (node.children && node.children.length > 0) {
       filteredChildren = filterDependencyTree(node.children, keyword)
