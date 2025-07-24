@@ -16,7 +16,6 @@
     <div v-else-if="conflictData.length > 0" class="conflicts-list">
       <div class="conflicts-header">
         <div class="conflicts-title">Dependency Conflicts ({{ conflictData.length }})</div>
-        <div class="conflicts-subtitle">Click on a dependency to view conflict details</div>
       </div>
       
       <div class="conflicts-items">
@@ -65,13 +64,19 @@ import { ref, onMounted } from 'vue'
 import type { ConflictDependency } from '../types/dependency'
 
 // 组件属性定义
-const props = defineProps({
-  vscodeApi: { type: Object, required: true },
-  showGroupId: { type: Boolean, default: false }
-})
+const props = defineProps<{
+  vscodeApi?: any
+  showGroupId?: boolean
+  // 新增：缓存相关属性
+  cachedData?: any
+  isDataLoaded?: boolean
+}>()
 
-// 事件定义
-const emit = defineEmits(['select-conflict'])
+// 修改 emit 定义，添加缓存事件
+const emit = defineEmits<{
+  'select-conflict': [conflict: ConflictDependency]
+  'cache-conflict-data': [data: any] // 新增：缓存数据事件
+}>()
 
 // 响应式数据
 const loading = ref(false)
@@ -86,9 +91,20 @@ function selectConflict(conflict: ConflictDependency) {
   emit('select-conflict', conflict)
 }
 
-// 刷新冲突数据
+// 修改：刷新冲突数据，支持缓存检查
 const refreshConflicts = async () => {
   console.log('[DependencyConflicts] 开始刷新冲突数据');
+  
+  // 检查是否有缓存数据
+  if (props.cachedData && props.isDataLoaded) {
+    console.log('[DependencyConflicts] ✅ 使用缓存的冲突数据');
+    conflictData.value = props.cachedData;
+    loading.value = false;
+    error.value = '';
+    return;
+  }
+  
+  console.log('[DependencyConflicts] ❌ 没有缓存数据，开始加载');
   loading.value = true;
   error.value = '';
   
@@ -265,6 +281,12 @@ const handleMessage = (event: MessageEvent) => {
         loading.value = false;
         
         console.log('[DependencyConflicts] 冲突数据已更新:', conflicts);
+        
+        // 新增：触发缓存事件
+        if (conflicts && conflicts.length >= 0) {
+          console.log('[DependencyConflicts] 💾 触发缓存事件');
+          emit('cache-conflict-data', conflicts);
+        }
       } catch (err) {
         console.error('[DependencyConflicts] 处理依赖树数据失败:', err);
         error.value = `处理依赖树数据失败: ${err}`;
@@ -277,12 +299,21 @@ const handleMessage = (event: MessageEvent) => {
         const conflictDataReceived = typeof message.data === 'string' 
           ? JSON.parse(message.data) 
           : message.data;
-        conflictData.value = conflictDataReceived;
+        
+        conflictData.value = conflictDataReceived || [];
         loading.value = false;
-        console.log('[DependencyConflicts] 冲突数据已更新:', conflictData.value);
-      } catch (error) {
-        console.error('[DependencyConflicts] 解析冲突数据失败:', error);
-        loadMockData();
+        
+        console.log('[DependencyConflicts] 冲突数据已更新 (兼容格式):', conflictDataReceived);
+        
+        // 新增：触发缓存事件
+        if (conflictDataReceived) {
+          console.log('[DependencyConflicts] 💾 触发缓存事件 (兼容格式)');
+          emit('cache-conflict-data', conflictDataReceived);
+        }
+      } catch (err) {
+        console.error('[DependencyConflicts] 解析冲突数据失败:', err);
+        error.value = `解析冲突数据失败: ${err}`;
+        loading.value = false;
       }
       break;
     case 'updateConflicts':
@@ -436,11 +467,6 @@ defineExpose({
   font-weight: 600;
   color: var(--vscode-foreground);
   margin-bottom: 4px;
-}
-
-.conflicts-subtitle {
-  font-size: 12px;
-  color: var(--vscode-descriptionForeground);
 }
 
 .conflicts-items {

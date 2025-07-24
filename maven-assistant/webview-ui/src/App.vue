@@ -15,6 +15,7 @@ const dependencyTreeData = ref<any>(null) // 依赖树原始数据
 
 const searchText = ref('')
 const dependencyTreeRef = ref()
+const dependencyConflictsRef = ref() // 新增：冲突组件引用
 
 const showGroupId = ref(false)
 const filterMode = ref(false)
@@ -30,20 +31,32 @@ const dependencyTreeCache = ref<any>(null) // 缓存依赖树数据
 const dependencyTreeLoaded = ref(false) // 标记依赖树是否已加载
 const dependencyTreeKey = ref(0) // 用于强制重新渲染组件
 
+// 新增：冲突依赖缓存变量
+const conflictDataCache = ref<any>(null) // 缓存冲突数据
+const conflictDataLoaded = ref(false) // 标记冲突数据是否已加载
+const conflictDataKey = ref(0) // 用于强制重新渲染冲突组件
+
 // 添加日志：监听显示模式变化
 watch(displayMode, (newMode, oldMode) => {
   console.log('🔄 显示模式切换:', { from: oldMode, to: newMode })
   console.log('📊 缓存状态:', {
-    hasCache: !!dependencyTreeCache.value,
-    isLoaded: dependencyTreeLoaded.value,
-    cacheSize: dependencyTreeCache.value ? JSON.stringify(dependencyTreeCache.value).length : 0
+    dependencyTreeCache: !!dependencyTreeCache.value,
+    dependencyTreeLoaded: dependencyTreeLoaded.value,
+    conflictDataCache: !!conflictDataCache.value,
+    conflictDataLoaded: conflictDataLoaded.value
   })
   
   if (newMode === 'dependency-tree') {
     if (dependencyTreeCache.value && dependencyTreeLoaded.value) {
-      console.log('✅ 使用缓存数据，避免重新加载')
+      console.log('✅ 使用依赖树缓存数据，避免重新加载')
     } else {
-      console.log('❌ 没有缓存数据，将触发重新加载')
+      console.log('❌ 没有依赖树缓存数据，将触发重新加载')
+    }
+  } else if (newMode === 'dependency-conflicts') {
+    if (conflictDataCache.value && conflictDataLoaded.value) {
+      console.log('✅ 使用冲突数据缓存，避免重新加载')
+    } else {
+      console.log('❌ 没有冲突数据缓存，将触发重新加载')
     }
   }
 })
@@ -78,23 +91,34 @@ function selectHistoryItem(item: string) {
   showHistoryDropdown.value = false
 }
 
-// 修改：刷新依赖数据时清除缓存
+// 修改：刷新依赖数据时清除所有缓存（合并重复的函数定义）
 function refreshDependencies() {
   console.log('🔄 手动刷新依赖数据')
-  console.log('🗑️ 清除缓存数据')
+  console.log('🗑️ 清除所有缓存数据')
   
-  // 清除缓存，强制重新加载
+  // 清除依赖树缓存
   dependencyTreeCache.value = null
   dependencyTreeLoaded.value = false
-  dependencyTreeKey.value++ // 强制重新渲染组件
+  dependencyTreeKey.value++
+  
+  // 清除冲突数据缓存
+  conflictDataCache.value = null
+  conflictDataLoaded.value = false
+  conflictDataKey.value++
   
   console.log('📊 刷新后缓存状态:', {
-    hasCache: !!dependencyTreeCache.value,
-    isLoaded: dependencyTreeLoaded.value,
-    componentKey: dependencyTreeKey.value
+    dependencyTreeCache: !!dependencyTreeCache.value,
+    conflictDataCache: !!conflictDataCache.value,
+    dependencyTreeKey: dependencyTreeKey.value,
+    conflictDataKey: conflictDataKey.value
   })
   
-  dependencyTreeRef.value?.refreshDependencies?.()
+  // 触发相应组件的刷新
+  if (displayMode.value === 'dependency-tree') {
+    dependencyTreeRef.value?.refreshDependencies?.()
+  } else if (displayMode.value === 'dependency-conflicts') {
+    dependencyConflictsRef.value?.refreshConflicts?.()
+  }
 }
 
 function expandAll() {
@@ -139,6 +163,26 @@ const onSelectDependency = (dep: any, treeData: any) => {
   }
 }
 
+// 新增：处理冲突数据缓存
+const onCacheConflictData = (conflictData: any) => {
+  console.log('💾 缓存冲突数据:', {
+    hasData: !!conflictData,
+    dataSize: conflictData ? JSON.stringify(conflictData).length : 0
+  })
+  
+  if (!conflictDataCache.value && conflictData) {
+    console.log('💾 首次缓存冲突数据')
+    conflictDataCache.value = conflictData
+    conflictDataLoaded.value = true
+    console.log('✅ 冲突数据缓存完成:', {
+      cacheSize: JSON.stringify(conflictDataCache.value).length,
+      isLoaded: conflictDataLoaded.value
+    })
+  } else if (conflictDataCache.value) {
+    console.log('📋 已有冲突数据缓存，跳过缓存')
+  }
+}
+
 const startDrag = () => {
   dragging = true
   document.body.style.cursor = 'col-resize'
@@ -165,10 +209,12 @@ onMounted(() => {
     }
   })
 })
+
 onBeforeUnmount(() => {
   window.removeEventListener('mousemove', onDrag)
   window.removeEventListener('mouseup', stopDrag)
 })
+
 // 处理冲突依赖选择
 const onSelectConflict = (conflict: any) => {
   console.log('🎯 App: 选择冲突依赖:', conflict)
@@ -243,12 +289,16 @@ const onSelectConflict = (conflict: any) => {
           :isDataLoaded="dependencyTreeLoaded"
           ref="dependencyTreeRef" 
         />
-        <!-- 依赖冲突视图 -->
+        <!-- 依赖冲突视图 - 添加缓存支持 -->
         <DependencyConflicts 
           v-else-if="displayMode === 'dependency-conflicts'"
+          :key="conflictDataKey"
           @select-conflict="onSelectConflict"
+          @cache-conflict-data="onCacheConflictData"
           :vscodeApi="vscodeApi" 
           :showGroupId="showGroupId"
+          :cachedData="conflictDataCache"
+          :isDataLoaded="conflictDataLoaded"
           ref="dependencyConflictsRef" 
         />
         <div v-else-if="displayMode === 'dependency-conflicts'" class="conflicts-placeholder">
