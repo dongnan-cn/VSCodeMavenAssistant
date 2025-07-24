@@ -16,11 +16,8 @@
       </span>
       <span v-else class="arrow" style="visibility: hidden;">▶</span>
       <span v-if="showSize && totalSizeKB > 0" class="dep-size">{{ totalSizeKB }} KB ({{ selfSizeKB }} KB)</span>
-      <span class="dep-label" :class="{ matched: node.matched, selected: isSelected }">
+      <span class="dep-label" :class="{ matched: node.matched, selected: isSelected }" :style="{ color: nodeColor }">
         {{ nodeLabel }}
-        <span v-if="node.status" :class="node.statusClass">
-          [{{ node.status }}]
-        </span>
       </span>
     </div>
     <div v-if="node.hasChildren && node.expanded" class="dep-children">
@@ -103,6 +100,27 @@ const nodeLabel = computed(() => {
     : `${props.node.artifactId} : ${props.node.version}`
   if (props.node.scope) base += ` [${props.node.scope}]`
   return base
+})
+
+// 根据 scope 和 droppedByConflict 状态确定节点颜色
+const nodeColor = computed(() => {
+  const scope = props.node.scope
+  const droppedByConflict = props.node.droppedByConflict
+  
+  // scope 为 test 时显示绿色
+  if (scope === 'test') {
+    return '#4CAF50' // 绿色
+  }
+  // scope 为 runtime 时显示紫色
+  if (scope === 'runtime') {
+    return '#9C27B0' // 紫色
+  }
+  // scope 为 compile 且被冲突丢弃时显示红色
+  if (scope === 'compile' && droppedByConflict) {
+    return '#F44336' // 红色
+  }
+  // 其他情况显示默认颜色（白色/前景色）
+  return 'var(--vscode-foreground)'
 })
 
 // 依赖大小（单位KB，向上取整）
@@ -222,12 +240,6 @@ ul, li {
   cursor: pointer;
   user-select: none;
 }
-.dep-label .dropped {
-  color: var(--vscode-errorForeground);
-}
-.dep-label .used {
-  color: var(--vscode-textPreformat-foreground);
-}
 .dep-label.selected {
   /* 跳转高亮，label区域再加一层边框或阴影 */
   box-shadow: 0 0 0 2px var(--vscode-focusBorder) inset;
@@ -268,4 +280,4 @@ li.collapsed > .dep-children {
   vertical-align: middle;
   user-select: text;
 }
-</style> 
+</style>

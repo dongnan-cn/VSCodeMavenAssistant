@@ -116,12 +116,8 @@ function processDependencyData(data: any): DependencyNode[] {
   
   const processed = data.map((node: any) => {
     const hasChildren = node.children && node.children.length > 0
-    const status = node.droppedByConflict ? 'DROPPED' : 'USED'
-    const statusClass = node.droppedByConflict ? 'dropped' : 'used'
     return {
       ...node,
-      status,
-      statusClass,
       hasChildren,
       expanded: false,
       children: hasChildren ? processDependencyData(node.children) : undefined
