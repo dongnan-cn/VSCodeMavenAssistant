@@ -5,7 +5,8 @@ export interface ConflictDependency {
   usedVersion: string      // 实际使用的版本
   conflictVersions: string[] // 冲突的版本列表
   conflictCount: number    // 冲突数量
-  size?: string           // 新增：JAR文件大小（可选字段）
+  size?: string           // JAR文件大小（可选字段）
+  scope?: string          // 依赖范围（可选字段）
 }
 
 // 扩展现有的 DependencyNode 接口

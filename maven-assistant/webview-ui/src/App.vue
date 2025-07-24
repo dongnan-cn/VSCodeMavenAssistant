@@ -183,6 +183,27 @@ const onCacheConflictData = (conflictData: any) => {
   }
 }
 
+// 新增：处理从冲突组件传递过来的依赖树数据
+const onCacheDependencyTreeFromConflicts = (treeData: any) => {
+  console.log('🌳 从冲突组件接收依赖树数据:', {
+    hasData: !!treeData,
+    dataSize: treeData ? JSON.stringify(treeData).length : 0
+  })
+  
+  // 如果还没有依赖树缓存，则缓存这个数据
+  if (!dependencyTreeCache.value && treeData) {
+    console.log('💾 缓存从冲突组件获取的依赖树数据')
+    dependencyTreeCache.value = treeData
+    dependencyTreeLoaded.value = true
+    console.log('✅ 依赖树缓存完成 (来自冲突组件):', {
+      cacheSize: JSON.stringify(dependencyTreeCache.value).length,
+      isLoaded: dependencyTreeLoaded.value
+    })
+  } else if (dependencyTreeCache.value) {
+    console.log('📋 已有依赖树缓存，跳过缓存')
+  }
+}
+
 const startDrag = () => {
   dragging = true
   document.body.style.cursor = 'col-resize'
@@ -218,8 +239,20 @@ onBeforeUnmount(() => {
 // 处理冲突依赖选择
 const onSelectConflict = (conflict: any) => {
   console.log('🎯 App: 选择冲突依赖:', conflict)
-  // 这里可以设置右侧面板显示相关依赖信息
-  // selectedDependency.value = conflict
+  
+  // 将冲突依赖转换为与dependency tree兼容的格式
+  const dependencyForPaths = {
+    groupId: conflict.groupId,
+    artifactId: conflict.artifactId,
+    version: conflict.usedVersion, // 使用当前使用的版本
+    scope: conflict.scope, // 使用冲突依赖中的scope信息
+    size: conflict.size // 传递size信息
+  }
+  
+  console.log('🔄 转换后的依赖格式:', dependencyForPaths)
+  
+  // 设置选中的依赖，让右侧DependencyPaths组件显示相关依赖链
+  selectedDependency.value = dependencyForPaths
 }
 </script>
 
@@ -295,6 +328,7 @@ const onSelectConflict = (conflict: any) => {
           :key="conflictDataKey"
           @select-conflict="onSelectConflict"
           @cache-conflict-data="onCacheConflictData"
+          @cache-dependency-tree="onCacheDependencyTreeFromConflicts"
           :vscodeApi="vscodeApi" 
           :searchText="searchText"
           :showGroupId="showGroupId"

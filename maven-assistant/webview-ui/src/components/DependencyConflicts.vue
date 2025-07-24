@@ -82,6 +82,7 @@ const props = defineProps<{
 const emit = defineEmits<{
     'select-conflict': [conflict: ConflictDependency]
     'cache-conflict-data': [data: any] // 新增：缓存数据事件
+    'cache-dependency-tree': [data: any] // 新增：缓存依赖树数据事件
 }>()
 
 // 响应式数据
@@ -171,7 +172,8 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
         conflictVersions: Set<string>,
         groupId: string,
         artifactId: string,
-        size?: string  // 新增：JAR文件大小
+        size?: string,  // JAR文件大小
+        scope?: string  // 依赖范围
     }>();
 
     let totalNodes = 0;
@@ -207,7 +209,8 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
                     conflictVersions: new Set(),
                     groupId: node.groupId,
                     artifactId: node.artifactId,
-                    size: undefined
+                    size: undefined,
+                    scope: undefined
                 });
                 console.log(`${indent}[节点 ${totalNodes}] 🆕 创建新依赖映射: ${key}`);
             }
@@ -230,6 +233,10 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
                     // 将字节转换为KB（向上取整），与DependencyTreeNode.vue保持一致
                     const sizeInBytes = node.size || 0;
                     depInfo.size = Math.ceil(sizeInBytes / 1024).toString();
+                }
+                // 收集scope信息（优先使用第一个非冲突节点的scope）
+                if (node.scope && !depInfo.scope) {
+                    depInfo.scope = node.scope;
                 }
             }
         } else {
@@ -287,7 +294,8 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
                 usedVersion: depInfo.usedVersion!,
                 conflictVersions: Array.from(depInfo.conflictVersions).sort(),
                 conflictCount: depInfo.conflictVersions.size,
-                size: depInfo.size  // 新增：包含size信息
+                size: depInfo.size,  // 包含size信息
+                scope: depInfo.scope  // 包含scope信息
             };
             conflicts.push(conflict);
             console.log(`  ✅ 添加到冲突列表:`, conflict);
@@ -330,6 +338,10 @@ const handleMessage = (event: MessageEvent) => {
                     console.log('[DependencyConflicts] 💾 触发缓存事件');
                     emit('cache-conflict-data', conflicts);
                 }
+
+                // 新增：将原始依赖树数据也传递给父组件，用于DependencyPaths显示
+                console.log('[DependencyConflicts] 📤 传递依赖树数据给父组件');
+                emit('cache-dependency-tree', dependencyTree);
             } catch (err) {
                 console.error('[DependencyConflicts] 处理依赖树数据失败:', err);
                 error.value = `处理依赖树数据失败: ${err}`;
