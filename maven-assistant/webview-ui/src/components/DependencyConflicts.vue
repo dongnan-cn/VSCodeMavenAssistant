@@ -87,24 +87,222 @@ function selectConflict(conflict: ConflictDependency) {
 }
 
 // 刷新冲突数据
-function refreshConflicts() {
-  console.log('🔄 刷新冲突数据')
-  loading.value = true
-  error.value = ''
+const refreshConflicts = async () => {
+  console.log('[DependencyConflicts] 开始刷新冲突数据');
+  loading.value = true;
+  error.value = '';
   
-  // 使用 props.vscodeApi 发送消息（第二阶段实现时启用）
   if (props.vscodeApi) {
-    // props.vscodeApi.postMessage({ type: 'getConflicts' })
-    console.log('📡 准备发送获取冲突数据请求')
+    console.log('[DependencyConflicts] 使用真实API获取冲突数据');
+    // 发送消息到后端获取依赖树数据
+    props.vscodeApi.postMessage({
+      type: 'getConflictDependencies'
+    });
+  } else {
+    console.log('[DependencyConflicts] 使用模拟数据');
+    loadMockData();
+  }
+};
+
+/**
+ * 从依赖树中提取冲突信息
+ * @param dependencyTree 依赖树根节点
+ * @returns 冲突依赖列表
+ */
+function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
+  console.log('[DependencyConflicts] 开始分析依赖树冲突');
+  console.log('[DependencyConflicts] 依赖树数据:', dependencyTree);
+  
+  // 存储所有依赖的映射：groupId:artifactId -> 版本信息
+  const dependencyMap = new Map<string, {
+    usedVersion: string | null,
+    conflictVersions: Set<string>,
+    groupId: string,
+    artifactId: string
+  }>();
+  
+  let totalNodes = 0;
+  let droppedNodes = 0;
+  let validNodes = 0;
+  
+  // 递归遍历依赖树，收集所有依赖信息
+  function traverseTree(node: any, depth: number = 0) {
+    totalNodes++;
+    const indent = '  '.repeat(depth);
+    
+    console.log(`${indent}[节点 ${totalNodes}] 分析节点:`, {
+      groupId: node?.groupId,
+      artifactId: node?.artifactId,
+      version: node?.version,
+      droppedByConflict: node?.droppedByConflict,
+      droppedType: typeof node?.droppedByConflict,
+      hasChildren: node?.children ? node.children.length : 0
+    });
+    
+    // 检查当前节点是否有有效的依赖信息
+    if (node && node.groupId && node.artifactId && node.version) {
+      validNodes++;
+      const key = `${node.groupId}:${node.artifactId}`;
+      const version = node.version;
+      const isDropped = node.droppedByConflict === true;
+      
+      console.log(`${indent}[节点 ${totalNodes}] ✅ 有效节点: ${key}:${version}, dropped=${isDropped}`);
+      
+      if (!dependencyMap.has(key)) {
+        dependencyMap.set(key, {
+          usedVersion: null,
+          conflictVersions: new Set(),
+          groupId: node.groupId,
+          artifactId: node.artifactId
+        });
+        console.log(`${indent}[节点 ${totalNodes}] 🆕 创建新依赖映射: ${key}`);
+      }
+      
+      const depInfo = dependencyMap.get(key)!;
+      
+      if (isDropped) {
+        // 被冲突丢弃的版本
+        depInfo.conflictVersions.add(version);
+        droppedNodes++;
+        console.log(`${indent}[节点 ${totalNodes}] 🔥 添加冲突版本: ${key}:${version}`);
+      } else {
+        // 实际使用的版本
+        if (depInfo.usedVersion === null) {
+          depInfo.usedVersion = version;
+          console.log(`${indent}[节点 ${totalNodes}] ✅ 设置使用版本: ${key}:${version}`);
+        } else if (depInfo.usedVersion !== version) {
+          console.log(`${indent}[节点 ${totalNodes}] ⚠️ 发现不同的使用版本: ${key} 已有=${depInfo.usedVersion}, 当前=${version}`);
+        }
+      }
+    } else {
+      console.log(`${indent}[节点 ${totalNodes}] ❌ 跳过：缺少必要字段`);
+    }
+    
+    // 递归处理子依赖
+    if (node && node.children && Array.isArray(node.children)) {
+      console.log(`${indent}[节点 ${totalNodes}] 📁 处理 ${node.children.length} 个子依赖`);
+      node.children.forEach((child: any) => traverseTree(child, depth + 1));
+    }
   }
   
-  // 模拟数据加载
-  setTimeout(() => {
-    loadMockData()
-  }, 1000)
+  // 开始遍历 - 如果根节点没有依赖信息，直接遍历其子节点
+  if (dependencyTree && dependencyTree.children && Array.isArray(dependencyTree.children)) {
+    console.log('[DependencyConflicts] 🌳 根节点是容器，直接遍历子节点');
+    dependencyTree.children.forEach((child: any) => traverseTree(child, 0));
+  } else {
+    console.log('[DependencyConflicts] 🌳 从根节点开始遍历');
+    traverseTree(dependencyTree);
+  }
+  
+  console.log('[DependencyConflicts] 🔍 遍历统计:');
+  console.log(`  - 总节点数: ${totalNodes}`);
+  console.log(`  - 有效节点数: ${validNodes}`);
+  console.log(`  - 被丢弃节点数: ${droppedNodes}`);
+  console.log(`  - 依赖映射数量: ${dependencyMap.size}`);
+  
+  // 打印依赖映射详情
+  console.log('[DependencyConflicts] 📋 依赖映射详情:');
+  dependencyMap.forEach((depInfo, key) => {
+    console.log(`  ${key}:`, {
+      usedVersion: depInfo.usedVersion,
+      conflictVersions: Array.from(depInfo.conflictVersions),
+      conflictCount: depInfo.conflictVersions.size
+    });
+  });
+  
+  // 构建冲突列表
+  const conflicts: ConflictDependency[] = [];
+  
+  dependencyMap.forEach((depInfo) => {
+    const hasConflicts = depInfo.conflictVersions.size > 0;
+    const hasUsedVersion = depInfo.usedVersion !== null;
+    
+    console.log(`[DependencyConflicts] 🔍 检查冲突: ${depInfo.groupId}:${depInfo.artifactId}`);
+    console.log(`  - 有冲突版本: ${hasConflicts} (数量: ${depInfo.conflictVersions.size})`);
+    console.log(`  - 有使用版本: ${hasUsedVersion} (版本: ${depInfo.usedVersion})`);
+    
+    // 只有存在冲突版本的依赖才加入冲突列表
+    if (hasConflicts && hasUsedVersion) {
+      const conflict = {
+        groupId: depInfo.groupId,
+        artifactId: depInfo.artifactId,
+        usedVersion: depInfo.usedVersion!,
+        conflictVersions: Array.from(depInfo.conflictVersions).sort(),
+        conflictCount: depInfo.conflictVersions.size
+      };
+      conflicts.push(conflict);
+      console.log(`  ✅ 添加到冲突列表:`, conflict);
+    } else {
+      console.log(`  ❌ 不符合冲突条件，跳过`);
+    }
+  });
+  
+  // 按冲突数量降序排序
+  conflicts.sort((a, b) => b.conflictCount - a.conflictCount);
+  
+  console.log(`[DependencyConflicts] 🎯 分析完成，发现 ${conflicts.length} 个冲突依赖`);
+  console.log('[DependencyConflicts] 🔥 最终冲突列表:', conflicts);
+  
+  return conflicts;
 }
 
-// 加载模拟数据（第一阶段测试用）
+// 处理来自扩展端的消息
+const handleMessage = (event: MessageEvent) => {
+  const message = event.data;
+  console.log('[DependencyConflicts] 收到消息:', message);
+  
+  switch (message.type) {
+    case 'dependencyTreeForConflicts':
+      try {
+        console.log('[DependencyConflicts] 开始处理依赖树数据');
+        const dependencyTree = typeof message.data === 'string' 
+          ? JSON.parse(message.data) 
+          : message.data;
+        
+        // 从依赖树中提取冲突信息
+        const conflicts = extractConflictsFromTree(dependencyTree);
+        conflictData.value = conflicts;
+        loading.value = false;
+        
+        console.log('[DependencyConflicts] 冲突数据已更新:', conflicts);
+      } catch (err) {
+        console.error('[DependencyConflicts] 处理依赖树数据失败:', err);
+        error.value = `处理依赖树数据失败: ${err}`;
+        loading.value = false;
+      }
+      break;
+    case 'conflictDependencies':
+      // 兼容旧的消息格式
+      try {
+        const conflictDataReceived = typeof message.data === 'string' 
+          ? JSON.parse(message.data) 
+          : message.data;
+        conflictData.value = conflictDataReceived;
+        loading.value = false;
+        console.log('[DependencyConflicts] 冲突数据已更新:', conflictData.value);
+      } catch (error) {
+        console.error('[DependencyConflicts] 解析冲突数据失败:', error);
+        loadMockData();
+      }
+      break;
+    case 'updateConflicts':
+      console.log('[DependencyConflicts] 收到冲突数据更新');
+      refreshConflicts();
+      break;
+    case 'refresh':
+      refreshConflicts();
+      break;
+    case 'error':
+      console.error('[DependencyConflicts] 收到错误消息:', message.message);
+      loading.value = false;
+      error.value = message.message || '获取冲突数据失败';
+      break;
+    default:
+      console.log('[DependencyConflicts] 未处理的消息类型:', message.type);
+  }
+};
+
+// 加载模拟数据（测试用）
 function loadMockData() {
   console.log('📊 加载模拟冲突数据')
   
@@ -129,20 +327,6 @@ function loadMockData() {
       usedVersion: '1.7.36',
       conflictVersions: ['1.7.30', '1.7.25', '1.6.6'],
       conflictCount: 3
-    },
-    {
-      groupId: 'junit',
-      artifactId: 'junit',
-      usedVersion: '4.13.2',
-      conflictVersions: ['4.12'],
-      conflictCount: 1
-    },
-    {
-      groupId: 'org.apache.commons',
-      artifactId: 'commons-lang3',
-      usedVersion: '3.12.0',
-      conflictVersions: ['3.11', '3.9'],
-      conflictCount: 2
     }
   ]
   
@@ -152,47 +336,23 @@ function loadMockData() {
   console.log('✅ 模拟数据加载完成，冲突数量:', mockData.length)
 }
 
-// 处理来自扩展端的消息（第二阶段实现）
-function handleMessage(event: MessageEvent) {
-  const message = event.data
-  console.log('📨 DependencyConflicts: 收到消息:', message.type)
-  
-  switch (message.type) {
-    case 'updateConflicts':
-      console.log('📥 DependencyConflicts: 收到冲突数据')
-      loading.value = false
-      error.value = ''
-      try {
-        // TODO: 第三阶段实现真实数据处理
-        // const dependencyTree = JSON.parse(message.data)
-        // conflictData.value = processConflictData(dependencyTree)
-        console.log('⚠️ 真实数据处理将在第三阶段实现')
-      } catch (err) {
-        console.error('❌ 解析冲突数据失败:', err)
-        error.value = `解析冲突数据失败: ${err}`
-      }
-      break
-    case 'error':
-      console.error('❌ DependencyConflicts: 收到错误消息:', message.message)
-      loading.value = false
-      error.value = message.message || '获取冲突数据失败'
-      break
-  }
-}
-
-// 组件挂载
+// 组件挂载时的初始化
 onMounted(() => {
-  console.log('🚀 DependencyConflicts: 组件挂载')
+  console.log('[DependencyConflicts] 组件已挂载，开始监听消息');
   
-  // 监听来自扩展端的消息
-  window.addEventListener('message', handleMessage)
+  // 监听来自VSCode扩展的消息
+  if (typeof window !== 'undefined') {
+    window.addEventListener('message', handleMessage);
+  }
   
-  // 加载初始数据
-  refreshConflicts()
-})
+  // 初始加载冲突数据
+  refreshConflicts();
+});
 
-// 暴露方法给父组件
-defineExpose({ refreshConflicts })
+// 暴露方法供父组件调用
+defineExpose({
+  refreshConflicts
+});
 </script>
 
 <style scoped>

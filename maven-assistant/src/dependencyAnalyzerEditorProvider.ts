@@ -58,6 +58,26 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
             } else if (msg.type === 'showContextMenu') {
                 // 处理右键菜单请求
                 await this.handleContextMenu(msg.data);
+            } else if (msg.type === 'getConflictDependencies') {
+                // 处理获取冲突依赖请求 - 复用现有依赖树数据
+                try {
+                    console.log('[DependencyAnalyzer] 处理getConflictDependencies请求');
+                    // 获取依赖树数据
+                    const analysis = await this.lspClient.analyzeDependencies();
+                    const dependencyTree = JSON.parse(analysis);
+                    
+                    // 发送依赖树数据给前端进行冲突分析
+                    webviewPanel.webview.postMessage({ 
+                        type: 'dependencyTreeForConflicts', 
+                        data: dependencyTree 
+                    });
+                } catch (error) {
+                    console.error('[DependencyAnalyzer] 获取依赖数据失败:', error);
+                    webviewPanel.webview.postMessage({ 
+                        type: 'error', 
+                        message: `获取依赖数据失败: ${error}` 
+                    });
+                }
             }
             // 可扩展：处理节点点击、详情等
         });
@@ -273,4 +293,4 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
     private async excludeDependency(node: any) {
         vscode.window.showInformationMessage(`排除依赖功能正在开发中: ${node.groupId}:${node.artifactId}`);
     }
-} 
+}
