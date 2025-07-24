@@ -115,8 +115,9 @@ const refreshConflicts = async () => {
       type: 'getConflictDependencies'
     });
   } else {
-    console.log('[DependencyConflicts] 使用模拟数据');
-    loadMockData();
+    console.warn('[DependencyConflicts] 没有可用的 vscodeApi');
+    loading.value = false;
+    error.value = 'VSCode API 不可用';
   }
 };
 
@@ -332,40 +333,6 @@ const handleMessage = (event: MessageEvent) => {
       console.log('[DependencyConflicts] 未处理的消息类型:', message.type);
   }
 };
-
-// 加载模拟数据（测试用）
-function loadMockData() {
-  console.log('📊 加载模拟冲突数据')
-  
-  const mockData: ConflictDependency[] = [
-    {
-      groupId: 'org.springframework',
-      artifactId: 'spring-core',
-      usedVersion: '5.3.21',
-      conflictVersions: ['5.2.15', '5.1.9'],
-      conflictCount: 2
-    },
-    {
-      groupId: 'com.fasterxml.jackson.core',
-      artifactId: 'jackson-core',
-      usedVersion: '2.13.3',
-      conflictVersions: ['2.12.1'],
-      conflictCount: 1
-    },
-    {
-      groupId: 'org.slf4j',
-      artifactId: 'slf4j-api',
-      usedVersion: '1.7.36',
-      conflictVersions: ['1.7.30', '1.7.25', '1.6.6'],
-      conflictCount: 3
-    }
-  ]
-  
-  conflictData.value = mockData
-  loading.value = false
-  
-  console.log('✅ 模拟数据加载完成，冲突数量:', mockData.length)
-}
 
 // 组件挂载时的初始化
 onMounted(() => {
