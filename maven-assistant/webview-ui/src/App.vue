@@ -2,6 +2,7 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import DependencyTree from './components/DependencyTree.vue'
 import DependencyPaths from './components/DependencyPaths.vue'
+import DependencyConflicts from './components/DependencyConflicts.vue' // 新增
 
 // 声明VSCode API
 declare function acquireVsCodeApi(): any
@@ -168,6 +169,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('mousemove', onDrag)
   window.removeEventListener('mouseup', stopDrag)
 })
+// 处理冲突依赖选择
+const onSelectConflict = (conflict: any) => {
+  console.log('🎯 App: 选择冲突依赖:', conflict)
+  // 这里可以设置右侧面板显示相关依赖信息
+  // selectedDependency.value = conflict
+}
 </script>
 
 <template>
@@ -236,7 +243,14 @@ onBeforeUnmount(() => {
           :isDataLoaded="dependencyTreeLoaded"
           ref="dependencyTreeRef" 
         />
-        <!-- 依赖冲突视图的占位符 -->
+        <!-- 依赖冲突视图 -->
+        <DependencyConflicts 
+          v-else-if="displayMode === 'dependency-conflicts'"
+          @select-conflict="onSelectConflict"
+          :vscodeApi="vscodeApi" 
+          :showGroupId="showGroupId"
+          ref="dependencyConflictsRef" 
+        />
         <div v-else-if="displayMode === 'dependency-conflicts'" class="conflicts-placeholder">
           <div class="placeholder-text">Dependency Conflicts view coming soon...</div>
         </div>
