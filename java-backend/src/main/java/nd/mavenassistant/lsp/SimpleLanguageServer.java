@@ -234,6 +234,9 @@ public class SimpleLanguageServer implements LanguageServer {
      */
     @JsonRequest("maven/insertExclusion")
     public CompletableFuture<String> insertExclusion(String request) {
+        if (client != null) {
+            client.logMessage(new MessageParams(MessageType.Info, "Insert exclusion request received: " + request));
+        }
         return CompletableFuture.supplyAsync(() -> {
             try {
                 // 解析参数

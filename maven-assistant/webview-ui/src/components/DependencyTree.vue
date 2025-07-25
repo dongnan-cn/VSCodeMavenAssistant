@@ -101,6 +101,40 @@ function handleSelect(_: string, node: DependencyNode) {
   })
 }
 
+// 检查依赖是否被排除
+function isExcluded(node: any, parentExclusions: any[]): boolean {
+  if (!parentExclusions || parentExclusions.length === 0) {
+    return false
+  }
+  
+  return parentExclusions.some(exclusion => 
+    exclusion.groupId === node.groupId && exclusion.artifactId === node.artifactId
+  )
+}
+
+// 递归过滤被排除的依赖
+function filterExcludedDependencies(nodes: any[], parentExclusions: any[] = []): any[] {
+  if (!nodes || !Array.isArray(nodes)) {
+    return []
+  }
+  
+  return nodes.filter(node => {
+    // 检查当前节点是否被父级排除
+    if (isExcluded(node, parentExclusions)) {
+      console.log(`🚫 DependencyTree: 过滤被排除的依赖: ${node.groupId}:${node.artifactId}`)
+      return false
+    }
+    
+    // 递归处理子依赖，传递当前节点的exclusions
+    if (node.children && node.children.length > 0) {
+      const currentExclusions = node.exclusions || []
+      node.children = filterExcludedDependencies(node.children, currentExclusions)
+    }
+    
+    return true
+  })
+}
+
 // 处理依赖数据
 function processDependencyData(data: any): DependencyNode[] {
   console.log('⚙️ DependencyTree: 处理依赖数据:', {
@@ -114,7 +148,11 @@ function processDependencyData(data: any): DependencyNode[] {
     return []
   }
   
-  const processed = data.map((node: any) => {
+  // 首先过滤被排除的依赖
+  const filteredData = filterExcludedDependencies(data)
+  console.log('🔍 DependencyTree: 过滤exclusion后的节点数量:', filteredData.length)
+  
+  const processed = filteredData.map((node: any) => {
     const hasChildren = node.children && node.children.length > 0
     return {
       ...node,

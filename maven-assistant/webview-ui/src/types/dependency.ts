@@ -9,6 +9,12 @@ export interface ConflictDependency {
   scope?: string          // 依赖范围（可选字段）
 }
 
+// 排除依赖信息
+export interface ExclusionInfo {
+  groupId: string
+  artifactId: string
+}
+
 // 扩展现有的 DependencyNode 接口
 export interface DependencyNode {
   groupId: string
@@ -22,6 +28,8 @@ export interface DependencyNode {
   // 新增字段用于冲突检测
   isConflict?: boolean     // 是否存在版本冲突
   conflictInfo?: ConflictDependency // 冲突详细信息
+  // 新增字段用于排除依赖
+  exclusions?: ExclusionInfo[] // 该依赖排除的子依赖列表
 }
 
 // 消息类型定义
