@@ -642,30 +642,39 @@ public class SimpleLanguageServer implements LanguageServer {
     }
 
     /**
+     * 将Maven依赖转换为Aether依赖
+     * @param mavenDep Maven依赖对象
+     * @return Aether依赖对象
+     */
+    private Dependency convertMavenToAetherDependency(org.apache.maven.model.Dependency mavenDep) {
+        // 创建 Aether Dependency 对象
+        Dependency aetherDep = new Dependency(
+                new DefaultArtifact(mavenDep.getGroupId(), mavenDep.getArtifactId(), mavenDep.getType(),
+                        mavenDep.getClassifier(), mavenDep.getVersion()),
+                mavenDep.getScope());
+        
+        // 处理 exclusions
+        if (mavenDep.getExclusions() != null && !mavenDep.getExclusions().isEmpty()) {
+            Collection<org.eclipse.aether.graph.Exclusion> exclusions = new ArrayList<>();
+            for (org.apache.maven.model.Exclusion mavenExclusion : mavenDep.getExclusions()) {
+                exclusions.add(new org.eclipse.aether.graph.Exclusion(
+                        mavenExclusion.getGroupId(),
+                        mavenExclusion.getArtifactId(),
+                        "*", "*"));
+            }
+            aetherDep = aetherDep.setExclusions(exclusions);
+        }
+        
+        return aetherDep;
+    }
+
+    /**
      * 获取直接依赖列表
      */
     private List<Dependency> getDirectDependencies(Model model) {
         List<Dependency> dependencies = new ArrayList<>();
         model.getDependencies().forEach(dep -> {
-            // 创建 Aether Dependency 对象
-            Dependency aetherDep = new Dependency(
-                    new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
-                            dep.getClassifier(), dep.getVersion()),
-                    dep.getScope());
-            
-            // 处理 exclusions
-            if (dep.getExclusions() != null && !dep.getExclusions().isEmpty()) {
-                Collection<org.eclipse.aether.graph.Exclusion> exclusions = new ArrayList<>();
-                for (org.apache.maven.model.Exclusion mavenExclusion : dep.getExclusions()) {
-                    exclusions.add(new org.eclipse.aether.graph.Exclusion(
-                            mavenExclusion.getGroupId(),
-                            mavenExclusion.getArtifactId(),
-                            "*", "*"));
-                }
-                aetherDep = aetherDep.setExclusions(exclusions);
-            }
-            
-            dependencies.add(aetherDep);
+            dependencies.add(convertMavenToAetherDependency(dep));
         });
         return dependencies;
     }
@@ -677,25 +686,7 @@ public class SimpleLanguageServer implements LanguageServer {
         List<Dependency> dependencies = new ArrayList<>();
         if (model.getDependencyManagement() != null) {
             model.getDependencyManagement().getDependencies().forEach(dep -> {
-                // 创建 Aether Dependency 对象
-                Dependency aetherDep = new Dependency(
-                        new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
-                                dep.getClassifier(), dep.getVersion()),
-                        dep.getScope());
-                
-                // 处理 exclusions
-                if (dep.getExclusions() != null && !dep.getExclusions().isEmpty()) {
-                    Collection<org.eclipse.aether.graph.Exclusion> exclusions = new ArrayList<>();
-                    for (org.apache.maven.model.Exclusion mavenExclusion : dep.getExclusions()) {
-                        exclusions.add(new org.eclipse.aether.graph.Exclusion(
-                                mavenExclusion.getGroupId(),
-                                mavenExclusion.getArtifactId(),
-                                "*", "*"));
-                    }
-                    aetherDep = aetherDep.setExclusions(exclusions);
-                }
-                
-                dependencies.add(aetherDep);
+                dependencies.add(convertMavenToAetherDependency(dep));
             });
         }
         return dependencies;
