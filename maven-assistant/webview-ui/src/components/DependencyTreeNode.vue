@@ -149,6 +149,11 @@ function getMenuItems(_node: any) {
 
 function handleContextMenu(event: MouseEvent) {
   event.preventDefault()
+  
+  // 先选中当前节点
+  selectNode()
+  
+  // 再显示右键菜单
   menuVisible.value = true
   menuX.value = event.clientX
   menuY.value = event.clientY

@@ -80,6 +80,10 @@ function handleNodeClick() {
   emit('node-click', props.pathIdx, props.nodeIdx, props.node, props.path)
 }
 function handleNodeContextMenu(e: MouseEvent) {
+  // 先选中当前节点
+  handleNodeClick()
+  
+  // 再触发右键菜单
   emit('node-contextmenu', props.pathIdx, props.nodeIdx, props.node, props.path, e)
 }
 function emitNodeClick(...args: any[]) {
