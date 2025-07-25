@@ -26,7 +26,7 @@
           v-for="(child, idx) in node.children"
           :key="idx"
           :node="child"
-          :path="[...path, node]"
+          :path="[node, ...path]"
           :dataKey="`${dataKey}-${idx}`"
           :selectedNode="selectedNode"
           :showGroupId="showGroupId"
