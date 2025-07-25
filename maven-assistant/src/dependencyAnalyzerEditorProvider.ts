@@ -151,7 +151,8 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
             console.log('右键菜单数据 pathInfo:', pathInfo);
             if (action === 'exclude') {
                 // 1. 获取根依赖（pathInfo 最后一个节点）和目标依赖（node）
-                const root = pathInfo[0];
+                // 注意：pathInfo数组中，最后一个元素是根依赖，第一个元素是当前选中的节点
+                const root = pathInfo[pathInfo.length - 1];
                 const target = node;
                 // 2. 构造参数，调用后端插入exclusion
                 const pomFiles = await vscode.workspace.findFiles('pom.xml', undefined, 1);
@@ -192,7 +193,7 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                 const parentIndex = nodeIndex + 1;
                 let parent = null;
                 if (pathInfo && pathInfo.length > parentIndex) {
-                    parent = pathInfo[pathInfo.length - 2];
+                    parent = pathInfo[parentIndex];
                     // 有父依赖，查找.m2仓库父依赖pom文件
                     const os = require('os');
                     const path = require('path');

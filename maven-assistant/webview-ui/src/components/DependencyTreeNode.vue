@@ -165,7 +165,7 @@ function handleMenuSelect(action: string) {
   if (!menuNode.value) return
   const node = menuNode.value
   console.log('node ', node, ' props.path: ', props.path)
-  const pathInfo = [...props.path, node].map(n => ({
+  const pathInfo = [node, ...props.path].map(n => ({
     groupId: n.groupId,
     artifactId: n.artifactId,
     version: n.version,
