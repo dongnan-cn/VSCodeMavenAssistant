@@ -73,11 +73,9 @@ const selectedNode = ref<any>(null)
 
 // 刷新依赖数据
 function refreshDependencies() {
-  console.log('🔄 DependencyTree: 开始刷新依赖数据')
   loading.value = true
   error.value = ''
   dependencyData.value = [] // 清空当前数据
-  console.log('📤 DependencyTree: 发送刷新请求到扩展端')
   props.vscodeApi.postMessage({ type: 'refresh' })
 }
 
@@ -121,7 +119,6 @@ function filterExcludedDependencies(nodes: any[], parentExclusions: any[] = []):
   return nodes.filter(node => {
     // 检查当前节点是否被父级排除
     if (isExcluded(node, parentExclusions)) {
-      console.log(`🚫 DependencyTree: 过滤被排除的依赖: ${node.groupId}:${node.artifactId}`)
       return false
     }
     
@@ -137,20 +134,12 @@ function filterExcludedDependencies(nodes: any[], parentExclusions: any[] = []):
 
 // 处理依赖数据
 function processDependencyData(data: any): DependencyNode[] {
-  console.log('⚙️ DependencyTree: 处理依赖数据:', {
-    hasData: !!data,
-    isArray: Array.isArray(data),
-    dataLength: Array.isArray(data) ? data.length : 0
-  })
-  
   if (!data || !Array.isArray(data)) {
-    console.log('❌ DependencyTree: 数据无效，返回空数组')
     return []
   }
   
   // 首先过滤被排除的依赖
   const filteredData = filterExcludedDependencies(data)
-  console.log('🔍 DependencyTree: 过滤exclusion后的节点数量:', filteredData.length)
   
   const processed = filteredData.map((node: any) => {
     const hasChildren = node.children && node.children.length > 0
@@ -162,7 +151,6 @@ function processDependencyData(data: any): DependencyNode[] {
     }
   })
   
-  console.log('✅ DependencyTree: 数据处理完成，节点数量:', processed.length)
   return processed
 }
 
@@ -230,7 +218,6 @@ function filterDependencyTree(nodes: DependencyNode[], keyword: string): Depende
 // 计算实际用于渲染的依赖树数据
 const renderDependencyData = computed(() => {
   if (props.filterMode && props.searchText) {
-    console.log('filterDependencyTree', props.searchText, dependencyData.value)
     return filterDependencyTree(dependencyData.value, props.searchText)
   }
   return dependencyData.value
@@ -282,7 +269,6 @@ function findNodeByPath(nodes: DependencyNode[], path: any[]): DependencyNode | 
 
 // 跳转并高亮：严格按 path 逐级递归展开和选中
 function gotoAndHighlightNodeByPath(path: any[]) {
-  console.log('gotoAndHighlightNodeByPath', path)
   let nodes = dependencyData.value
   let currentNode = null
   // path: 从 root 到 target，正序遍历
@@ -321,44 +307,26 @@ function gotoAndHighlightNodeByPath(path: any[]) {
 
 // 监听来自扩展端的消息
 onMounted(() => {
-  console.log('🚀 DependencyTree: 组件挂载')
-  console.log('📊 DependencyTree: 检查缓存状态:', {
-    hasCachedData: !!props.cachedData,
-    isDataLoaded: props.isDataLoaded,
-    currentDataLength: dependencyData.value.length
-  })
-  
   window.addEventListener('message', (event) => {
     const message = event.data
-    console.log('📨 DependencyTree: 收到消息:', message.type)
     
     switch (message.type) {
       case 'updateAnalysis':
-        console.log('📥 DependencyTree: 收到依赖分析数据')
         loading.value = false
         error.value = ''
         try {
           // 解析依赖树JSON
           const dependencyTree = JSON.parse(message.data)
-          console.log('📊 DependencyTree: 解析依赖树数据:', {
-            hasTree: !!dependencyTree,
-            hasGroupId: !!dependencyTree?.groupId,
-            hasChildren: !!dependencyTree?.children,
-            childrenLength: dependencyTree?.children?.length || 0
-          })
           
           // 兼容根节点为 { children: [...] } 的格式
           let nodes: any[] = []
           if (dependencyTree && !dependencyTree.groupId && Array.isArray(dependencyTree.children)) {
             nodes = dependencyTree.children
-            console.log('📋 DependencyTree: 使用children格式，节点数:', nodes.length)
           } else if (dependencyTree && dependencyTree.groupId) {
             nodes = [dependencyTree]
-            console.log('📋 DependencyTree: 使用单节点格式')
           }
           
           dependencyData.value = processDependencyData(nodes)
-          console.log('✅ DependencyTree: 依赖数据更新完成，触发select-dependency事件')
           
           // 触发父组件的缓存逻辑
           if (dependencyData.value.length > 0) {
@@ -375,7 +343,6 @@ onMounted(() => {
         error.value = message.message || '获取依赖数据失败'
         break
       case 'gotoTreeNode': {
-        console.log('🎯 DependencyTree: 跳转到节点:', message.path)
         const { path } = message
         gotoAndHighlightNodeByPath(path)
         break
@@ -385,18 +352,13 @@ onMounted(() => {
   
   // 修改：检查缓存数据，避免重复加载
   if (props.cachedData && props.isDataLoaded) {
-    console.log('💾 DependencyTree: 使用缓存数据，跳过网络请求')
     dependencyData.value = processDependencyData(
       Array.isArray(props.cachedData) ? props.cachedData : 
       (props.cachedData.children || [props.cachedData])
     )
     loading.value = false
-    console.log('✅ DependencyTree: 缓存数据加载完成，节点数:', dependencyData.value.length)
   } else if (dependencyData.value.length === 0) {
-    console.log('🌐 DependencyTree: 没有缓存数据，发起网络请求')
     refreshDependencies()
-  } else {
-    console.log('📋 DependencyTree: 已有数据，跳过加载')
   }
 })
 
