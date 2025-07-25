@@ -122,8 +122,10 @@ public class SimpleLanguageServer implements LanguageServer {
                 Set<String> usedGASet = new HashSet<>();
                 Map<String, String> gavScopeMap = new HashMap<>();
                 fillEffectiveGavSets(effectiveGavs, usedGAVSet, usedGASet, gavScopeMap);
-                // 构建树形结构并返回JSON
-                Map<String, Object> tree = buildDependencyTreeWithConflict(rootNode, usedGAVSet, usedGASet, gavScopeMap);
+                // 构建 exclusion 映射表，保存原始的 exclusion 信息
+                Map<String, Set<String>> exclusionMap = buildExclusionMap(model);
+                // 构建树形结构并返回JSON，传入 exclusion 信息
+                Map<String, Object> tree = buildDependencyTreeWithConflict(rootNode, usedGAVSet, usedGASet, gavScopeMap, exclusionMap);
                 return new Gson().toJson(tree);
             } catch (Exception e) {
                 return errorJson("依赖解析异常: " + e.getMessage());
@@ -642,10 +644,25 @@ public class SimpleLanguageServer implements LanguageServer {
     private List<Dependency> getDirectDependencies(Model model) {
         List<Dependency> dependencies = new ArrayList<>();
         model.getDependencies().forEach(dep -> {
-            dependencies.add(new Dependency(
+            // 创建 Aether Dependency 对象
+            Dependency aetherDep = new Dependency(
                     new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
                             dep.getClassifier(), dep.getVersion()),
-                    dep.getScope()));
+                    dep.getScope());
+            
+            // 处理 exclusions
+            if (dep.getExclusions() != null && !dep.getExclusions().isEmpty()) {
+                Collection<org.eclipse.aether.graph.Exclusion> exclusions = new ArrayList<>();
+                for (org.apache.maven.model.Exclusion mavenExclusion : dep.getExclusions()) {
+                    exclusions.add(new org.eclipse.aether.graph.Exclusion(
+                            mavenExclusion.getGroupId(),
+                            mavenExclusion.getArtifactId(),
+                            "*", "*"));
+                }
+                aetherDep = aetherDep.setExclusions(exclusions);
+            }
+            
+            dependencies.add(aetherDep);
         });
         return dependencies;
     }
@@ -657,10 +674,25 @@ public class SimpleLanguageServer implements LanguageServer {
         List<Dependency> dependencies = new ArrayList<>();
         if (model.getDependencyManagement() != null) {
             model.getDependencyManagement().getDependencies().forEach(dep -> {
-                dependencies.add(new Dependency(
+                // 创建 Aether Dependency 对象
+                Dependency aetherDep = new Dependency(
                         new DefaultArtifact(dep.getGroupId(), dep.getArtifactId(), dep.getType(),
                                 dep.getClassifier(), dep.getVersion()),
-                        dep.getScope()));
+                        dep.getScope());
+                
+                // 处理 exclusions
+                if (dep.getExclusions() != null && !dep.getExclusions().isEmpty()) {
+                    Collection<org.eclipse.aether.graph.Exclusion> exclusions = new ArrayList<>();
+                    for (org.apache.maven.model.Exclusion mavenExclusion : dep.getExclusions()) {
+                        exclusions.add(new org.eclipse.aether.graph.Exclusion(
+                                mavenExclusion.getGroupId(),
+                                mavenExclusion.getArtifactId(),
+                                "*", "*"));
+                    }
+                    aetherDep = aetherDep.setExclusions(exclusions);
+                }
+                
+                dependencies.add(aetherDep);
             });
         }
         return dependencies;
@@ -720,15 +752,56 @@ public class SimpleLanguageServer implements LanguageServer {
     }
 
     /**
+     * 构建 exclusion 映射表，保存原始的 exclusion 信息
+     * 
+     * @param model Maven Model 对象
+     * @return exclusion 映射表，key 为 groupId:artifactId，value 为被排除的依赖集合
+     */
+    private Map<String, Set<String>> buildExclusionMap(Model model) {
+        Map<String, Set<String>> exclusionMap = new HashMap<>();
+        
+        // 处理直接依赖的 exclusions
+        if (model.getDependencies() != null) {
+            for (org.apache.maven.model.Dependency dep : model.getDependencies()) {
+                if (dep.getExclusions() != null && !dep.getExclusions().isEmpty()) {
+                    String depKey = dep.getGroupId() + ":" + dep.getArtifactId();
+                    Set<String> exclusions = new HashSet<>();
+                    for (org.apache.maven.model.Exclusion exclusion : dep.getExclusions()) {
+                        exclusions.add(exclusion.getGroupId() + ":" + exclusion.getArtifactId());
+                    }
+                    exclusionMap.put(depKey, exclusions);
+                }
+            }
+        }
+        
+        // 处理 dependencyManagement 中的 exclusions
+        if (model.getDependencyManagement() != null && model.getDependencyManagement().getDependencies() != null) {
+            for (org.apache.maven.model.Dependency dep : model.getDependencyManagement().getDependencies()) {
+                if (dep.getExclusions() != null && !dep.getExclusions().isEmpty()) {
+                    String depKey = dep.getGroupId() + ":" + dep.getArtifactId();
+                    Set<String> exclusions = exclusionMap.getOrDefault(depKey, new HashSet<>());
+                    for (org.apache.maven.model.Exclusion exclusion : dep.getExclusions()) {
+                        exclusions.add(exclusion.getGroupId() + ":" + exclusion.getArtifactId());
+                    }
+                    exclusionMap.put(depKey, exclusions);
+                }
+            }
+        }
+        
+        return exclusionMap;
+    }
+
+    /**
      * 递归构建依赖树结构，并标记冲突（droppedByConflict）
      *
      * @param node        当前Aether依赖节点
      * @param usedGAVSet  有效依赖GAV集合
      * @param usedGASet   有效依赖groupId:artifactId集合
      * @param gavScopeMap GAV到scope的映射
+     * @param exclusionMap exclusion 映射表
      * @return 树形依赖结构（Map表示）
      */
-    private Map<String, Object> buildDependencyTreeWithConflict(DependencyNode node, Set<String> usedGAVSet, Set<String> usedGASet, Map<String, String> gavScopeMap) {
+    private Map<String, Object> buildDependencyTreeWithConflict(DependencyNode node, Set<String> usedGAVSet, Set<String> usedGASet, Map<String, String> gavScopeMap, Map<String, Set<String>> exclusionMap) {
         Map<String, Object> depInfo = new LinkedHashMap<>();
         Artifact artifact = node.getArtifact();
         if (artifact != null) {
@@ -751,11 +824,30 @@ public class SimpleLanguageServer implements LanguageServer {
             depInfo.put("droppedByConflict", dropped);
             // 依赖jar大小，单位字节
             depInfo.put("size", getJarFileSize(artifact));
+            
+            // 添加 exclusion 信息
+            String depKey = groupId + ":" + artifactId;
+            if (exclusionMap.containsKey(depKey)) {
+                Set<String> exclusions = exclusionMap.get(depKey);
+                List<Map<String, String>> exclusionList = new ArrayList<>();
+                for (String exclusion : exclusions) {
+                    String[] parts = exclusion.split(":");
+                    if (parts.length >= 2) {
+                        Map<String, String> exclusionInfo = new HashMap<>();
+                        exclusionInfo.put("groupId", parts[0]);
+                        exclusionInfo.put("artifactId", parts[1]);
+                        exclusionList.add(exclusionInfo);
+                    }
+                }
+                if (!exclusionList.isEmpty()) {
+                    depInfo.put("exclusions", exclusionList);
+                }
+            }
         }
         // 递归 children
         List<Map<String, Object>> children = new ArrayList<>();
         for (DependencyNode child : node.getChildren()) {
-            Map<String, Object> childNode = buildDependencyTreeWithConflict(child, usedGAVSet, usedGASet, gavScopeMap);
+            Map<String, Object> childNode = buildDependencyTreeWithConflict(child, usedGAVSet, usedGASet, gavScopeMap, exclusionMap);
             if (childNode != null) {
                 children.add(childNode);
             }

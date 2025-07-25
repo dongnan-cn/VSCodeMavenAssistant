@@ -10,9 +10,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+
 import org.apache.maven.model.Model;
-import org.eclipse.aether.artifact.DefaultArtifact;
-import org.eclipse.aether.artifact.Artifact;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -64,23 +64,24 @@ public class SimpleLanguageServerTest {
     @Test
     public void testInsertExclusionWithComments() throws Exception {
         // 构造一个包含注释的 pom.xml 内容
-        String pom =
-                "<?xml version=\"1.0\"?>\n" +
-                "<project>\n" +
-                "  <modelVersion>4.0.0</modelVersion>\n" +
-                "  <groupId>demo</groupId>\n" +
-                "  <artifactId>demo</artifactId>\n" +
-                "  <version>1.0</version>\n" +
-                "  <dependencies>\n" +
-                "    <!-- 这是一个注释 -->\n" +
-                "    <dependency>\n" +
-                "      <groupId>org.example</groupId>\n" +
-                "      <artifactId>root</artifactId>\n" +
-                "      <version>1.0</version>\n" +
-                "    </dependency>\n" +
-                "    <!-- 另一个注释 -->\n" +
-                "  </dependencies>\n" +
-                "</project>\n";
+        String pom = """
+                <?xml version="1.0"?>
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>demo</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0</version>
+                  <dependencies>
+                    <!-- 这是一个注释 -->
+                    <dependency>
+                      <groupId>org.example</groupId>
+                      <artifactId>root</artifactId>
+                      <version>1.0</version>
+                    </dependency>
+                    <!-- 另一个注释 -->
+                  </dependencies>
+                </project>
+                """;
         // 写入临时文件
         Path tempPom = tempDir.resolve("test-pom-with-comments.xml");
         Files.writeString(tempPom, pom);
@@ -119,20 +120,21 @@ public class SimpleLanguageServerTest {
     @Test
     public void testInsertExclusionDependencyNotFound() throws Exception {
         // 构造一个简单的 pom.xml 内容
-        String pom =
-                "<project>\n" +
-                "  <modelVersion>4.0.0</modelVersion>\n" +
-                "  <groupId>demo</groupId>\n" +
-                "  <artifactId>demo</artifactId>\n" +
-                "  <version>1.0</version>\n" +
-                "  <dependencies>\n" +
-                "    <dependency>\n" +
-                "      <groupId>org.example</groupId>\n" +
-                "      <artifactId>root</artifactId>\n" +
-                "      <version>1.0</version>\n" +
-                "    </dependency>\n" +
-                "  </dependencies>\n" +
-                "</project>\n";
+        String pom = """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>demo</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.example</groupId>
+                      <artifactId>root</artifactId>
+                      <version>1.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """;
         // 写入临时文件
         Path tempPom = tempDir.resolve("test-pom-not-found.xml");
         Files.writeString(tempPom, pom);
@@ -164,25 +166,26 @@ public class SimpleLanguageServerTest {
     @Test
     public void testInsertExclusionWithVersionMatching() throws Exception {
         // 构造一个包含多个版本依赖的 pom.xml 内容
-        String pom =
-                "<project>\n" +
-                "  <modelVersion>4.0.0</modelVersion>\n" +
-                "  <groupId>demo</groupId>\n" +
-                "  <artifactId>demo</artifactId>\n" +
-                "  <version>1.0</version>\n" +
-                "  <dependencies>\n" +
-                "    <dependency>\n" +
-                "      <groupId>org.example</groupId>\n" +
-                "      <artifactId>root</artifactId>\n" +
-                "      <version>1.0</version>\n" +
-                "    </dependency>\n" +
-                "    <dependency>\n" +
-                "      <groupId>org.example</groupId>\n" +
-                "      <artifactId>root</artifactId>\n" +
-                "      <version>2.0</version>\n" +
-                "    </dependency>\n" +
-                "  </dependencies>\n" +
-                "</project>\n";
+        String pom = """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>demo</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.example</groupId>
+                      <artifactId>root</artifactId>
+                      <version>1.0</version>
+                    </dependency>
+                    <dependency>
+                      <groupId>org.example</groupId>
+                      <artifactId>root</artifactId>
+                      <version>2.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """;
         // 写入临时文件
         Path tempPom = tempDir.resolve("test-pom-multiple-versions.xml");
         Files.writeString(tempPom, pom);
@@ -247,20 +250,21 @@ public class SimpleLanguageServerTest {
     @Test
     public void testInsertExclusion() throws Exception {
         // 构造一个简单的 pom.xml 内容
-        String pom =
-                "<project>\n" +
-                "  <modelVersion>4.0.0</modelVersion>\n" +
-                "  <groupId>demo</groupId>\n" +
-                "  <artifactId>demo</artifactId>\n" +
-                "  <version>1.0</version>\n" +
-                "  <dependencies>\n" +
-                "    <dependency>\n" +
-                "      <groupId>org.example</groupId>\n" +
-                "      <artifactId>root</artifactId>\n" +
-                "      <version>1.0</version>\n" +
-                "    </dependency>\n" +
-                "  </dependencies>\n" +
-                "</project>\n";
+        String pom = """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>demo</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.example</groupId>
+                      <artifactId>root</artifactId>
+                      <version>1.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """;
         // 写入临时文件
         Path tempPom = tempDir.resolve("test-pom-old-method.xml");
         Files.writeString(tempPom, pom);
@@ -296,20 +300,21 @@ public class SimpleLanguageServerTest {
      */
     public void testInsertMultipleExclusions(int n) throws Exception {
         // 构造一个包含单一依赖的 pom.xml 内容
-        String pom =
-                "<project>\n" +
-                "  <modelVersion>4.0.0</modelVersion>\n" +
-                "  <groupId>demo</groupId>\n" +
-                "  <artifactId>demo</artifactId>\n" +
-                "  <version>1.0</version>\n" +
-                "  <dependencies>\n" +
-                "    <dependency>\n" +
-                "      <groupId>org.example</groupId>\n" +
-                "      <artifactId>root</artifactId>\n" +
-                "      <version>1.0</version>\n" +
-                "    </dependency>\n" +
-                "  </dependencies>\n" +
-                "</project>\n";
+        String pom = """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>demo</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.example</groupId>
+                      <artifactId>root</artifactId>
+                      <version>1.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """;
         // 写入临时文件
         Path tempPom = tempDir.resolve("test-pom-multi-exclusions.xml");
         Files.writeString(tempPom, pom);
@@ -346,4 +351,289 @@ public class SimpleLanguageServerTest {
     public void testInsertMultipleExclusions5() throws Exception {
         testInsertMultipleExclusions(5);
     }
-} 
+
+    /**
+     * 测试buildExclusionMap方法 - 解析直接依赖中的exclusions
+     */
+    @Test
+    public void testBuildExclusionMapWithDirectDependencies() throws Exception {
+        // 构造一个包含exclusions的 pom.xml 内容
+        String pom = """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>demo</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.springframework</groupId>
+                      <artifactId>spring-core</artifactId>
+                      <version>5.3.21</version>
+                      <exclusions>
+                        <exclusion>
+                          <groupId>commons-logging</groupId>
+                          <artifactId>commons-logging</artifactId>
+                        </exclusion>
+                        <exclusion>
+                          <groupId>org.springframework</groupId>
+                          <artifactId>spring-jcl</artifactId>
+                        </exclusion>
+                      </exclusions>
+                    </dependency>
+                    <dependency>
+                      <groupId>org.apache.commons</groupId>
+                      <artifactId>commons-lang3</artifactId>
+                      <version>3.12.0</version>
+                      <exclusions>
+                        <exclusion>
+                          <groupId>junit</groupId>
+                          <artifactId>junit</artifactId>
+                        </exclusion>
+                      </exclusions>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """;
+        
+        // 写入临时文件
+        Path tempPom = tempDir.resolve("test-pom-exclusions.xml");
+        Files.writeString(tempPom, pom);
+        
+        // 使用Maven Model API解析pom.xml
+        org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
+        Model model = reader.read(Files.newInputStream(tempPom));
+        
+        // 创建SimpleLanguageServer实例并使用反射调用buildExclusionMap方法
+        SimpleLanguageServer server = new SimpleLanguageServer();
+        java.lang.reflect.Method buildExclusionMapMethod = SimpleLanguageServer.class.getDeclaredMethod("buildExclusionMap", Model.class);
+        buildExclusionMapMethod.setAccessible(true);
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Set<String>> exclusionMap = (Map<String, Set<String>>) buildExclusionMapMethod.invoke(server, model);
+        
+        // 验证解析结果
+        assertNotNull(exclusionMap, "exclusionMap不应该为null");
+        assertEquals(2, exclusionMap.size(), "应该有2个依赖包含exclusions");
+        
+        // 验证spring-core的exclusions
+        String springCoreKey = "org.springframework:spring-core";
+        assertTrue(exclusionMap.containsKey(springCoreKey), "应该包含spring-core的exclusions");
+        Set<String> springCoreExclusions = exclusionMap.get(springCoreKey);
+        assertEquals(2, springCoreExclusions.size(), "spring-core应该有2个exclusions");
+        assertTrue(springCoreExclusions.contains("commons-logging:commons-logging"), "应该排除commons-logging");
+        assertTrue(springCoreExclusions.contains("org.springframework:spring-jcl"), "应该排除spring-jcl");
+        
+        // 验证commons-lang3的exclusions
+        String commonsLang3Key = "org.apache.commons:commons-lang3";
+        assertTrue(exclusionMap.containsKey(commonsLang3Key), "应该包含commons-lang3的exclusions");
+        Set<String> commonsLang3Exclusions = exclusionMap.get(commonsLang3Key);
+        assertEquals(1, commonsLang3Exclusions.size(), "commons-lang3应该有1个exclusion");
+        assertTrue(commonsLang3Exclusions.contains("junit:junit"), "应该排除junit");
+        
+        System.out.println("解析到的exclusionMap: " + exclusionMap);
+    }
+
+    /**
+     * 测试buildExclusionMap方法 - 解析dependencyManagement中的exclusions
+     */
+    @Test
+    public void testBuildExclusionMapWithDependencyManagement() throws Exception {
+        // 构造一个包含dependencyManagement exclusions的 pom.xml 内容
+        String pom = """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>demo</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-starter</artifactId>
+                        <version>2.7.0</version>
+                        <exclusions>
+                          <exclusion>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-starter-logging</artifactId>
+                          </exclusion>
+                        </exclusions>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.slf4j</groupId>
+                      <artifactId>slf4j-api</artifactId>
+                      <version>1.7.36</version>
+                      <exclusions>
+                        <exclusion>
+                          <groupId>org.slf4j</groupId>
+                          <artifactId>slf4j-simple</artifactId>
+                        </exclusion>
+                      </exclusions>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """;
+        
+        // 写入临时文件
+        Path tempPom = tempDir.resolve("test-pom-dependency-management.xml");
+        Files.writeString(tempPom, pom);
+        
+        // 使用Maven Model API解析pom.xml
+        org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
+        Model model = reader.read(Files.newInputStream(tempPom));
+        
+        // 创建SimpleLanguageServer实例并使用反射调用buildExclusionMap方法
+        SimpleLanguageServer server = new SimpleLanguageServer();
+        java.lang.reflect.Method buildExclusionMapMethod = SimpleLanguageServer.class.getDeclaredMethod("buildExclusionMap", Model.class);
+        buildExclusionMapMethod.setAccessible(true);
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Set<String>> exclusionMap = (Map<String, Set<String>>) buildExclusionMapMethod.invoke(server, model);
+        
+        // 验证解析结果
+        assertNotNull(exclusionMap, "exclusionMap不应该为null");
+        assertEquals(2, exclusionMap.size(), "应该有2个依赖包含exclusions");
+        
+        // 验证dependencyManagement中的exclusions
+        String springBootStarterKey = "org.springframework.boot:spring-boot-starter";
+        assertTrue(exclusionMap.containsKey(springBootStarterKey), "应该包含spring-boot-starter的exclusions");
+        Set<String> springBootExclusions = exclusionMap.get(springBootStarterKey);
+        assertEquals(1, springBootExclusions.size(), "spring-boot-starter应该有1个exclusion");
+        assertTrue(springBootExclusions.contains("org.springframework.boot:spring-boot-starter-logging"), "应该排除spring-boot-starter-logging");
+        
+        // 验证直接依赖中的exclusions
+        String slf4jKey = "org.slf4j:slf4j-api";
+        assertTrue(exclusionMap.containsKey(slf4jKey), "应该包含slf4j-api的exclusions");
+        Set<String> slf4jExclusions = exclusionMap.get(slf4jKey);
+        assertEquals(1, slf4jExclusions.size(), "slf4j-api应该有1个exclusion");
+        assertTrue(slf4jExclusions.contains("org.slf4j:slf4j-simple"), "应该排除slf4j-simple");
+        
+        System.out.println("解析到的exclusionMap: " + exclusionMap);
+    }
+
+    /**
+     * 测试buildExclusionMap方法 - 处理没有exclusions的情况
+     */
+    @Test
+    public void testBuildExclusionMapWithNoExclusions() throws Exception {
+        // 构造一个不包含exclusions的 pom.xml 内容
+        String pom = """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>demo</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.apache.commons</groupId>
+                      <artifactId>commons-lang3</artifactId>
+                      <version>3.12.0</version>
+                    </dependency>
+                    <dependency>
+                      <groupId>junit</groupId>
+                      <artifactId>junit</artifactId>
+                      <version>4.13.2</version>
+                      <scope>test</scope>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """;
+        
+        // 写入临时文件
+        Path tempPom = tempDir.resolve("test-pom-no-exclusions.xml");
+        Files.writeString(tempPom, pom);
+        
+        // 使用Maven Model API解析pom.xml
+        org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
+        Model model = reader.read(Files.newInputStream(tempPom));
+        
+        // 创建SimpleLanguageServer实例并使用反射调用buildExclusionMap方法
+        SimpleLanguageServer server = new SimpleLanguageServer();
+        java.lang.reflect.Method buildExclusionMapMethod = SimpleLanguageServer.class.getDeclaredMethod("buildExclusionMap", Model.class);
+        buildExclusionMapMethod.setAccessible(true);
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Set<String>> exclusionMap = (Map<String, Set<String>>) buildExclusionMapMethod.invoke(server, model);
+        
+        // 验证解析结果
+        assertNotNull(exclusionMap, "exclusionMap不应该为null");
+        assertTrue(exclusionMap.isEmpty(), "没有exclusions时，exclusionMap应该为空");
+        
+        System.out.println("解析到的exclusionMap: " + exclusionMap);
+    }
+
+    /**
+     * 测试buildExclusionMap方法 - 处理同一依赖在dependencies和dependencyManagement中都有exclusions的情况
+     */
+    @Test
+    public void testBuildExclusionMapWithMergedExclusions() throws Exception {
+        // 构造一个同一依赖在两个地方都有exclusions的 pom.xml 内容
+        String pom = """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>demo</groupId>
+                  <artifactId>demo</artifactId>
+                  <version>1.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>org.springframework</groupId>
+                        <artifactId>spring-core</artifactId>
+                        <version>5.3.21</version>
+                        <exclusions>
+                          <exclusion>
+                            <groupId>commons-logging</groupId>
+                            <artifactId>commons-logging</artifactId>
+                          </exclusion>
+                        </exclusions>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.springframework</groupId>
+                      <artifactId>spring-core</artifactId>
+                      <exclusions>
+                        <exclusion>
+                          <groupId>org.springframework</groupId>
+                          <artifactId>spring-jcl</artifactId>
+                        </exclusion>
+                      </exclusions>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """;
+        
+        // 写入临时文件
+        Path tempPom = tempDir.resolve("test-pom-merged-exclusions.xml");
+        Files.writeString(tempPom, pom);
+        
+        // 使用Maven Model API解析pom.xml
+        org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
+        Model model = reader.read(Files.newInputStream(tempPom));
+        
+        // 创建SimpleLanguageServer实例并使用反射调用buildExclusionMap方法
+        SimpleLanguageServer server = new SimpleLanguageServer();
+        java.lang.reflect.Method buildExclusionMapMethod = SimpleLanguageServer.class.getDeclaredMethod("buildExclusionMap", Model.class);
+        buildExclusionMapMethod.setAccessible(true);
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Set<String>> exclusionMap = (Map<String, Set<String>>) buildExclusionMapMethod.invoke(server, model);
+        
+        // 验证解析结果
+        assertNotNull(exclusionMap, "exclusionMap不应该为null");
+        assertEquals(1, exclusionMap.size(), "应该有1个依赖包含exclusions");
+        
+        // 验证spring-core的exclusions被合并了
+        String springCoreKey = "org.springframework:spring-core";
+        assertTrue(exclusionMap.containsKey(springCoreKey), "应该包含spring-core的exclusions");
+        Set<String> springCoreExclusions = exclusionMap.get(springCoreKey);
+        assertEquals(2, springCoreExclusions.size(), "spring-core应该有2个exclusions（合并后）");
+        assertTrue(springCoreExclusions.contains("commons-logging:commons-logging"), "应该排除commons-logging（来自dependencyManagement）");
+        assertTrue(springCoreExclusions.contains("org.springframework:spring-jcl"), "应该排除spring-jcl（来自dependencies）");
+        
+        System.out.println("解析到的exclusionMap: " + exclusionMap);
+    }
+}
