@@ -7,6 +7,7 @@ import { LspClient } from './lspClient';
  */
 export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'maven-assistant.dependencyAnalyzer';
+    private currentWebviewPanel?: vscode.WebviewPanel; // 保存当前webview引用
 
     constructor(
         private readonly context: vscode.ExtensionContext,
@@ -26,6 +27,9 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
         webviewPanel: vscode.WebviewPanel,
         token: vscode.CancellationToken
     ): Promise<void> {
+        // 保存webviewPanel引用
+        this.currentWebviewPanel = webviewPanel;
+        
         // 允许Webview加载本地资源和脚本
         webviewPanel.webview.options = {
             enableScripts: true,
@@ -80,6 +84,11 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                 }
             }
             // 可扩展：处理节点点击、详情等
+        });
+        
+        // 监听webviewPanel关闭事件，清理引用
+        webviewPanel.onDidDispose(() => {
+            this.currentWebviewPanel = undefined;
         });
     }
 
@@ -183,6 +192,18 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                     editor.selection = new vscode.Selection(pos, pos);
                     editor.revealRange(new vscode.Range(pos, pos));
                     vscode.window.showInformationMessage(result.message || '已成功插入 exclusion');
+                    
+                    // 通知前端exclude成功，需要更新依赖树
+                    // 这里需要获取当前的webviewPanel引用
+                    if (this.currentWebviewPanel) {
+                        this.currentWebviewPanel.webview.postMessage({
+                            type: 'excludeSuccess',
+                            excludedDependency: {
+                                groupId: target.groupId,
+                                artifactId: target.artifactId
+                            }
+                        });
+                    }
                 } else {
                     console.log('result error:', result.error);
                     vscode.window.showErrorMessage(result && result.error ? result.error : '插入 exclusion 失败');

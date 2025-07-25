@@ -305,6 +305,36 @@ function gotoAndHighlightNodeByPath(path: any[]) {
   }
 }
 
+// 递归移除指定GA的依赖及其子依赖
+function removeDependencyByGA(nodes: DependencyNode[], groupId: string, artifactId: string): DependencyNode[] {
+  return nodes.filter(node => {
+    // 如果当前节点匹配要移除的GA，则过滤掉
+    if (node.groupId === groupId && node.artifactId === artifactId) {
+      return false
+    }
+    // 递归处理子依赖
+    if (node.children && node.children.length > 0) {
+      node.children = removeDependencyByGA(node.children, groupId, artifactId)
+    }
+    return true
+  })
+}
+
+// 处理exclude成功后的依赖树更新
+function handleExcludeSuccess(excludedDependency: { groupId: string, artifactId: string }) {
+  console.log('🔄 DependencyTree: 处理exclude成功，移除依赖:', excludedDependency)
+  // 从当前依赖树中移除指定GA的所有依赖
+  dependencyData.value = removeDependencyByGA(dependencyData.value, excludedDependency.groupId, excludedDependency.artifactId)
+  
+  // 如果当前选中的节点被移除了，清空选中状态
+  if (selectedNode.value && 
+      selectedNode.value.groupId === excludedDependency.groupId && 
+      selectedNode.value.artifactId === excludedDependency.artifactId) {
+    selectedNode.value = null
+    emit('select-dependency', null, dependencyData.value)
+  }
+}
+
 // 监听来自扩展端的消息
 onMounted(() => {
   window.addEventListener('message', (event) => {
@@ -345,6 +375,14 @@ onMounted(() => {
       case 'gotoTreeNode': {
         const { path } = message
         gotoAndHighlightNodeByPath(path)
+        break
+      }
+      case 'excludeSuccess': {
+        // 处理exclude成功的消息
+        const { excludedDependency } = message
+        if (excludedDependency) {
+          handleExcludeSuccess(excludedDependency)
+        }
         break
       }
     }
