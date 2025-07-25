@@ -287,4 +287,4 @@ watch(
 .arrow:hover {
   color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
 }
-</style> 
+</style>

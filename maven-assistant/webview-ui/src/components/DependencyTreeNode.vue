@@ -68,10 +68,6 @@ const isSelected = computed(() => {
   // 以 groupId, artifactId, version, scope, path 唯一标识节点
   const n = props.node
   const s = props.selectedNode
-  console.log('node', props.node);
-  console.log('selectedNode', props.selectedNode);
-  console.log('node path', props.node.path);
-  console.log('selectedNode path', props.selectedNode.path);
   // 路径可选，如果有 path 字段则也比较
   const pathEqual = !n.path || !s.path || JSON.stringify(n.path) === JSON.stringify(s.path)
   return (
@@ -163,7 +159,8 @@ function handleContextMenu(event: MouseEvent) {
 function handleMenuSelect(action: string) {
   if (!menuNode.value) return
   const node = menuNode.value
-  const pathInfo = [node, ...props.path].map(n => ({
+  console.log('node ', node, ' props.path: ', props.path)
+  const pathInfo = [...props.path, node].map(n => ({
     groupId: n.groupId,
     artifactId: n.artifactId,
     version: n.version,

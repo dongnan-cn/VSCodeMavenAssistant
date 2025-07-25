@@ -146,12 +146,12 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
     private async handleContextMenu(data: any) {
         try {
             const { node, nodeIndex, pathInfo, action } = data;
-            console.log('右键菜单数据 node:',node);
+            console.log('右键菜单数据 node:', node);
             console.log('右键菜单数据 nodeIndex:', nodeIndex);
             console.log('右键菜单数据 pathInfo:', pathInfo);
             if (action === 'exclude') {
                 // 1. 获取根依赖（pathInfo 最后一个节点）和目标依赖（node）
-                const root = pathInfo[pathInfo.length - 1];
+                const root = pathInfo[0];
                 const target = node;
                 // 2. 构造参数，调用后端插入exclusion
                 const pomFiles = await vscode.workspace.findFiles('pom.xml', undefined, 1);
@@ -192,7 +192,7 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                 const parentIndex = nodeIndex + 1;
                 let parent = null;
                 if (pathInfo && pathInfo.length > parentIndex) {
-                    parent = pathInfo[parentIndex];
+                    parent = pathInfo[pathInfo.length - 2];
                     // 有父依赖，查找.m2仓库父依赖pom文件
                     const os = require('os');
                     const path = require('path');
