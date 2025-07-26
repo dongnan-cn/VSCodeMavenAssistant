@@ -239,8 +239,10 @@ watch(
   text-align: center;
 }
 .path-block {
-  margin-bottom: 18px;
-  border-left: 2px solid var(--vscode-panel-border);
+  /* 调整行距与左侧依赖树保持一致 */
+  margin-bottom: 2px;
+  /* 移除左侧竖线 */
+  /* border-left: 2px solid var(--vscode-panel-border); */
   padding-left: 8px;
 }
 </style>
