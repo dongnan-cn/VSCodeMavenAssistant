@@ -455,14 +455,14 @@ defineExpose({
 </script>
 
 <style scoped>
-/* 容器样式 */
+/* 容器样式 - 与tree模式保持一致 */
 .dependency-conflicts-container {
     font-family: var(--vscode-font-family);
     color: var(--vscode-foreground);
     background: var(--vscode-editor-background);
-    height: 100vh;
-    overflow-y: auto;
-    padding: 0;
+    height: 100vh; /* 固定高度，不受分割条影响 */
+    overflow-y: auto; /* 垂直滚动 */
+    padding: 16px;
     margin: 0;
     box-sizing: border-box;
 }
@@ -533,6 +533,8 @@ defineExpose({
     padding: 8px 12px;
     border-bottom: 1px solid var(--vscode-panel-border);
     margin-bottom: 8px;
+    white-space: nowrap; /* 强制单行显示，不换行 */
+    overflow: hidden; /* 隐藏超出部分 */
 }
 
 .conflicts-title {
@@ -540,19 +542,21 @@ defineExpose({
     font-weight: 600;
     color: var(--vscode-foreground);
     margin-bottom: 4px;
+    white-space: nowrap; /* 强制单行显示，不换行 */
+    overflow: hidden; /* 隐藏超出部分 */
+    text-overflow: ellipsis; /* 超出部分显示省略号 */
 }
 
 .conflicts-items {
     display: flex;
     flex-direction: column;
-    /* 调整行距与tree模式保持一致 */
     gap: 0;
 }
 
-/* 冲突项样式 - 与tree模式保持一致的卡片式设计 */
+/* 冲突项样式 - 与tree模式保持一致，强制单行显示 */
 .conflict-item {
-    display: flex;
-    flex-direction: column;
+    display: flex; /* 使用flex布局，与tree模式一致 */
+    align-items: center;
     padding: 4px 12px; /* 与tree模式相同的padding */
     margin: 1px 0; /* 与tree模式相同的margin */
     border-radius: 6px; /* 与tree模式相同的圆角 */
@@ -563,10 +567,8 @@ defineExpose({
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace; /* 与tree模式相同的字体 */
     font-size: 14px; /* 与tree模式相同的字体大小 */
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); /* 与tree模式相同的阴影 */
-    width: 100%;
-    min-width: 600px; /* 与tree模式相同的最小宽度 */
-    white-space: nowrap;
-    overflow: hidden;
+    white-space: nowrap; /* 强制单行显示，不换行 */
+    overflow: hidden; /* 隐藏超出部分 */
 }
 
 .conflict-item:hover {
@@ -587,52 +589,56 @@ defineExpose({
 }
 
 .conflict-main {
+    flex: 1; /* 占据剩余空间，与tree模式的dep-label一致 */
+    cursor: pointer;
+    user-select: none;
     display: flex;
-
     align-items: center;
-    /* 移除margin-bottom，因为不再有details部分 */
+    gap: 8px;
+    font-weight: 500;
 }
 
 .conflict-gav {
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 14px; /* 与tree模式相同的字体大小 */
     font-weight: 500;
-    flex: 1;
-    display: flex;
+    display: flex; /* 使用flex布局，与tree模式的gav-info一致 */
     align-items: center;
-    gap: 4px; /* 与tree模式GAV信息相同的间距 */
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    /* 移除右边距，不再需要为badge预留空间 */
+    gap: 4px; /* 与tree模式相同的间距 */
+    white-space: nowrap; /* 强制单行显示，不换行 */
+    overflow: hidden; /* 隐藏超出部分 */
+    flex-shrink: 1; /* 允许收缩以适应容器 */
+}
+
+.group-id,
+.artifact-id,
+.version,
+.separator,
+.dependency-size,
+.versions-list {
+    /* 所有内联元素统一样式 */
+    display: inline; /* 确保在同一行显示 */
+    color: inherit; /* 继承父元素颜色，用于scope着色 */
 }
 
 .group-id {
-    /* 继承父元素颜色，用于scope着色 */
-    color: inherit;
-    opacity: 0.9; /* 与tree模式相同的透明度 */
+    opacity: 0.9;
 }
 
 .artifact-id {
-    /* 继承父元素颜色，用于scope着色 */
-    color: inherit;
-    font-weight: 600; /* 与tree模式相同的字重 */
+    font-weight: 600;
 }
 
 .version {
-    /* 继承父元素颜色，用于scope着色 */
-    color: inherit;
     font-weight: 500; /* 与tree模式相同的字重 */
 }
 
 .separator {
-    /* 继承父元素颜色，用于scope着色 */
-    color: inherit;
     opacity: 0.6;
 }
 
 .versions-list {
-    color: var(--vscode-errorForeground);
+    color: var(--vscode-errorForeground) !important; /* 冲突版本使用红色，覆盖继承的颜色 */
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-weight: 500;
 }
@@ -668,10 +674,15 @@ defineExpose({
 }
 
 .dependency-size {
-    /* 继承父元素颜色，用于scope着色 */
-    color: inherit;
-    font-size: 0.85em;
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
     margin-right: 8px;
     font-weight: 500;
+    min-width: 80px;
+    text-align: right;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    padding: 2px 6px;
+    border-radius: 12px;
 }
 </style>

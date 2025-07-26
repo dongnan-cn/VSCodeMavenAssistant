@@ -366,17 +366,14 @@ li.collapsed > .dep-children {
 
 /* GAV 各部分样式 - 颜色由父元素的 nodeColor 动态设置 */
 .group-id {
-  /* 移除固定颜色，使用继承的动态颜色 */
   opacity: 0.9;
 }
 
 .artifact-id {
-  /* 移除固定颜色，使用继承的动态颜色 */
   font-weight: 600;
 }
 
 .version {
-  /* 移除固定颜色，使用继承的动态颜色 */
   font-weight: 500;
 }
 
