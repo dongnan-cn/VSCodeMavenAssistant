@@ -16,8 +16,24 @@
       </span>
       <span v-else class="arrow" style="visibility: hidden;">▶</span>
       <span v-if="showSize && totalSizeKB > 0" class="dep-size">{{ totalSizeKB }} KB ({{ selfSizeKB }} KB)</span>
-      <span class="dep-label" :class="{ matched: node.matched, selected: isSelected }" :style="{ color: nodeColor }">
-        {{ nodeLabel }}
+      <span class="dep-label" :class="{ matched: node.matched, selected: isSelected }">
+        <span class="gav-info" :style="{ color: nodeColor }">
+          <!-- 只有在 showGroupId 为 true 时才显示 groupId -->
+          <template v-if="showGroupId">
+            <span class="group-id">{{ node.groupId }}</span>
+            <span class="separator"> : </span>
+          </template>
+          <span class="artifact-id">{{ node.artifactId }}</span>
+          <span class="separator"> : </span>
+          <span class="version">{{ node.version }}</span>
+          <!-- scope-badge 移动到 GAV 信息内部，确保紧跟依赖信息 -->
+          <span v-if="node.scope" 
+                class="scope-badge" 
+                :class="node.scope">
+            {{ node.scope }}
+          </span>
+        </span>
+        <!-- 移除冲突丢弃文字提示，红色已经足够说明问题 -->
       </span>
     </div>
     <div v-if="node.hasChildren && node.expanded" class="dep-children">
@@ -89,20 +105,17 @@ function emitSelect(id: string, node: any) {
   emit('select', id, node)
 }
 
-// 动态label
-const nodeLabel = computed(() => {
-  let base = props.showGroupId
-    ? `${props.node.groupId} : ${props.node.artifactId} : ${props.node.version}`
-    : `${props.node.artifactId} : ${props.node.version}`
-  if (props.node.scope) base += ` [${props.node.scope}]`
-  return base
-})
+// 移除了未使用的 nodeLabel 计算属性，因为现在直接在模板中显示 GAV 信息
 
 // 根据 scope 和 droppedByConflict 状态确定节点颜色
 const nodeColor = computed(() => {
   const scope = props.node.scope
   const droppedByConflict = props.node.droppedByConflict
   
+  // 被冲突丢弃时显示红色
+  if (droppedByConflict) {
+    return '#F44336' // 红色
+  }
   // scope 为 test 时显示绿色
   if (scope === 'test') {
     return '#4CAF50' // 绿色
@@ -111,12 +124,12 @@ const nodeColor = computed(() => {
   if (scope === 'runtime') {
     return '#9C27B0' // 紫色
   }
-  // scope 为 compile 且被冲突丢弃时显示红色
-  if (scope === 'compile' && droppedByConflict) {
-    return '#F44336' // 红色
+  // scope 为 compile 时显示蓝色
+  if (scope === 'compile') {
+    return '#2196F3' // 蓝色
   }
-  // 其他情况显示默认颜色（白色/前景色）
-  return 'var(--vscode-foreground)'
+  // 其他情况显示白色
+  return '#FFFFFF'
 })
 
 // 依赖大小（单位KB，向上取整）
@@ -190,96 +203,220 @@ function handleMenuSelect(action: string) {
 </script>
 
 <style scoped>
+/* 展开/折叠箭头样式 - 与父组件保持一致 */
 .arrow {
   display: inline-block;
-  width: 1.2em;
-  font-size: 1.1em;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
   color: var(--vscode-foreground);
-  margin-right: 6px;
+  margin-right: 8px;
   vertical-align: middle;
-  transition: transform 0.2s, color 0.2s;
+  transition: all 0.2s ease;
   cursor: pointer;
   user-select: none;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
+.arrow:hover {
+  background: var(--vscode-list-hoverBackground);
+  color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
+}
+
 .arrow.collapsed {
   transform: rotate(0deg);
 }
+
 .arrow.expanded {
   transform: rotate(90deg);
 }
-.arrow:hover {
-  color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
-}
+
+/* 列表样式重置 */
 ul, li {
   list-style: none;
   padding-left: 0;
   margin: 0;
 }
+
+/* 节点行样式 - 采用卡片式设计，更紧凑的布局，固定宽度 */
 .dep-node-row {
   display: flex;
   align-items: center;
-  padding: 2px 4px;
-  border-radius: 3px;
-  transition: background 0.2s;
+  padding: 4px 12px; /* 减小垂直padding */
+  margin: 1px 0; /* 减小垂直margin */
+  border-radius: 6px;
   cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  background: var(--vscode-editor-background);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px; /* 增大字体 */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  width: 100%; /* 固定宽度为容器100% */
+  min-width: 600px; /* 设置最小宽度确保内容不被压缩 */
+  white-space: nowrap; /* 防止换行 */
+  overflow: hidden; /* 隐藏溢出内容 */
 }
+
+.dep-node-row:hover {
+  background: var(--vscode-list-hoverBackground);
+  border-color: var(--vscode-list-hoverBackground);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
 .dep-node-row.selected {
-  /* 跳转高亮，宽度略窄，仅label区域 */
-  background: linear-gradient(to right, var(--vscode-list-activeSelectionBackground) 80%, transparent 100%);
+  background: var(--vscode-list-activeSelectionBackground);
   color: var(--vscode-list-activeSelectionForeground);
-  border-left: 3px solid var(--vscode-focusBorder);
+  border-color: var(--vscode-focusBorder);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
   z-index: 2;
 }
+
 .dep-node-row.matched {
-  /* 搜索高亮，覆盖整行 */
   background: var(--vscode-editor-findMatchHighlightBackground, #ffe564);
   color: var(--vscode-editor-findMatchHighlightForeground, #000);
-  border-radius: 2px;
+  border-color: #fbbf24;
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
   z-index: 1;
 }
+
+/* 依赖标签样式 - 固定布局不换行 */
 .dep-label {
   flex: 1;
   cursor: pointer;
   user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  min-width: 0; /* 允许收缩 */
+  overflow: hidden; /* 隐藏溢出 */
+  white-space: nowrap; /* 防止换行 */
 }
+
 .dep-label.selected {
-  /* 跳转高亮，label区域再加一层边框或阴影 */
-  box-shadow: 0 0 0 2px var(--vscode-focusBorder) inset;
-  border-radius: 2px;
+  font-weight: 600;
   position: relative;
   z-index: 3;
 }
+
 .dep-label.matched {
-  /* 搜索高亮，label区域也有背景色 */
   background: var(--vscode-editor-findMatchHighlightBackground, #ffe564);
   color: var(--vscode-editor-findMatchHighlightForeground, #000);
-  border-radius: 2px;
-  padding: 0 2px;
+  border-radius: 4px;
+  padding: 0 4px;
   z-index: 2;
 }
+
+/* 子节点容器样式 */
 .dep-children {
   overflow: hidden;
-  transition: max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   max-height: 2000px;
 }
+
 li.collapsed > .dep-children {
   max-height: 0;
 }
+
 li.collapsed > .dep-children {
   display: block;
 }
+
 :deep(.dep-children > ul) {
-  padding-left: 20px;
+  padding-left: 24px;
+  margin-top: 2px; /* 减小子节点顶部间距 */
 }
+
+/* 依赖大小显示样式 - 固定位置不换行 */
 .dep-size {
-  color: rgba(128,128,128,0.45);
-  font-size: 12px;
-  margin-right: 6px;
-  min-width: 48px;
-  display: inline-block;
-  text-align: left;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  margin-right: 8px;
+  font-weight: 500;
+  min-width: 80px;
+  text-align: right;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  padding: 2px 6px;
+  border-radius: 12px;
   font-family: monospace;
   vertical-align: middle;
   user-select: text;
+  flex-shrink: 0; /* 防止收缩 */
+  white-space: nowrap; /* 防止换行 */
 }
+
+/* GAV信息样式 - 固定在一行显示 */
+.gav-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1; /* 占据剩余空间 */
+  min-width: 0; /* 允许收缩 */
+  overflow: hidden; /* 隐藏溢出 */
+  text-overflow: ellipsis; /* 文本溢出显示省略号 */
+  white-space: nowrap; /* 防止换行 */
+}
+
+/* GAV 各部分样式 - 颜色由父元素的 nodeColor 动态设置 */
+.group-id {
+  /* 移除固定颜色，使用继承的动态颜色 */
+  opacity: 0.9;
+}
+
+.artifact-id {
+  /* 移除固定颜色，使用继承的动态颜色 */
+  font-weight: 600;
+}
+
+.version {
+  /* 移除固定颜色，使用继承的动态颜色 */
+  font-weight: 500;
+}
+
+.separator {
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.6;
+}
+
+/* scope标识样式 - 紧跟依赖信息，固定位置不换行 */
+.scope-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 4px; /* 减小左边距，紧跟GAV信息 */
+  text-transform: uppercase;
+  flex-shrink: 0; /* 防止收缩 */
+  white-space: nowrap; /* 防止换行 */
+  position: relative; /* 相对定位，确保固定跟随 */
+}
+
+/* 不同scope的颜色区分 */
+.scope-badge.test {
+  background: #4CAF50;
+  color: white;
+}
+
+.scope-badge.runtime {
+  background: #9C27B0;
+  color: white;
+}
+
+.scope-badge.compile {
+  background: #2196F3;
+  color: white;
+}
+
+/* 移除了冲突标识样式，因为不再显示冲突丢弃文字 */
 </style>
