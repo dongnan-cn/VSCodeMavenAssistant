@@ -838,12 +838,15 @@ public class SimpleLanguageServer implements LanguageServer {
                 }
             }
         }
-        // 递归 children
+        // 递归 children - 但如果当前依赖被丢弃，则不处理其子依赖
         List<Map<String, Object>> children = new ArrayList<>();
-        for (DependencyNode child : node.getChildren()) {
-            Map<String, Object> childNode = buildDependencyTreeWithConflict(child, usedGAVSet, usedGASet, gavScopeMap, exclusionMap);
-            if (childNode != null) {
-                children.add(childNode);
+        boolean dropped = (Boolean) depInfo.getOrDefault("droppedByConflict", false);
+        if (!dropped) {
+            for (DependencyNode child : node.getChildren()) {
+                Map<String, Object> childNode = buildDependencyTreeWithConflict(child, usedGAVSet, usedGASet, gavScopeMap, exclusionMap);
+                if (childNode != null) {
+                    children.add(childNode);
+                }
             }
         }
         if (!children.isEmpty()) {
