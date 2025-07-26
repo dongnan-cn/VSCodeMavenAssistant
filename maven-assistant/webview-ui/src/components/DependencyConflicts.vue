@@ -30,23 +30,19 @@
                         selected: selectedConflict?.groupId === conflict.groupId && selectedConflict?.artifactId === conflict.artifactId
                     }" @click="selectConflict(conflict)">
                     <div class="conflict-main">
-                        <div class="conflict-gav">
+                        <div class="conflict-gav" :style="{ color: getConflictColor(conflict) }">
                             <!-- 显示文件大小（如果启用），size已经是KB单位 -->
                             <span v-if="showSize && conflict.size" class="dependency-size">[{{ conflict.size }}
                                 KB]</span>
-                            <span v-if="showGroupId" class="group-id">{{ conflict.groupId }} : </span>
+                            <template v-if="showGroupId">
+                                <span class="group-id">{{ conflict.groupId }}</span>
+                                <span class="separator"> : </span>
+                            </template>
                             <span class="artifact-id">{{ conflict.artifactId }}</span>
-                            <span class="version"> : {{ conflict.usedVersion }}</span>
-                        </div>
-                        <div class="conflict-badge">
-                            <span class="conflict-count">{{ conflict.conflictCount }}</span>
-                            <span class="conflict-label">conflict{{ conflict.conflictCount > 1 ? 's' : '' }}</span>
-                        </div>
-                    </div>
-
-                    <div class="conflict-details">
-                        <div class="conflict-versions">
-                            <span class="versions-label">Conflicted versions:</span>
+                            <span class="separator"> : </span>
+                            <span class="version">{{ conflict.usedVersion }}</span>
+                            <!-- 冲突版本信息移到同一行 -->
+                            <span class="separator"> - </span>
                             <span class="versions-list">{{ conflict.conflictVersions.join(', ') }}</span>
                         </div>
                     </div>
@@ -113,6 +109,41 @@ function searchConflicts(conflicts: ConflictDependency[], searchText: string): C
 const filteredConflictData = computed(() => {
     return searchConflicts(conflictData.value, props.searchText || '')
 })
+
+// 计算属性：为每个冲突依赖生成颜色映射
+const conflictColors = computed(() => {
+    const colorMap = new Map<string, string>()
+    
+    filteredConflictData.value.forEach(conflict => {
+        const key = `${conflict.groupId}:${conflict.artifactId}`
+        const scope = conflict.scope
+        
+        // scope 为 test 时显示绿色
+        if (scope === 'test') {
+            colorMap.set(key, '#4CAF50') // 绿色
+        }
+        // scope 为 runtime 时显示紫色
+        else if (scope === 'runtime') {
+            colorMap.set(key, '#9C27B0') // 紫色
+        }
+        // scope 为 compile 时显示蓝色
+        else if (scope === 'compile') {
+            colorMap.set(key, '#2196F3') // 蓝色
+        }
+        // 其他情况显示白色
+        else {
+            colorMap.set(key, '#FFFFFF')
+        }
+    })
+    
+    return colorMap
+})
+
+// 获取指定冲突依赖的颜色
+function getConflictColor(conflict: ConflictDependency): string {
+    const key = `${conflict.groupId}:${conflict.artifactId}`
+    return conflictColors.value.get(key) || '#FFFFFF'
+}
 
 // 选择冲突依赖
 function selectConflict(conflict: ConflictDependency) {
@@ -189,6 +220,7 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
             groupId: node?.groupId,
             artifactId: node?.artifactId,
             version: node?.version,
+            scope: node?.scope, // 添加 scope 调试信息
             droppedByConflict: node?.droppedByConflict,
             droppedType: typeof node?.droppedByConflict,
             hasChildren: node?.children ? node.children.length : 0
@@ -237,7 +269,18 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
                 // 收集scope信息（优先使用第一个非冲突节点的scope）
                 if (node.scope && !depInfo.scope) {
                     depInfo.scope = node.scope;
+                    console.log(`${indent}[节点 ${totalNodes}] 🎯 设置scope: ${key} -> ${node.scope}`);
+                } else if (node.scope) {
+                    console.log(`${indent}[节点 ${totalNodes}] ⚠️ scope已存在，跳过: ${key} 当前=${depInfo.scope} 节点=${node.scope}`);
+                } else {
+                    console.log(`${indent}[节点 ${totalNodes}] ❌ 节点无scope信息: ${key}`);
                 }
+            }
+            
+            // 无论是否被丢弃，都尝试收集scope信息（如果还没有的话）
+            if (node.scope && !dependencyMap.get(key)!.scope) {
+                dependencyMap.get(key)!.scope = node.scope;
+                console.log(`${indent}[节点 ${totalNodes}] 🔄 补充scope信息: ${key} -> ${node.scope}`);
             }
         } else {
             console.log(`${indent}[节点 ${totalNodes}] ❌ 跳过：缺少必要字段`);
@@ -271,7 +314,9 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
         console.log(`  ${key}:`, {
             usedVersion: depInfo.usedVersion,
             conflictVersions: Array.from(depInfo.conflictVersions),
-            conflictCount: depInfo.conflictVersions.size
+            conflictCount: depInfo.conflictVersions.size,
+            scope: depInfo.scope, // 添加 scope 信息
+            size: depInfo.size // 添加 size 信息
         });
     });
 
@@ -285,6 +330,8 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
         console.log(`[DependencyConflicts] 🔍 检查冲突: ${depInfo.groupId}:${depInfo.artifactId}`);
         console.log(`  - 有冲突版本: ${hasConflicts} (数量: ${depInfo.conflictVersions.size})`);
         console.log(`  - 有使用版本: ${hasUsedVersion} (版本: ${depInfo.usedVersion})`);
+        console.log(`  - scope: ${depInfo.scope}`);
+        console.log(`  - size: ${depInfo.size}`);
 
         // 只有存在冲突版本的依赖才加入冲突列表
         if (hasConflicts && hasUsedVersion) {
@@ -498,92 +545,96 @@ defineExpose({
 .conflicts-items {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    /* 调整行距与tree模式保持一致 */
+    gap: 0;
 }
 
-/* 冲突项样式 */
+/* 冲突项样式 - 与tree模式保持一致的卡片式设计 */
 .conflict-item {
-    padding: 10px 12px;
-    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    padding: 4px 12px; /* 与tree模式相同的padding */
+    margin: 1px 0; /* 与tree模式相同的margin */
+    border-radius: 6px; /* 与tree模式相同的圆角 */
     cursor: pointer;
     transition: all 0.2s ease;
     border: 1px solid transparent;
-    background: var(--vscode-list-inactiveSelectionBackground);
+    background: var(--vscode-editor-background); /* 与tree模式相同的背景 */
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace; /* 与tree模式相同的字体 */
+    font-size: 14px; /* 与tree模式相同的字体大小 */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); /* 与tree模式相同的阴影 */
+    width: 100%;
+    min-width: 600px; /* 与tree模式相同的最小宽度 */
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .conflict-item:hover {
     background: var(--vscode-list-hoverBackground);
     border-color: var(--vscode-list-hoverBackground);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); /* 与tree模式相同的hover阴影 */
+    transform: translateY(-1px); /* 与tree模式相同的hover效果 */
 }
 
 .conflict-item.selected {
     background: var(--vscode-list-activeSelectionBackground);
     color: var(--vscode-list-activeSelectionForeground);
     border-color: var(--vscode-focusBorder);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); /* 与tree模式相同的选中阴影 */
+    transform: translateY(-1px); /* 与tree模式相同的选中效果 */
+    z-index: 2;
+    font-weight: 600; /* 与tree模式相同的选中字重 */
 }
 
 .conflict-main {
     display: flex;
-    justify-content: space-between;
+
     align-items: center;
-    margin-bottom: 6px;
+    /* 移除margin-bottom，因为不再有details部分 */
 }
 
 .conflict-gav {
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 13px;
+    font-size: 14px; /* 与tree模式相同的字体大小 */
     font-weight: 500;
     flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px; /* 与tree模式GAV信息相同的间距 */
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    /* 移除右边距，不再需要为badge预留空间 */
 }
 
 .group-id {
-    color: var(--vscode-descriptionForeground);
+    /* 继承父元素颜色，用于scope着色 */
+    color: inherit;
+    opacity: 0.9; /* 与tree模式相同的透明度 */
 }
 
 .artifact-id {
-    color: var(--vscode-foreground);
-    font-weight: 600;
+    /* 继承父元素颜色，用于scope着色 */
+    color: inherit;
+    font-weight: 600; /* 与tree模式相同的字重 */
 }
 
 .version {
-    color: var(--vscode-textLink-foreground);
-    font-weight: 500;
+    /* 继承父元素颜色，用于scope着色 */
+    color: inherit;
+    font-weight: 500; /* 与tree模式相同的字重 */
 }
 
-.conflict-badge {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: var(--vscode-badge-background);
-    color: var(--vscode-badge-foreground);
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 500;
-}
-
-.conflict-count {
-    font-weight: 600;
-}
-
-.conflict-details {
-    padding-left: 8px;
-}
-
-.conflict-versions {
-    display: flex;
-    gap: 6px;
-    font-size: 11px;
-}
-
-.versions-label {
-    color: var(--vscode-descriptionForeground);
-    font-weight: 500;
+.separator {
+    /* 继承父元素颜色，用于scope着色 */
+    color: inherit;
+    opacity: 0.6;
 }
 
 .versions-list {
     color: var(--vscode-errorForeground);
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-weight: 500;
 }
 
 /* 空状态样式 */
@@ -617,7 +668,8 @@ defineExpose({
 }
 
 .dependency-size {
-    color: #666;
+    /* 继承父元素颜色，用于scope着色 */
+    color: inherit;
     font-size: 0.85em;
     margin-right: 8px;
     font-weight: 500;
