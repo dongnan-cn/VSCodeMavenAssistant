@@ -243,49 +243,4 @@ watch(
   border-left: 2px solid var(--vscode-panel-border);
   padding-left: 8px;
 }
-.dep-path-node {
-  line-height: 1.8;
-  font-size: 14px;
-  cursor: pointer; /* 添加鼠标指针样式 */
-  padding: 2px 4px; /* 添加内边距，增加点击区域 */
-  border-radius: 3px; /* 圆角边框 */
-  transition: all 0.2s ease; /* 添加过渡动画 */
-}
-.dep-path-node:hover {
-  background-color: var(--vscode-list-hoverBackground);
-}
-.dep-path-node.selected {
-  background-color: var(--vscode-list-activeSelectionBackground);
-  color: var(--vscode-list-activeSelectionForeground);
-  font-weight: bold;
-  border: 1px solid var(--vscode-focusBorder);
-}
-.dep-label.target {
-  color: var(--vscode-editor-foreground);
-  font-weight: bold;
-}
-.dep-label.dropped {
-  color: var(--vscode-errorForeground);
-  font-weight: bold;
-}
-.arrow {
-  display: inline-block;
-  width: 1.2em;
-  font-size: 1.1em;
-  color: var(--vscode-foreground);
-  margin-right: 6px;
-  vertical-align: middle;
-  transition: transform 0.2s, color 0.2s;
-  cursor: pointer;
-  user-select: none;
-}
-.arrow.collapsed {
-  transform: rotate(0deg);
-}
-.arrow.expanded {
-  transform: rotate(90deg);
-}
-.arrow:hover {
-  color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
-}
 </style>
