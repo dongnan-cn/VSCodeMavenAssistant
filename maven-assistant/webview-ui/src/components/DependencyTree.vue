@@ -400,7 +400,47 @@ onMounted(() => {
   }
 })
 
-defineExpose({ refreshDependencies, expandAll, collapseAll })
+// 跳转到指定GAV的方法
+function jumpToGAV(gav: { groupId: string, artifactId: string, version: string }) {
+  console.log('🎯 DependencyTree: 跳转到GAV:', gav)
+  
+  // 递归查找匹配的节点
+  function findGAVNode(nodes: DependencyNode[], targetGAV: any): DependencyNode | null {
+    for (const node of nodes) {
+      if (node.groupId === targetGAV.groupId && 
+          node.artifactId === targetGAV.artifactId && 
+          node.version === targetGAV.version) {
+        return node
+      }
+      if (node.children && node.children.length > 0) {
+        const found = findGAVNode(node.children, targetGAV)
+        if (found) {
+          // 展开父节点
+          node.expanded = true
+          return found
+        }
+      }
+    }
+    return null
+  }
+  
+  // 查找目标节点
+  const targetNode = findGAVNode(dependencyData.value, gav)
+  if (targetNode) {
+    // 选中目标节点
+    selectedNode.value = targetNode
+    emit('select-dependency', targetNode, dependencyData.value)
+    
+    // 高亮搜索结果
+    searchAndHighlight(dependencyData.value, gav.artifactId)
+    
+    console.log('✅ DependencyTree: 成功跳转到GAV:', gav)
+  } else {
+    console.warn('⚠️ DependencyTree: 未找到GAV:', gav)
+  }
+}
+
+defineExpose({ refreshDependencies, expandAll, collapseAll, jumpToGAV })
 </script>
 
 <style scoped>

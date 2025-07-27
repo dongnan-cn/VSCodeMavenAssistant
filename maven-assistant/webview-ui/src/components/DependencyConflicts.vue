@@ -28,7 +28,7 @@
                 <div v-for="conflict in filteredConflictData" :key="`${conflict.groupId}:${conflict.artifactId}`"
                     class="conflict-item" :class="{
                         selected: selectedConflict?.groupId === conflict.groupId && selectedConflict?.artifactId === conflict.artifactId
-                    }" @click="selectConflict(conflict)">
+                    }" @click="selectConflict(conflict)" @contextmenu="handleContextMenu(conflict, $event)">
                     <div class="conflict-main">
                         <div class="conflict-gav" :style="{ color: getConflictColor(conflict) }">
                             <!-- 显示文件大小（如果启用），size已经是KB单位 -->
@@ -56,12 +56,23 @@
             <div class="empty-title">No Dependency Conflicts</div>
             <div class="empty-message">All dependencies are resolved without conflicts.</div>
         </div>
+        
+        <!-- 右键菜单组件 -->
+        <ContextMenu
+            :visible="menuVisible"
+            :x="menuX"
+            :y="menuY"
+            :items="menuItems"
+            @select="handleMenuSelect"
+            @close="menuVisible = false"
+        />
     </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import type { ConflictDependency } from '../types/dependency'
+import ContextMenu from './ContextMenu.vue'
 
 // 组件属性定义
 const props = defineProps<{
@@ -86,6 +97,13 @@ const loading = ref(false)
 const error = ref('')
 const conflictData = ref<ConflictDependency[]>([])
 const selectedConflict = ref<ConflictDependency | null>(null)
+
+// 右键菜单相关状态
+const menuVisible = ref(false)
+const menuX = ref(0)
+const menuY = ref(0)
+const menuConflict = ref<ConflictDependency | null>(null)
+const menuItems = ref([{ label: 'Jump to Left Tree', value: 'jump-to-tree' }])
 
 // 搜索过滤函数 - 专门在groupId和artifactId中搜索
 function searchConflicts(conflicts: ConflictDependency[], searchText: string): ConflictDependency[] {
@@ -150,6 +168,42 @@ function selectConflict(conflict: ConflictDependency) {
     console.log('🎯 选择冲突依赖:', conflict)
     selectedConflict.value = conflict
     emit('select-conflict', conflict)
+}
+
+// 处理右键菜单
+function handleContextMenu(conflict: ConflictDependency, event: MouseEvent) {
+    event.preventDefault()
+    
+    // 先选中当前冲突依赖
+    selectConflict(conflict)
+    
+    // 显示右键菜单
+    menuVisible.value = true
+    menuX.value = event.clientX
+    menuY.value = event.clientY
+    menuConflict.value = conflict
+}
+
+// 处理菜单项选择
+function handleMenuSelect(action: string) {
+    if (!menuConflict.value) return
+    
+    if (action === 'jump-to-tree') {
+        // 跳转到左侧依赖树，通过window.postMessage发送消息
+        window.postMessage({
+            type: 'setSearchText',
+            artifactId: menuConflict.value.artifactId
+        }, '*')
+        
+        window.postMessage({
+            type: 'jumpToConflictInTree',
+            groupId: menuConflict.value.groupId,
+            artifactId: menuConflict.value.artifactId,
+            version: menuConflict.value.usedVersion
+        }, '*')
+    }
+    
+    menuVisible.value = false
 }
 
 // 监听搜索文本变化
@@ -268,14 +322,8 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
                 // 收集scope信息：优先使用实际使用版本的scope，确保与tree模式一致
                 if (depInfo.usedVersion === version && node.scope) {
                     depInfo.scope = node.scope;
-                    console.log(`${indent}[节点 ${totalNodes}] 🎯 设置scope（使用版本）: ${key} -> ${node.scope}`);
                 } else if (node.scope && !depInfo.scope) {
                     depInfo.scope = node.scope;
-                    console.log(`${indent}[节点 ${totalNodes}] 🎯 设置scope（备用）: ${key} -> ${node.scope}`);
-                } else if (node.scope) {
-                    console.log(`${indent}[节点 ${totalNodes}] ⚠️ scope已存在，跳过: ${key} 当前=${depInfo.scope} 节点=${node.scope}`);
-                } else {
-                    console.log(`${indent}[节点 ${totalNodes}] ❌ 节点无scope信息: ${key}`);
                 }
             }
             

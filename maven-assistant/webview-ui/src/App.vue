@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import DependencyTree from './components/DependencyTree.vue'
 import DependencyPaths from './components/DependencyPaths.vue'
 import DependencyConflicts from './components/DependencyConflicts.vue' // 新增
@@ -36,6 +36,22 @@ const conflictDataCache = ref<any>(null) // 缓存冲突数据
 const conflictDataLoaded = ref(false) // 标记冲突数据是否已加载
 const conflictDataKey = ref(0) // 用于强制重新渲染冲突组件
 
+// 通用的搜索触发函数
+function triggerSearchAfterModeSwitch(componentRef: any) {
+  if (!searchText.value.trim()) return
+  // 使用nextTick确保目标组件已经渲染完成
+  nextTick(() => {
+    if (componentRef.value) {
+      // 通过临时清空再重新设置searchText来强制触发响应式更新
+      const currentSearchText = searchText.value
+      searchText.value = ''
+      nextTick(() => {
+        searchText.value = currentSearchText
+      })
+    }
+  })
+}
+
 // 添加日志：监听显示模式变化
 watch(displayMode, (newMode, oldMode) => {
   console.log('🔄 显示模式切换:', { from: oldMode, to: newMode })
@@ -52,11 +68,21 @@ watch(displayMode, (newMode, oldMode) => {
     } else {
       console.log('❌ 没有依赖树缓存数据，将触发重新加载')
     }
+    
+    // 从冲突模式切换到依赖树模式时，触发搜索
+    if (oldMode === 'dependency-conflicts') {
+      triggerSearchAfterModeSwitch(dependencyTreeRef)
+    }
   } else if (newMode === 'dependency-conflicts') {
     if (conflictDataCache.value && conflictDataLoaded.value) {
       console.log('✅ 使用冲突数据缓存，避免重新加载')
     } else {
       console.log('❌ 没有冲突数据缓存，将触发重新加载')
+    }
+    
+    // 从依赖树模式切换到冲突模式时，触发搜索
+    if (oldMode === 'dependency-tree') {
+      triggerSearchAfterModeSwitch(dependencyConflictsRef)
     }
   }
 })
@@ -223,10 +249,25 @@ const stopDrag = () => {
 onMounted(() => {
   window.addEventListener('mousemove', onDrag)
   window.addEventListener('mouseup', stopDrag)
-  // 新增：监听 setSearchText 消息
+  // 新增：监听 setSearchText 和 jumpToConflictInTree 消息
   window.addEventListener('message', (event) => {
     if (event.data?.type === 'setSearchText') {
       setSearchText(event.data.artifactId)
+    } else if (event.data?.type === 'jumpToConflictInTree') {
+      // 跳转到依赖树模式
+      displayMode.value = 'dependency-tree'
+      // 设置搜索文本为artifactId
+      setSearchText(event.data.artifactId)
+      // 通过依赖树组件查找并选中对应的GAV
+      nextTick(() => {
+        if (dependencyTreeRef.value) {
+          dependencyTreeRef.value.jumpToGAV({
+            groupId: event.data.groupId,
+            artifactId: event.data.artifactId,
+            version: event.data.version
+          })
+        }
+      })
     }
   })
 })
