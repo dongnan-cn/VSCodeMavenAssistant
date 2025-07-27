@@ -208,7 +208,6 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
     }>();
 
     let totalNodes = 0;
-    let droppedNodes = 0;
     let validNodes = 0;
 
     // 递归遍历依赖树，收集所有依赖信息
@@ -266,10 +265,13 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
                     const sizeInBytes = node.size || 0;
                     depInfo.size = Math.ceil(sizeInBytes / 1024).toString();
                 }
-                // 收集scope信息（优先使用第一个非冲突节点的scope）
-                if (node.scope && !depInfo.scope) {
+                // 收集scope信息：优先使用实际使用版本的scope，确保与tree模式一致
+                if (depInfo.usedVersion === version && node.scope) {
                     depInfo.scope = node.scope;
-                    console.log(`${indent}[节点 ${totalNodes}] 🎯 设置scope: ${key} -> ${node.scope}`);
+                    console.log(`${indent}[节点 ${totalNodes}] 🎯 设置scope（使用版本）: ${key} -> ${node.scope}`);
+                } else if (node.scope && !depInfo.scope) {
+                    depInfo.scope = node.scope;
+                    console.log(`${indent}[节点 ${totalNodes}] 🎯 设置scope（备用）: ${key} -> ${node.scope}`);
                 } else if (node.scope) {
                     console.log(`${indent}[节点 ${totalNodes}] ⚠️ scope已存在，跳过: ${key} 当前=${depInfo.scope} 节点=${node.scope}`);
                 } else {
@@ -277,7 +279,7 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
                 }
             }
             
-            // 无论是否被丢弃，都尝试收集scope信息（如果还没有的话）
+            // 对于冲突版本，也尝试收集scope信息（如果还没有的话）
             if (node.scope && !dependencyMap.get(key)!.scope) {
                 dependencyMap.get(key)!.scope = node.scope;
                 console.log(`${indent}[节点 ${totalNodes}] 🔄 补充scope信息: ${key} -> ${node.scope}`);
@@ -302,36 +304,12 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
         traverseTree(dependencyTree);
     }
 
-    console.log('[DependencyConflicts] 🔍 遍历统计:');
-    console.log(`  - 总节点数: ${totalNodes}`);
-    console.log(`  - 有效节点数: ${validNodes}`);
-    console.log(`  - 被丢弃节点数: ${droppedNodes}`);
-    console.log(`  - 依赖映射数量: ${dependencyMap.size}`);
-
-    // 打印依赖映射详情
-    console.log('[DependencyConflicts] 📋 依赖映射详情:');
-    dependencyMap.forEach((depInfo, key) => {
-        console.log(`  ${key}:`, {
-            usedVersion: depInfo.usedVersion,
-            conflictVersions: Array.from(depInfo.conflictVersions),
-            conflictCount: depInfo.conflictVersions.size,
-            scope: depInfo.scope, // 添加 scope 信息
-            size: depInfo.size // 添加 size 信息
-        });
-    });
-
     // 构建冲突列表
     const conflicts: ConflictDependency[] = [];
 
     dependencyMap.forEach((depInfo) => {
         const hasConflicts = depInfo.conflictVersions.size > 0;
         const hasUsedVersion = depInfo.usedVersion !== null;
-
-        console.log(`[DependencyConflicts] 🔍 检查冲突: ${depInfo.groupId}:${depInfo.artifactId}`);
-        console.log(`  - 有冲突版本: ${hasConflicts} (数量: ${depInfo.conflictVersions.size})`);
-        console.log(`  - 有使用版本: ${hasUsedVersion} (版本: ${depInfo.usedVersion})`);
-        console.log(`  - scope: ${depInfo.scope}`);
-        console.log(`  - size: ${depInfo.size}`);
 
         // 只有存在冲突版本的依赖才加入冲突列表
         if (hasConflicts && hasUsedVersion) {
