@@ -124,8 +124,10 @@ public class SimpleLanguageServer implements LanguageServer {
                 fillEffectiveGavSets(effectiveGavs, usedGAVSet, usedGASet, gavScopeMap);
                 // 构建 exclusion 映射表，保存原始的 exclusion 信息
                 Map<String, Set<String>> exclusionMap = buildExclusionMap(model);
+                // 初始化GAV层级映射，用于层级优先处理
+                Map<String, GavLevelTuple> gavLevelMap = new HashMap<>();
                 // 构建树形结构并返回JSON，传入 exclusion 信息
-                Map<String, Object> tree = buildDependencyTreeWithConflict(rootNode, usedGAVSet, usedGASet, gavScopeMap, exclusionMap);
+                Map<String, Object> tree = buildDependencyTreeWithConflict(rootNode, usedGAVSet, usedGASet, gavScopeMap, exclusionMap, gavLevelMap, 0);
                 return new Gson().toJson(tree);
             } catch (Exception e) {
                 return errorJson("依赖解析异常: " + e.getMessage());
@@ -786,72 +788,166 @@ public class SimpleLanguageServer implements LanguageServer {
     }
 
     /**
-     * 递归构建依赖树结构，并标记冲突（droppedByConflict）
+     * GAV层级信息和依赖对象的元组类
+     */
+    private static class GavLevelTuple {
+        private int level;
+        private Map<String, Object> depInfo;
+        
+        public GavLevelTuple(int level, Map<String, Object> depInfo) {
+            this.level = level;
+            this.depInfo = depInfo;
+        }
+        
+        public int getLevel() { return level; }
+        public void setLevel(int level) { this.level = level; }
+        public Map<String, Object> getDepInfo() { return depInfo; }
+        public void setDepInfo(Map<String, Object> depInfo) { this.depInfo = depInfo; }
+    }
+
+    /**
+     * 递归构建依赖树，包含冲突信息，采用深度优先且层级优先策略
      *
      * @param node        当前Aether依赖节点
      * @param usedGAVSet  有效依赖GAV集合
      * @param usedGASet   有效依赖groupId:artifactId集合
      * @param gavScopeMap GAV到scope的映射
      * @param exclusionMap exclusion 映射表
+     * @param gavLevelMap GAV到层级信息和依赖对象的映射，用于层级优先处理和子依赖转移
+     * @param currentLevel 当前层级深度
      * @return 树形依赖结构（Map表示）
      */
-    private Map<String, Object> buildDependencyTreeWithConflict(DependencyNode node, Set<String> usedGAVSet, Set<String> usedGASet, Map<String, String> gavScopeMap, Map<String, Set<String>> exclusionMap) {
-        Map<String, Object> depInfo = new LinkedHashMap<>();
+    private Map<String, Object> buildDependencyTreeWithConflict(DependencyNode node, Set<String> usedGAVSet, Set<String> usedGASet, Map<String, String> gavScopeMap, Map<String, Set<String>> exclusionMap, Map<String, GavLevelTuple> gavLevelMap, int currentLevel) {
         Artifact artifact = node.getArtifact();
-        if (artifact != null) {
-            String groupId = artifact.getGroupId();
-            String artifactId = artifact.getArtifactId();
-            String version = artifact.getVersion();
-            String key = groupId + ":" + artifactId + ":" + version;
-            String ga = groupId + ":" + artifactId;
-            // 如果groupId:artifactId不在usedGASet中，直接跳过该节点
-            if (!usedGASet.contains(ga)) {
-                return null;
-            }
-            depInfo.put("groupId", groupId);
-            depInfo.put("artifactId", artifactId);
-            depInfo.put("version", version);
-            // 优先用gavScopeMap
-            String scope = gavScopeMap.getOrDefault(key, node.getDependency() != null ? node.getDependency().getScope() : "compile");
-            depInfo.put("scope", scope);
-            boolean dropped = !usedGAVSet.contains(key);
-            depInfo.put("droppedByConflict", dropped);
-            // 依赖jar大小，单位字节
-            depInfo.put("size", getJarFileSize(artifact));
-            
-            // 添加 exclusion 信息
-            String depKey = groupId + ":" + artifactId;
-            if (exclusionMap.containsKey(depKey)) {
-                Set<String> exclusions = exclusionMap.get(depKey);
-                List<Map<String, String>> exclusionList = new ArrayList<>();
-                for (String exclusion : exclusions) {
-                    String[] parts = exclusion.split(":");
-                    if (parts.length >= 2) {
-                        Map<String, String> exclusionInfo = new HashMap<>();
-                        exclusionInfo.put("groupId", parts[0]);
-                        exclusionInfo.put("artifactId", parts[1]);
-                        exclusionList.add(exclusionInfo);
-                    }
-                }
-                if (!exclusionList.isEmpty()) {
-                    depInfo.put("exclusions", exclusionList);
-                }
-            }
-        }
-        // 递归 children - 但如果当前依赖被丢弃，则不处理其子依赖
-        List<Map<String, Object>> children = new ArrayList<>();
-        boolean dropped = (Boolean) depInfo.getOrDefault("droppedByConflict", false);
-        if (!dropped) {
+        
+        // 如果artifact为null（通常是根节点），直接处理子依赖
+        if (artifact == null) {
+            List<Map<String, Object>> children = new ArrayList<>();
             for (DependencyNode child : node.getChildren()) {
-                Map<String, Object> childNode = buildDependencyTreeWithConflict(child, usedGAVSet, usedGASet, gavScopeMap, exclusionMap);
+                Map<String, Object> childNode = buildDependencyTreeWithConflict(child, usedGAVSet, usedGASet, gavScopeMap, exclusionMap, gavLevelMap, currentLevel);
                 if (childNode != null) {
                     children.add(childNode);
                 }
             }
+            
+            // 如果有子依赖，返回一个包含children的Map，否则返回null
+            if (!children.isEmpty()) {
+                Map<String, Object> rootInfo = new LinkedHashMap<>();
+                rootInfo.put("children", children);
+                return rootInfo;
+            }
+            return null;
         }
-        if (!children.isEmpty()) {
-            depInfo.put("children", children);
+        
+        String groupId = artifact.getGroupId();
+        String artifactId = artifact.getArtifactId();
+        String version = artifact.getVersion();
+        String key = groupId + ":" + artifactId + ":" + version;
+        String ga = groupId + ":" + artifactId;
+        
+        // 如果groupId:artifactId不在usedGASet中，直接跳过该节点
+        if (!usedGASet.contains(ga)) {
+            return null;
         }
+        
+        // 检查GAV的层级优先级，实现层级优先策略和子依赖转移
+        if (gavLevelMap.containsKey(key)) {
+            // GAV已存在，检查层级
+            GavLevelTuple existingTuple = gavLevelMap.get(key);
+            int existingLevel = existingTuple.getLevel();
+            
+            if (currentLevel > existingLevel) {
+                // 当前层级更深，返回不包含children的depInfo
+                return buildDepInfoContent(groupId, artifactId, version, key, gavScopeMap, node, usedGAVSet, exclusionMap);
+            } else if (currentLevel < existingLevel) {
+                // 当前层级更浅，需要转移旧的子依赖到新位置
+                Map<String, Object> oldDepInfo = existingTuple.getDepInfo();
+                // 如果旧的depInfo有children，准备转移
+                Object oldChildren = oldDepInfo.get("children");
+                
+                // 构建新的depInfo
+                Map<String, Object> depInfo = buildDepInfoContent(groupId, artifactId, version, key, gavScopeMap, node, usedGAVSet, exclusionMap);
+                
+                // 转移旧的children到新的depInfo
+                if (oldChildren != null) {
+                    depInfo.put("children", oldChildren);
+                }
+                
+                // 更新gavLevelMap中的层级和depInfo
+                existingTuple.setLevel(currentLevel);
+                existingTuple.setDepInfo(depInfo);
+                
+                return depInfo;
+            } else {
+                // 相同层级，返回不包含children的depInfo
+                return buildDepInfoContent(groupId, artifactId, version, key, gavScopeMap, node, usedGAVSet, exclusionMap);
+            }
+        } else {
+            // GAV首次出现，构建depInfo并记录到gavLevelMap
+            Map<String, Object> depInfo = buildDepInfoContent(groupId, artifactId, version, key, gavScopeMap, node, usedGAVSet, exclusionMap);
+            gavLevelMap.put(key, new GavLevelTuple(currentLevel, depInfo));
+            
+            // 递归处理子依赖
+            List<Map<String, Object>> children = new ArrayList<>();
+            boolean dropped = (Boolean) depInfo.getOrDefault("droppedByConflict", false);
+            
+            // 只有在依赖未被丢弃的情况下才处理子依赖
+            if (!dropped) {
+                for (DependencyNode child : node.getChildren()) {
+                    Map<String, Object> childNode = buildDependencyTreeWithConflict(child, usedGAVSet, usedGASet, gavScopeMap, exclusionMap, gavLevelMap, currentLevel + 1);
+                    if (childNode != null) {
+                        children.add(childNode);
+                    }
+                }
+            }
+            
+            if (!children.isEmpty()) {
+                depInfo.put("children", children);
+            }
+            
+            return depInfo;
+        }
+    }
+    
+    /**
+     * 构建依赖信息内容的辅助方法
+     */
+    private Map<String, Object> buildDepInfoContent(String groupId, String artifactId, String version, String key, Map<String, String> gavScopeMap, DependencyNode node, Set<String> usedGAVSet, Map<String, Set<String>> exclusionMap) {
+        Map<String, Object> depInfo = new LinkedHashMap<>();
+        
+        depInfo.put("groupId", groupId);
+        depInfo.put("artifactId", artifactId);
+        depInfo.put("version", version);
+        
+        // 优先用gavScopeMap
+        String scope = gavScopeMap.getOrDefault(key, node.getDependency() != null ? node.getDependency().getScope() : "compile");
+        depInfo.put("scope", scope);
+        
+        boolean dropped = !usedGAVSet.contains(key);
+        depInfo.put("droppedByConflict", dropped);
+        
+        // 依赖jar大小，单位字节
+        depInfo.put("size", getJarFileSize(node.getArtifact()));
+        
+        // 添加 exclusion 信息
+        String depKey = groupId + ":" + artifactId;
+        if (exclusionMap.containsKey(depKey)) {
+            Set<String> exclusions = exclusionMap.get(depKey);
+            List<Map<String, String>> exclusionList = new ArrayList<>();
+            for (String exclusion : exclusions) {
+                String[] parts = exclusion.split(":");
+                if (parts.length >= 2) {
+                    Map<String, String> exclusionInfo = new HashMap<>();
+                    exclusionInfo.put("groupId", parts[0]);
+                    exclusionInfo.put("artifactId", parts[1]);
+                    exclusionList.add(exclusionInfo);
+                }
+            }
+            if (!exclusionList.isEmpty()) {
+                depInfo.put("exclusions", exclusionList);
+            }
+        }
+        
         return depInfo;
     }
 
