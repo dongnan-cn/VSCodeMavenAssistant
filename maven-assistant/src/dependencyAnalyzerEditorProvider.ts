@@ -127,13 +127,26 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
         let found = false;
         while ((match = dependencyBlockPattern.exec(text))) {
             const block = match[0];
+            // 检查是否包含目标的groupId和artifactId
             if (
                 block.includes(`<groupId>${groupId}</groupId>`) &&
                 block.includes(`<artifactId>${artifactId}</artifactId>`)
             ) {
+                // 确保这是一个正常的dependency块，而不是exclusion块内的内容
+                // 通过检查artifactId标签前面是否有exclusion标签来判断
                 const artifactTag = `<artifactId>${artifactId}</artifactId>`;
                 const relIndex = block.indexOf(artifactTag);
                 if (relIndex !== -1) {
+                    // 检查artifactId标签之前的内容，确保不在exclusion块内
+                    const beforeArtifact = block.substring(0, relIndex);
+                    const exclusionStartCount = (beforeArtifact.match(/<exclusion>/g) || []).length;
+                    const exclusionEndCount = (beforeArtifact.match(/<\/exclusion>/g) || []).length;
+                    
+                    // 如果exclusion开始标签数量大于结束标签数量，说明当前artifactId在exclusion块内
+                    if (exclusionStartCount > exclusionEndCount) {
+                        continue; // 跳过exclusion块内的artifactId，继续查找下一个
+                    }
+                    
                     const absIndex = match.index + relIndex;
                     const position = document.positionAt(absIndex);
                     const lineNumber = position.line;
