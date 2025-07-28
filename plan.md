@@ -356,7 +356,7 @@ vscode-extension/
 - ✅ 响应式布局，适配不同屏幕尺寸
 - ✅ 友好的错误提示和状态反馈
 
-### 8. 自定义Webview编辑器（Dependency Analyzer）
+### 8. 自定义Webview编辑器（Dependency Assistant）
 - ✅ 在 package.json 注册 customEditors，仅匹配 pom.xml
 - ✅ 实现 DependencyAnalyzerEditorProvider，显示"Hello Dependency Analyzer"
 - ✅ 激活插件后，右键 pom.xml 可用"Dependency Analyzer"方式打开
