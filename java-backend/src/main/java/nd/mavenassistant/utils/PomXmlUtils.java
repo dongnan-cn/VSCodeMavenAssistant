@@ -13,6 +13,7 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -187,6 +188,11 @@ public class PomXmlUtils {
      * @return 解析后的依赖版本映射，key 为 groupId:artifactId，value 为解析后的版本
      */
     public static Map<String, String> resolveMavenVariables(String pomPath) {
+        // 参数验证
+        if (pomPath == null || pomPath.trim().isEmpty()) {
+            return new HashMap<>();
+        }
+        
         try {
             // 使用 Maven Model API 解析变量，获取解析后的依赖列表
             Model resolvedModel = MavenModelUtils.getModel(pomPath);
@@ -209,9 +215,19 @@ public class PomXmlUtils {
      * @throws Exception 解析异常
      */
     public static Document parseDocument(String pomPath) throws Exception {
+        // 参数验证
+        if (pomPath == null || pomPath.trim().isEmpty()) {
+            throw new IllegalArgumentException("POM文件路径不能为空");
+        }
+        
+        File pomFile = new File(pomPath);
+        if (!pomFile.exists()) {
+            throw new FileNotFoundException("POM文件不存在: " + pomPath);
+        }
+        
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         DocumentBuilder builder = factory.newDocumentBuilder();
-        Document doc = builder.parse(new File(pomPath));
+        Document doc = builder.parse(pomFile);
         doc.getDocumentElement().normalize();
         return doc;
     }
@@ -243,6 +259,11 @@ public class PomXmlUtils {
      */
     public static Element findTargetDependencyElement(Document doc, String targetGroupId, String targetArtifactId, 
                                                       String targetVersion, Map<String, String> resolvedDependencies) {
+        // 参数验证
+        if (doc == null || targetGroupId == null || targetArtifactId == null) {
+            return null;
+        }
+        
         NodeList dependencies = doc.getElementsByTagName("dependency");
         
         for (int i = 0; i < dependencies.getLength(); i++) {
@@ -250,6 +271,11 @@ public class PomXmlUtils {
             String groupId = getElementTextContent(depElement, "groupId");
             String artifactId = getElementTextContent(depElement, "artifactId");
             String version = getElementTextContent(depElement, "version");
+
+            // 跳过缺少必要信息的依赖
+            if (groupId == null || artifactId == null) {
+                continue;
+            }
 
             // 如果 version 包含变量，使用解析后的值
             if (version != null && version.contains("${")) {
