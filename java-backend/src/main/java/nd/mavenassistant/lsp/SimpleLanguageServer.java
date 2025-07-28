@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import nd.mavenassistant.cache.DependencyCache;
 import nd.mavenassistant.model.ArtifactConflictInfo;
 import nd.mavenassistant.model.ArtifactGav;
+import nd.mavenassistant.utils.MavenModelUtils;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.building.*;
 import org.codehaus.plexus.util.StringUtils;
@@ -158,12 +159,11 @@ public class SimpleLanguageServer implements LanguageServer {
                              .setDependencySelector(new CustomScopeDependencySelector())
                              .setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, ConflictResolver.Verbosity.STANDARD)
                              .build()) {
-                    Model model = getModel(actualPomPath);
-                    List<Dependency> directDependencies = getDirectDependencies(model);
-                    List<Dependency> managedDependencies = getManagedDependencies(model);
-                    String coords = model.getGroupId() + ":" + model.getArtifactId() + ":" + model.getVersion();
-                    Artifact artifact = new DefaultArtifact(coords);
-                    CollectRequest collectRequest = getEffectiveCollectRequest(artifact, directDependencies,
+                    Model model = MavenModelUtils.getModel(actualPomPath);
+                    List<Dependency> directDependencies = MavenModelUtils.getDirectDependencies(model);
+                    List<Dependency> managedDependencies = MavenModelUtils.getManagedDependencies(model);
+                    Artifact artifact = MavenModelUtils.getArtifactFromModel(model);
+                    CollectRequest collectRequest = MavenModelUtils.getEffectiveCollectRequest(artifact, directDependencies,
                             managedDependencies, repos);
                     DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
 
@@ -176,7 +176,7 @@ public class SimpleLanguageServer implements LanguageServer {
                     Map<String, String> gavScopeMap = new HashMap<>();
                     fillEffectiveGavSets(effectiveGavs, usedGAVSet, usedGASet, gavScopeMap);
                     // 构建 exclusion 映射表，保存原始的 exclusion 信息
-                    Map<String, Set<String>> exclusionMap = buildExclusionMap(model);
+                    Map<String, Set<String>> exclusionMap = MavenModelUtils.buildExclusionMap(model);
                     // 初始化GAV层级映射，用于层级优先处理
                     Map<String, GavLevelTuple> gavLevelMap = new HashMap<>();
                     // 构建树形结构并返回JSON，传入 exclusion 信息
@@ -232,8 +232,8 @@ public class SimpleLanguageServer implements LanguageServer {
                     return "{\"success\":false,\"error\":\"缺少必要参数：groupId、artifactId\"}";
                 }
                 String pomPath = getPomPathFromParams(params);
-                Model model = getModel(pomPath);
-                Artifact artifact = getArtifactFromModel(model);
+                Model model = MavenModelUtils.getModel(pomPath);
+                Artifact artifact = MavenModelUtils.getArtifactFromModel(model);
                 try (RepositorySystem system = new RepositorySystemSupplier().get();
                      CloseableSession session = new SessionBuilderSupplier(system)
                              .get()
@@ -242,8 +242,8 @@ public class SimpleLanguageServer implements LanguageServer {
                              .setDependencySelector(new CustomScopeDependencySelector())
                              .setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, ConflictResolver.Verbosity.STANDARD)
                              .build()) {
-                    CollectRequest collectRequest = getEffectiveCollectRequest(artifact,
-                            getDirectDependencies(model), getManagedDependencies(model), repos);
+                    CollectRequest collectRequest = MavenModelUtils.getEffectiveCollectRequest(artifact,
+                            MavenModelUtils.getDirectDependencies(model), MavenModelUtils.getManagedDependencies(model), repos);
                     DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
                     DependencyPathInfo pathInfo = findDependencyPath(rootNode, targetGroupId, targetArtifactId, targetVersion);
                     if (pathInfo != null) {
@@ -281,13 +281,7 @@ public class SimpleLanguageServer implements LanguageServer {
                 : params.get("pomPath");
     }
 
-    /**
-     * 从Model获取Artifact
-     */
-    private Artifact getArtifactFromModel(Model model) {
-        String coords = model.getGroupId() + ":" + model.getArtifactId() + ":" + model.getVersion();
-        return new DefaultArtifact(coords);
-    }
+
 
     /**
      * 插入 exclusion 到指定的依赖中
@@ -509,7 +503,7 @@ public class SimpleLanguageServer implements LanguageServer {
     private Map<String, String> resolveMavenVariables(String pomPath) {
         try {
             // 使用 Maven Model API 解析变量，获取解析后的依赖列表
-            Model resolvedModel = getModel(pomPath);
+            Model resolvedModel = MavenModelUtils.getModel(pomPath);
             Map<String, String> resolvedDependencies = new HashMap<>();
             for (org.apache.maven.model.Dependency dep : resolvedModel.getDependencies()) {
                 String key = dep.getGroupId() + ":" + dep.getArtifactId();
@@ -706,51 +700,6 @@ public class SimpleLanguageServer implements LanguageServer {
      * @param mavenDep Maven依赖对象
      * @return Aether依赖对象
      */
-    private Dependency convertMavenToAetherDependency(org.apache.maven.model.Dependency mavenDep) {
-        // 创建 Aether Dependency 对象
-        Dependency aetherDep = new Dependency(
-                new DefaultArtifact(mavenDep.getGroupId(), mavenDep.getArtifactId(), mavenDep.getType(),
-                        mavenDep.getClassifier(), mavenDep.getVersion()),
-                mavenDep.getScope());
-        
-        // 处理 exclusions
-        if (mavenDep.getExclusions() != null && !mavenDep.getExclusions().isEmpty()) {
-            Collection<org.eclipse.aether.graph.Exclusion> exclusions = new ArrayList<>();
-            for (org.apache.maven.model.Exclusion mavenExclusion : mavenDep.getExclusions()) {
-                exclusions.add(new org.eclipse.aether.graph.Exclusion(
-                        mavenExclusion.getGroupId(),
-                        mavenExclusion.getArtifactId(),
-                        "*", "*"));
-            }
-            aetherDep = aetherDep.setExclusions(exclusions);
-        }
-        
-        return aetherDep;
-    }
-
-    /**
-     * 获取直接依赖列表
-     */
-    private List<Dependency> getDirectDependencies(Model model) {
-        List<Dependency> dependencies = new ArrayList<>();
-        model.getDependencies().forEach(dep -> {
-            dependencies.add(convertMavenToAetherDependency(dep));
-        });
-        return dependencies;
-    }
-
-    /**
-     * 获取管理依赖列表
-     */
-    private List<Dependency> getManagedDependencies(Model model) {
-        List<Dependency> dependencies = new ArrayList<>();
-        if (model.getDependencyManagement() != null) {
-            model.getDependencyManagement().getDependencies().forEach(dep -> {
-                dependencies.add(convertMavenToAetherDependency(dep));
-            });
-        }
-        return dependencies;
-    }
 
     public Set<String> collectAllArtifacts(DependencyNode rootNode) {
         Set<String> artifacts = new HashSet<>();
@@ -770,80 +719,6 @@ public class SimpleLanguageServer implements LanguageServer {
         }
     }
 
-    private Model getModel(String pomPath) throws Exception {
-        String pomFilePath = (StringUtils.isBlank(pomPath))
-                ? new File("pom.xml").getAbsolutePath()
-                : pomPath;
-        File pomFile = new File(pomFilePath);
-        if (!pomFile.exists()) {
-            throw new FileNotFoundException("{\"error\":\"pom.xml does not exist: " + pomFilePath + "\"}");
-        }
-
-        DefaultModelBuildingRequest request = new DefaultModelBuildingRequest();
-        request.setPomFile(pomFile);
-        request.setModelResolver(null);
-        request.setValidationLevel(ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL);
-        request.setSystemProperties(System.getProperties());
-
-        DefaultModelBuilder modelBuilder = new DefaultModelBuilderFactory().newInstance();
-        ModelBuildingResult result = modelBuilder.build(request);
-
-        return result.getEffectiveModel();
-    }
-
-
-    private static CollectRequest getEffectiveCollectRequest(Artifact artifact, List<Dependency> directDependencies,
-                                                             List<Dependency> managedDependencies, List<RemoteRepository> repos) {
-        CollectRequest collectRequest = new CollectRequest();
-        // 直接将 effectiveModel 的 GAV 作为根 Artifact
-        // collectRequest.setRoot(new Dependency(
-        // artifact, null));
-        collectRequest.setDependencies(directDependencies);
-        collectRequest.setManagedDependencies(managedDependencies);
-        collectRequest.setRepositories(repos);
-
-        return collectRequest;
-    }
-
-    /**
-     * 构建 exclusion 映射表，保存原始的 exclusion 信息
-     * 
-     * @param model Maven Model 对象
-     * @return exclusion 映射表，key 为 groupId:artifactId，value 为被排除的依赖集合
-     */
-    private Map<String, Set<String>> buildExclusionMap(Model model) {
-        Map<String, Set<String>> exclusionMap = new HashMap<>();
-        
-        // 处理直接依赖的 exclusions
-        if (model.getDependencies() != null) {
-            for (org.apache.maven.model.Dependency dep : model.getDependencies()) {
-                if (dep.getExclusions() != null && !dep.getExclusions().isEmpty()) {
-                    String depKey = dep.getGroupId() + ":" + dep.getArtifactId();
-                    Set<String> exclusions = new HashSet<>();
-                    for (org.apache.maven.model.Exclusion exclusion : dep.getExclusions()) {
-                        exclusions.add(exclusion.getGroupId() + ":" + exclusion.getArtifactId());
-                    }
-                    exclusionMap.put(depKey, exclusions);
-                }
-            }
-        }
-        
-        // 处理 dependencyManagement 中的 exclusions
-        if (model.getDependencyManagement() != null && model.getDependencyManagement().getDependencies() != null) {
-            for (org.apache.maven.model.Dependency dep : model.getDependencyManagement().getDependencies()) {
-                if (dep.getExclusions() != null && !dep.getExclusions().isEmpty()) {
-                    String depKey = dep.getGroupId() + ":" + dep.getArtifactId();
-                    Set<String> exclusions = exclusionMap.getOrDefault(depKey, new HashSet<>());
-                    for (org.apache.maven.model.Exclusion exclusion : dep.getExclusions()) {
-                        exclusions.add(exclusion.getGroupId() + ":" + exclusion.getArtifactId());
-                    }
-                    exclusionMap.put(depKey, exclusions);
-                }
-            }
-        }
-        
-        return exclusionMap;
-    }
 
     /**
      * GAV层级信息和依赖对象的元组类

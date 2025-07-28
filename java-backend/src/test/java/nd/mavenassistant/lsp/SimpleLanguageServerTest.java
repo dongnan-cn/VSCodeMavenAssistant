@@ -1,5 +1,6 @@
 package nd.mavenassistant.lsp;
 
+import nd.mavenassistant.utils.MavenModelUtils;
 import org.eclipse.lsp4j.InitializeParams;
 import org.eclipse.lsp4j.InitializeResult;
 import org.junit.jupiter.api.Test;
@@ -403,13 +404,8 @@ public class SimpleLanguageServerTest {
         org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
         Model model = reader.read(Files.newInputStream(tempPom));
         
-        // 创建SimpleLanguageServer实例并使用反射调用buildExclusionMap方法
-        SimpleLanguageServer server = new SimpleLanguageServer();
-        java.lang.reflect.Method buildExclusionMapMethod = SimpleLanguageServer.class.getDeclaredMethod("buildExclusionMap", Model.class);
-        buildExclusionMapMethod.setAccessible(true);
-        
-        @SuppressWarnings("unchecked")
-        Map<String, Set<String>> exclusionMap = (Map<String, Set<String>>) buildExclusionMapMethod.invoke(server, model);
+        // 直接调用MavenModelUtils.buildExclusionMap方法
+        Map<String, Set<String>> exclusionMap = MavenModelUtils.buildExclusionMap(model);
         
         // 验证解析结果
         assertNotNull(exclusionMap, "exclusionMap不应该为null");
@@ -484,13 +480,8 @@ public class SimpleLanguageServerTest {
         org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
         Model model = reader.read(Files.newInputStream(tempPom));
         
-        // 创建SimpleLanguageServer实例并使用反射调用buildExclusionMap方法
-        SimpleLanguageServer server = new SimpleLanguageServer();
-        java.lang.reflect.Method buildExclusionMapMethod = SimpleLanguageServer.class.getDeclaredMethod("buildExclusionMap", Model.class);
-        buildExclusionMapMethod.setAccessible(true);
-        
-        @SuppressWarnings("unchecked")
-        Map<String, Set<String>> exclusionMap = (Map<String, Set<String>>) buildExclusionMapMethod.invoke(server, model);
+        // 直接调用MavenModelUtils.buildExclusionMap方法
+        Map<String, Set<String>> exclusionMap = MavenModelUtils.buildExclusionMap(model);
         
         // 验证解析结果
         assertNotNull(exclusionMap, "exclusionMap不应该为null");
@@ -549,13 +540,8 @@ public class SimpleLanguageServerTest {
         org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
         Model model = reader.read(Files.newInputStream(tempPom));
         
-        // 创建SimpleLanguageServer实例并使用反射调用buildExclusionMap方法
-        SimpleLanguageServer server = new SimpleLanguageServer();
-        java.lang.reflect.Method buildExclusionMapMethod = SimpleLanguageServer.class.getDeclaredMethod("buildExclusionMap", Model.class);
-        buildExclusionMapMethod.setAccessible(true);
-        
-        @SuppressWarnings("unchecked")
-        Map<String, Set<String>> exclusionMap = (Map<String, Set<String>>) buildExclusionMapMethod.invoke(server, model);
+        // 直接调用MavenModelUtils.buildExclusionMap方法
+        Map<String, Set<String>> exclusionMap = MavenModelUtils.buildExclusionMap(model);
         
         // 验证解析结果
         assertNotNull(exclusionMap, "exclusionMap不应该为null");
@@ -614,13 +600,8 @@ public class SimpleLanguageServerTest {
         org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
         Model model = reader.read(Files.newInputStream(tempPom));
         
-        // 创建SimpleLanguageServer实例并使用反射调用buildExclusionMap方法
-        SimpleLanguageServer server = new SimpleLanguageServer();
-        java.lang.reflect.Method buildExclusionMapMethod = SimpleLanguageServer.class.getDeclaredMethod("buildExclusionMap", Model.class);
-        buildExclusionMapMethod.setAccessible(true);
-        
-        @SuppressWarnings("unchecked")
-        Map<String, Set<String>> exclusionMap = (Map<String, Set<String>>) buildExclusionMapMethod.invoke(server, model);
+        // 直接调用MavenModelUtils.buildExclusionMap方法
+        Map<String, Set<String>> exclusionMap = MavenModelUtils.buildExclusionMap(model);
         
         // 验证解析结果
         assertNotNull(exclusionMap, "exclusionMap不应该为null");
