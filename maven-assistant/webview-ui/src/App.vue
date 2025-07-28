@@ -249,12 +249,11 @@ const stopDrag = () => {
 onMounted(() => {
   window.addEventListener('mousemove', onDrag)
   window.addEventListener('mouseup', stopDrag)
-  // 新增：监听 setSearchText 和 jumpToConflictInTree 消息
+  // 新增：监听 setSearchText、jumpToConflictInTree 和 gotoTreeNode 消息
   window.addEventListener('message', (event) => {
     if (event.data?.type === 'setSearchText') {
       setSearchText(event.data.artifactId)
     } else if (event.data?.type === 'jumpToConflictInTree') {
-      // 跳转到依赖树模式
       displayMode.value = 'dependency-tree'
       // 设置搜索文本为artifactId
       setSearchText(event.data.artifactId)
@@ -266,6 +265,18 @@ onMounted(() => {
             artifactId: event.data.artifactId,
             version: event.data.version
           })
+        }
+      })
+    } else if (event.data?.type === 'gotoTreeNode') {
+      // 处理从依赖链页面跳转到左侧树的请求
+      console.log('🎯 App: 收到gotoTreeNode消息，切换到树模式')
+      // 先切换到依赖树模式
+      displayMode.value = 'dependency-tree'
+      // 等待组件渲染完成后再直接调用依赖树组件的方法
+      nextTick(() => {
+        if (dependencyTreeRef.value && event.data.path) {
+          // 直接调用依赖树组件的跳转方法，避免重复发送消息
+          dependencyTreeRef.value.gotoAndHighlightNodeByPath?.(event.data.path)
         }
       })
     }

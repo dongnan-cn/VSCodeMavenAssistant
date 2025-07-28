@@ -440,7 +440,7 @@ function jumpToGAV(gav: { groupId: string, artifactId: string, version: string }
   }
 }
 
-defineExpose({ refreshDependencies, expandAll, collapseAll, jumpToGAV })
+defineExpose({ refreshDependencies, expandAll, collapseAll, jumpToGAV, gotoAndHighlightNodeByPath })
 </script>
 
 <style scoped>
