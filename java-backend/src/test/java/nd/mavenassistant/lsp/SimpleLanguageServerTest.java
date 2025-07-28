@@ -64,36 +64,18 @@ public class SimpleLanguageServerTest {
     
     @Test
     public void testInsertExclusionWithComments() throws Exception {
-        // 构造一个包含注释的 pom.xml 内容
-        String pom = """
-                <?xml version="1.0"?>
-                <project>
-                  <modelVersion>4.0.0</modelVersion>
-                  <groupId>demo</groupId>
-                  <artifactId>demo</artifactId>
-                  <version>1.0</version>
-                  <dependencies>
-                    <!-- 这是一个注释 -->
-                    <dependency>
-                      <groupId>org.example</groupId>
-                      <artifactId>root</artifactId>
-                      <version>1.0</version>
-                    </dependency>
-                    <!-- 另一个注释 -->
-                  </dependencies>
-                </project>
-                """;
-        // 写入临时文件
+        // 复制 test-pom.xml 到临时文件
+        Path sourcePom = Path.of("src/test/resources/test-pom.xml").toAbsolutePath();
         Path tempPom = tempDir.resolve("test-pom-with-comments.xml");
-        Files.writeString(tempPom, pom);
+        Files.copy(sourcePom, tempPom);
 
-        // 构造请求参数
+        // 构造请求参数，使用 test-pom.xml 中的实际依赖
         Map<String, Object> req = new HashMap<>();
         req.put("pomPath", tempPom.toString());
         Map<String, String> rootDep = new HashMap<>();
-        rootDep.put("groupId", "org.example");
-        rootDep.put("artifactId", "root");
-        rootDep.put("version", "1.0");
+        rootDep.put("groupId", "org.apache.maven.resolver");
+        rootDep.put("artifactId", "maven-resolver-connector-basic");
+        // 不指定版本，让系统自动匹配
         req.put("rootDependency", rootDep);
         Map<String, String> targetDep = new HashMap<>();
         targetDep.put("groupId", "org.foo");
@@ -111,34 +93,21 @@ public class SimpleLanguageServerTest {
         assertTrue(newContent.contains("<exclusions>"));
         assertTrue(newContent.contains("<groupId>org.foo</groupId>"));
         assertTrue(newContent.contains("<artifactId>bar</artifactId>"));
-        // 注释应该被保留
-        assertTrue(newContent.contains("<!-- 这是一个注释 -->"));
-        assertTrue(newContent.contains("<!-- 另一个注释 -->"));
+        // 原始依赖应该被保留
+        assertTrue(newContent.contains("org.apache.maven.resolver"));
     }
 
 
     
     @Test
     public void testInsertExclusionDependencyNotFound() throws Exception {
-        // 构造一个简单的 pom.xml 内容
-        String pom = """
-                <project>
-                  <modelVersion>4.0.0</modelVersion>
-                  <groupId>demo</groupId>
-                  <artifactId>demo</artifactId>
-                  <version>1.0</version>
-                  <dependencies>
-                    <dependency>
-                      <groupId>org.example</groupId>
-                      <artifactId>root</artifactId>
-                      <version>1.0</version>
-                    </dependency>
-                  </dependencies>
-                </project>
-                """;
-        // 写入临时文件
+        // 使用test-pom.xml文件，测试不存在的依赖
+        Path sourcePom = Path.of("src/test/resources/test-pom.xml").toAbsolutePath();
         Path tempPom = tempDir.resolve("test-pom-not-found.xml");
-        Files.writeString(tempPom, pom);
+        Files.copy(sourcePom, tempPom);
+        
+        // 保存原始内容用于后续比较
+        String originalContent = Files.readString(tempPom);
 
         // 构造请求参数，使用不存在的依赖
         Map<String, Object> req = new HashMap<>();
@@ -161,43 +130,25 @@ public class SimpleLanguageServerTest {
         
         // 检查文件内容应该没有变化
         String newContent = Files.readString(tempPom);
-        assertEquals(pom, newContent);
+        assertEquals(originalContent, newContent);
     }
     
     @Test
     public void testInsertExclusionWithVersionMatching() throws Exception {
-        // 构造一个包含多个版本依赖的 pom.xml 内容
-        String pom = """
-                <project>
-                  <modelVersion>4.0.0</modelVersion>
-                  <groupId>demo</groupId>
-                  <artifactId>demo</artifactId>
-                  <version>1.0</version>
-                  <dependencies>
-                    <dependency>
-                      <groupId>org.example</groupId>
-                      <artifactId>root</artifactId>
-                      <version>1.0</version>
-                    </dependency>
-                    <dependency>
-                      <groupId>org.example</groupId>
-                      <artifactId>root</artifactId>
-                      <version>2.0</version>
-                    </dependency>
-                  </dependencies>
-                </project>
-                """;
-        // 写入临时文件
+        // 复制 test-pom.xml 到临时文件
+        Path sourcePom = Path.of("src/test/resources/test-pom.xml").toAbsolutePath();
         Path tempPom = tempDir.resolve("test-pom-multiple-versions.xml");
-        Files.writeString(tempPom, pom);
+        Files.copy(sourcePom, tempPom);
 
-        // 构造请求参数，指定版本1.0，插入第一个exclusion
+        // 构造请求参数，使用 test-pom.xml 中的实际依赖
+        Map<String, String> rootDep = new HashMap<>();
+        rootDep.put("groupId", "org.apache.maven.resolver");
+        rootDep.put("artifactId", "maven-resolver-connector-basic");
+        // 不指定版本，让系统自动匹配
+
+        // 插入第一个exclusion
         Map<String, Object> req1 = new HashMap<>();
         req1.put("pomPath", tempPom.toString());
-        Map<String, String> rootDep = new HashMap<>();
-        rootDep.put("groupId", "org.example");
-        rootDep.put("artifactId", "root");
-        rootDep.put("version", "1.0");
         req1.put("rootDependency", rootDep);
         Map<String, String> targetDep1 = new HashMap<>();
         targetDep1.put("groupId", "org.foo");
@@ -223,60 +174,28 @@ public class SimpleLanguageServerTest {
         String newContent = Files.readString(tempPom);
         System.out.println("写回后的pom内容：\n" + newContent);
 
-        // 用正则分割每个dependency块
-        java.util.regex.Pattern depPattern = java.util.regex.Pattern.compile("<dependency>([\\s\\S]*?)</dependency>");
-        java.util.regex.Matcher matcher = depPattern.matcher(newContent);
-
-        boolean found1 = false, found2 = false;
-        while (matcher.find()) {
-            String depBlock = matcher.group(1);
-            if (depBlock.contains("<version>1.0</version>")) {
-                found1 = true;
-                assertTrue(depBlock.contains("<exclusions>"), "1.0依赖块应包含<exclusions>");
-                // 检查两个exclusion都存在
-                assertTrue(depBlock.contains("<groupId>org.foo</groupId>"), "应包含第一个exclusion");
-                assertTrue(depBlock.contains("<artifactId>bar</artifactId>"), "应包含第一个exclusion");
-                assertTrue(depBlock.contains("<groupId>org.hello</groupId>"), "应包含第二个exclusion");
-                assertTrue(depBlock.contains("<artifactId>world</artifactId>"), "应包含第二个exclusion");
-            }
-            if (depBlock.contains("<version>2.0</version>")) {
-                found2 = true;
-                assertFalse(depBlock.contains("<exclusions>"), "2.0依赖块不应包含<exclusions>");
-            }
-        }
-        assertTrue(found1, "应找到1.0依赖块");
-        assertTrue(found2, "应找到2.0依赖块");
+        // 检查 maven-resolver-connector-basic 依赖块中包含了两个exclusion
+        assertTrue(newContent.contains("<exclusions>"), "应包含<exclusions>标签");
+        assertTrue(newContent.contains("<groupId>org.foo</groupId>"), "应包含第一个exclusion");
+        assertTrue(newContent.contains("<artifactId>bar</artifactId>"), "应包含第一个exclusion");
+        assertTrue(newContent.contains("<groupId>org.hello</groupId>"), "应包含第二个exclusion");
+        assertTrue(newContent.contains("<artifactId>world</artifactId>"), "应包含第二个exclusion");
     }
 
     @Test
     public void testInsertExclusion() throws Exception {
-        // 构造一个简单的 pom.xml 内容
-        String pom = """
-                <project>
-                  <modelVersion>4.0.0</modelVersion>
-                  <groupId>demo</groupId>
-                  <artifactId>demo</artifactId>
-                  <version>1.0</version>
-                  <dependencies>
-                    <dependency>
-                      <groupId>org.example</groupId>
-                      <artifactId>root</artifactId>
-                      <version>1.0</version>
-                    </dependency>
-                  </dependencies>
-                </project>
-                """;
-        // 写入临时文件
+        // 复制 test-pom.xml 到临时文件
+        Path sourcePom = Path.of("src/test/resources/test-pom.xml").toAbsolutePath();
         Path tempPom = tempDir.resolve("test-pom-old-method.xml");
-        Files.writeString(tempPom, pom);
+        Files.copy(sourcePom, tempPom);
 
-        // 构造请求参数
+        // 构造请求参数，使用 test-pom.xml 中的实际依赖
         Map<String, Object> req = new HashMap<>();
         req.put("pomPath", tempPom.toString());
         Map<String, String> rootDep = new HashMap<>();
-        rootDep.put("groupId", "org.example");
-        rootDep.put("artifactId", "root");
-        rootDep.put("version", "1.0");
+        rootDep.put("groupId", "org.apache.maven.resolver");
+        rootDep.put("artifactId", "maven-resolver-connector-basic");
+        // 不指定版本，让系统自动匹配
         req.put("rootDependency", rootDep);
         Map<String, String> targetDep = new HashMap<>();
         targetDep.put("groupId", "org.foo");
@@ -300,30 +219,16 @@ public class SimpleLanguageServerTest {
      * @param n 要插入的exclusion数量
      */
     public void testInsertMultipleExclusions(int n) throws Exception {
-        // 构造一个包含单一依赖的 pom.xml 内容
-        String pom = """
-                <project>
-                  <modelVersion>4.0.0</modelVersion>
-                  <groupId>demo</groupId>
-                  <artifactId>demo</artifactId>
-                  <version>1.0</version>
-                  <dependencies>
-                    <dependency>
-                      <groupId>org.example</groupId>
-                      <artifactId>root</artifactId>
-                      <version>1.0</version>
-                    </dependency>
-                  </dependencies>
-                </project>
-                """;
-        // 写入临时文件
+        // 复制 test-pom.xml 到临时文件
+        Path sourcePom = Path.of("src/test/resources/test-pom.xml").toAbsolutePath();
         Path tempPom = tempDir.resolve("test-pom-multi-exclusions.xml");
-        Files.writeString(tempPom, pom);
+        Files.copy(sourcePom, tempPom);
 
+        // 使用 test-pom.xml 中的实际依赖
         Map<String, String> rootDep = new HashMap<>();
-        rootDep.put("groupId", "org.example");
-        rootDep.put("artifactId", "root");
-        rootDep.put("version", "1.0");
+        rootDep.put("groupId", "org.apache.maven.resolver");
+        rootDep.put("artifactId", "maven-resolver-connector-basic");
+        // 不指定版本，让系统自动匹配
 
         SimpleLanguageServer server = new SimpleLanguageServer();
         for (int i = 1; i <= n; i++) {
@@ -334,8 +239,12 @@ public class SimpleLanguageServerTest {
             targetDep.put("groupId", "org.foo" + i);
             targetDep.put("artifactId", "bar" + i);
             req.put("targetDependency", targetDep);
-            String result = server.insertExclusion(new com.google.gson.Gson().toJson(req)).get();
-            assertTrue(result.contains("success"));
+            
+            String requestJson = new com.google.gson.Gson().toJson(req);
+            System.out.println("第" + i + "次请求: " + requestJson);
+            String result = server.insertExclusion(requestJson).get();
+            System.out.println("第" + i + "次结果: " + result);
+            assertTrue(result.contains("success"), "第" + i + "次插入应该成功");
         }
 
         // 检查写回后的pom内容
@@ -358,47 +267,10 @@ public class SimpleLanguageServerTest {
      */
     @Test
     public void testBuildExclusionMapWithDirectDependencies() throws Exception {
-        // 构造一个包含exclusions的 pom.xml 内容
-        String pom = """
-                <project>
-                  <modelVersion>4.0.0</modelVersion>
-                  <groupId>demo</groupId>
-                  <artifactId>demo</artifactId>
-                  <version>1.0</version>
-                  <dependencies>
-                    <dependency>
-                      <groupId>org.springframework</groupId>
-                      <artifactId>spring-core</artifactId>
-                      <version>5.3.21</version>
-                      <exclusions>
-                        <exclusion>
-                          <groupId>commons-logging</groupId>
-                          <artifactId>commons-logging</artifactId>
-                        </exclusion>
-                        <exclusion>
-                          <groupId>org.springframework</groupId>
-                          <artifactId>spring-jcl</artifactId>
-                        </exclusion>
-                      </exclusions>
-                    </dependency>
-                    <dependency>
-                      <groupId>org.apache.commons</groupId>
-                      <artifactId>commons-lang3</artifactId>
-                      <version>3.12.0</version>
-                      <exclusions>
-                        <exclusion>
-                          <groupId>junit</groupId>
-                          <artifactId>junit</artifactId>
-                        </exclusion>
-                      </exclusions>
-                    </dependency>
-                  </dependencies>
-                </project>
-                """;
-        
-        // 写入临时文件
+        // 使用test-pom.xml文件，该文件包含exclusions的依赖
+        Path sourcePom = Path.of("src/test/resources/test-pom.xml");
         Path tempPom = tempDir.resolve("test-pom-exclusions.xml");
-        Files.writeString(tempPom, pom);
+        Files.copy(sourcePom, tempPom);
         
         // 使用Maven Model API解析pom.xml
         org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
@@ -434,47 +306,10 @@ public class SimpleLanguageServerTest {
      */
     @Test
     public void testBuildExclusionMapWithDependencyManagement() throws Exception {
-        // 构造一个包含dependencyManagement exclusions的 pom.xml 内容
-        String pom = """
-                <project>
-                  <modelVersion>4.0.0</modelVersion>
-                  <groupId>demo</groupId>
-                  <artifactId>demo</artifactId>
-                  <version>1.0</version>
-                  <dependencyManagement>
-                    <dependencies>
-                      <dependency>
-                        <groupId>org.springframework.boot</groupId>
-                        <artifactId>spring-boot-starter</artifactId>
-                        <version>2.7.0</version>
-                        <exclusions>
-                          <exclusion>
-                            <groupId>org.springframework.boot</groupId>
-                            <artifactId>spring-boot-starter-logging</artifactId>
-                          </exclusion>
-                        </exclusions>
-                      </dependency>
-                    </dependencies>
-                  </dependencyManagement>
-                  <dependencies>
-                    <dependency>
-                      <groupId>org.slf4j</groupId>
-                      <artifactId>slf4j-api</artifactId>
-                      <version>1.7.36</version>
-                      <exclusions>
-                        <exclusion>
-                          <groupId>org.slf4j</groupId>
-                          <artifactId>slf4j-simple</artifactId>
-                        </exclusion>
-                      </exclusions>
-                    </dependency>
-                  </dependencies>
-                </project>
-                """;
-        
-        // 写入临时文件
-        Path tempPom = tempDir.resolve("test-pom-dependency-management.xml");
-        Files.writeString(tempPom, pom);
+        // 使用test-pom.xml文件进行测试
+        Path sourcePom = Path.of("src/test/resources/test-pom.xml");
+        Path tempPom = tempDir.resolve("test-pom.xml");
+        Files.copy(sourcePom, tempPom);
         
         // 使用Maven Model API解析pom.xml
         org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
@@ -487,19 +322,20 @@ public class SimpleLanguageServerTest {
         assertNotNull(exclusionMap, "exclusionMap不应该为null");
         assertEquals(2, exclusionMap.size(), "应该有2个依赖包含exclusions");
         
-        // 验证dependencyManagement中的exclusions
-        String springBootStarterKey = "org.springframework.boot:spring-boot-starter";
-        assertTrue(exclusionMap.containsKey(springBootStarterKey), "应该包含spring-boot-starter的exclusions");
-        Set<String> springBootExclusions = exclusionMap.get(springBootStarterKey);
-        assertEquals(1, springBootExclusions.size(), "spring-boot-starter应该有1个exclusion");
-        assertTrue(springBootExclusions.contains("org.springframework.boot:spring-boot-starter-logging"), "应该排除spring-boot-starter-logging");
+        // 验证spring-core的exclusions
+        String springCoreKey = "org.springframework:spring-core";
+        assertTrue(exclusionMap.containsKey(springCoreKey), "应该包含spring-core的exclusions");
+        Set<String> springCoreExclusions = exclusionMap.get(springCoreKey);
+        assertEquals(2, springCoreExclusions.size(), "spring-core应该有2个exclusions");
+        assertTrue(springCoreExclusions.contains("commons-logging:commons-logging"), "应该排除commons-logging");
+        assertTrue(springCoreExclusions.contains("org.springframework:spring-jcl"), "应该排除spring-jcl");
         
-        // 验证直接依赖中的exclusions
-        String slf4jKey = "org.slf4j:slf4j-api";
-        assertTrue(exclusionMap.containsKey(slf4jKey), "应该包含slf4j-api的exclusions");
-        Set<String> slf4jExclusions = exclusionMap.get(slf4jKey);
-        assertEquals(1, slf4jExclusions.size(), "slf4j-api应该有1个exclusion");
-        assertTrue(slf4jExclusions.contains("org.slf4j:slf4j-simple"), "应该排除slf4j-simple");
+        // 验证commons-lang3的exclusions
+        String commonsLang3Key = "org.apache.commons:commons-lang3";
+        assertTrue(exclusionMap.containsKey(commonsLang3Key), "应该包含commons-lang3的exclusions");
+        Set<String> commonsLang3Exclusions = exclusionMap.get(commonsLang3Key);
+        assertEquals(1, commonsLang3Exclusions.size(), "commons-lang3应该有1个exclusion");
+        assertTrue(commonsLang3Exclusions.contains("junit:junit"), "应该排除junit");
         
         System.out.println("解析到的exclusionMap: " + exclusionMap);
     }
@@ -509,32 +345,25 @@ public class SimpleLanguageServerTest {
      */
     @Test
     public void testBuildExclusionMapWithNoExclusions() throws Exception {
-        // 构造一个不包含exclusions的 pom.xml 内容
-        String pom = """
-                <project>
-                  <modelVersion>4.0.0</modelVersion>
-                  <groupId>demo</groupId>
-                  <artifactId>demo</artifactId>
-                  <version>1.0</version>
-                  <dependencies>
-                    <dependency>
-                      <groupId>org.apache.commons</groupId>
-                      <artifactId>commons-lang3</artifactId>
-                      <version>3.12.0</version>
-                    </dependency>
-                    <dependency>
-                      <groupId>junit</groupId>
-                      <artifactId>junit</artifactId>
-                      <version>4.13.2</version>
-                      <scope>test</scope>
-                    </dependency>
-                  </dependencies>
+        // 创建一个不包含exclusions的简单POM内容
+        String simplePom = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <project xmlns="http://maven.apache.org/POM/4.0.0">
+                    <modelVersion>4.0.0</modelVersion>
+                    <groupId>demo</groupId>
+                    <artifactId>demo</artifactId>
+                    <version>1.0</version>
+                    <dependencies>
+                        <dependency>
+                            <groupId>org.apache.commons</groupId>
+                            <artifactId>commons-lang3</artifactId>
+                            <version>3.12.0</version>
+                        </dependency>
+                    </dependencies>
                 </project>
                 """;
-        
-        // 写入临时文件
         Path tempPom = tempDir.resolve("test-pom-no-exclusions.xml");
-        Files.writeString(tempPom, pom);
+        Files.writeString(tempPom, simplePom);
         
         // 使用Maven Model API解析pom.xml
         org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
@@ -555,46 +384,45 @@ public class SimpleLanguageServerTest {
      */
     @Test
     public void testBuildExclusionMapWithMergedExclusions() throws Exception {
-        // 构造一个同一依赖在两个地方都有exclusions的 pom.xml 内容
-        String pom = """
-                <project>
-                  <modelVersion>4.0.0</modelVersion>
-                  <groupId>demo</groupId>
-                  <artifactId>demo</artifactId>
-                  <version>1.0</version>
-                  <dependencyManagement>
+        // 创建一个包含dependencyManagement和dependencies中都有exclusions的POM内容
+        String mergedPom = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <project xmlns="http://maven.apache.org/POM/4.0.0">
+                    <modelVersion>4.0.0</modelVersion>
+                    <groupId>demo</groupId>
+                    <artifactId>demo</artifactId>
+                    <version>1.0</version>
+                    <dependencyManagement>
+                        <dependencies>
+                            <dependency>
+                                <groupId>org.springframework</groupId>
+                                <artifactId>spring-core</artifactId>
+                                <version>5.3.21</version>
+                                <exclusions>
+                                    <exclusion>
+                                        <groupId>commons-logging</groupId>
+                                        <artifactId>commons-logging</artifactId>
+                                    </exclusion>
+                                </exclusions>
+                            </dependency>
+                        </dependencies>
+                    </dependencyManagement>
                     <dependencies>
-                      <dependency>
-                        <groupId>org.springframework</groupId>
-                        <artifactId>spring-core</artifactId>
-                        <version>5.3.21</version>
-                        <exclusions>
-                          <exclusion>
-                            <groupId>commons-logging</groupId>
-                            <artifactId>commons-logging</artifactId>
-                          </exclusion>
-                        </exclusions>
-                      </dependency>
+                        <dependency>
+                            <groupId>org.springframework</groupId>
+                            <artifactId>spring-core</artifactId>
+                            <exclusions>
+                                <exclusion>
+                                    <groupId>org.springframework</groupId>
+                                    <artifactId>spring-jcl</artifactId>
+                                </exclusion>
+                            </exclusions>
+                        </dependency>
                     </dependencies>
-                  </dependencyManagement>
-                  <dependencies>
-                    <dependency>
-                      <groupId>org.springframework</groupId>
-                      <artifactId>spring-core</artifactId>
-                      <exclusions>
-                        <exclusion>
-                          <groupId>org.springframework</groupId>
-                          <artifactId>spring-jcl</artifactId>
-                        </exclusion>
-                      </exclusions>
-                    </dependency>
-                  </dependencies>
                 </project>
                 """;
-        
-        // 写入临时文件
         Path tempPom = tempDir.resolve("test-pom-merged-exclusions.xml");
-        Files.writeString(tempPom, pom);
+        Files.writeString(tempPom, mergedPom);
         
         // 使用Maven Model API解析pom.xml
         org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();

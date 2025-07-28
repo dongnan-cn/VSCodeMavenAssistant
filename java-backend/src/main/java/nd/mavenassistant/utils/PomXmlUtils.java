@@ -288,9 +288,10 @@ public class PomXmlUtils {
 
             boolean groupIdMatch = groupId.equals(targetGroupId);
             boolean artifactIdMatch = artifactId.equals(targetArtifactId);
-            boolean versionMatch =
-                    (version == null && (targetVersion == null || targetVersion.isEmpty())) ||
-                            (version != null && version.equals(targetVersion));
+            boolean versionMatch = 
+                    (targetVersion == null || targetVersion.isEmpty()) || // 如果没有指定目标版本，匹配任何版本
+                    (version != null && version.equals(targetVersion)) || // 版本完全匹配
+                    (version == null && (targetVersion == null || targetVersion.isEmpty())); // 都没有版本
 
             if (groupIdMatch && artifactIdMatch && versionMatch) {
                 return depElement;
