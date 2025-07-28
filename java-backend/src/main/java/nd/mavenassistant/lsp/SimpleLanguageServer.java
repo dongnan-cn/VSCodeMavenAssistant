@@ -1,6 +1,7 @@
 package nd.mavenassistant.lsp;
 
 import com.google.gson.Gson;
+import nd.mavenassistant.cache.DependencyCache;
 import nd.mavenassistant.model.ArtifactConflictInfo;
 import nd.mavenassistant.model.ArtifactGav;
 import org.apache.maven.model.Model;
@@ -60,59 +61,14 @@ public class SimpleLanguageServer implements LanguageServer {
     private static final String MAVEN_LOCAL_REPO_PATH = USER_HOME + "/.m2/repository";
     private static final File MAVEN_LOCAL_REPO_DIR = new File(MAVEN_LOCAL_REPO_PATH);
     
-    // 缓存相关字段
-    private final Map<CacheKey, CacheEntry> dependencyCache = new HashMap<>();
-    private static final long CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5分钟缓存过期时间
-    
-    // 文件大小缓存，避免重复的文件I/O操作（线程安全）
-    private final Map<String, Long> fileSizeCache = new ConcurrentHashMap<>();
+    // 缓存管理器
+    private final DependencyCache cache = new DependencyCache();
     
     // 线程池用于并行计算jar文件大小
     private final ExecutorService jarSizeExecutor = Executors.newFixedThreadPool(
             Math.max(2, Runtime.getRuntime().availableProcessors() / 2));
     
-    // 缓存键类
-    private static class CacheKey {
-        private final String pomPath;
-        private final long pomLastModified;
-        
-        public CacheKey(String pomPath, long pomLastModified) {
-            this.pomPath = pomPath;
-            this.pomLastModified = pomLastModified;
-        }
-        
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if (obj == null || getClass() != obj.getClass()) return false;
-            CacheKey cacheKey = (CacheKey) obj;
-            return pomLastModified == cacheKey.pomLastModified && Objects.equals(pomPath, cacheKey.pomPath);
-        }
-        
-        @Override
-        public int hashCode() {
-            return Objects.hash(pomPath, pomLastModified);
-        }
-    }
-    
-    // 缓存条目类
-    private static class CacheEntry {
-        private final String result;
-        private final long timestamp;
-        
-        public CacheEntry(String result, long timestamp) {
-            this.result = result;
-            this.timestamp = timestamp;
-        }
-        
-        public boolean isExpired() {
-            return System.currentTimeMillis() - timestamp > CACHE_EXPIRY_MS;
-        }
-        
-        public String getResult() {
-            return result;
-        }
-    }
+
 
     public static record IndentRecord(String dependencyIndent, String indentUnit) {
     }
@@ -155,7 +111,7 @@ public class SimpleLanguageServer implements LanguageServer {
     @Override
     public void exit() {
         // 进程退出时清理缓存
-        clearCaches();
+        cache.clearCaches();
     }
 
     @Override
@@ -186,14 +142,14 @@ public class SimpleLanguageServer implements LanguageServer {
                 
                 // 检查缓存
                 long pomLastModified = pomFile.lastModified();
-                CacheKey cacheKey = new CacheKey(actualPomPath, pomLastModified);
-                CacheEntry cachedEntry = dependencyCache.get(cacheKey);
+                DependencyCache.CacheKey cacheKey = new DependencyCache.CacheKey(actualPomPath, pomLastModified);
+                DependencyCache.CacheEntry cachedEntry = cache.getDependencyResult(cacheKey);
                 if (cachedEntry != null && !cachedEntry.isExpired()) {
                     return cachedEntry.getResult();
                 }
                 
                 // 清理过期缓存
-                cleanupExpiredCaches();
+                cache.cleanupExpiredCaches();
                 
                 try (RepositorySystem system = new RepositorySystemSupplier().get();
                      CloseableSession session = new SessionBuilderSupplier(system)
@@ -228,7 +184,7 @@ public class SimpleLanguageServer implements LanguageServer {
                     String result = new Gson().toJson(tree);
                     
                     // 缓存结果
-                    dependencyCache.put(cacheKey, new CacheEntry(result, System.currentTimeMillis()));
+                    cache.putDependencyResult(cacheKey, result);
                     
                     return result;
                 }
@@ -1200,7 +1156,7 @@ public class SimpleLanguageServer implements LanguageServer {
         String jarPath = buildJarPath(artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion());
         
         // 检查缓存
-        Long cachedSize = fileSizeCache.get(jarPath);
+        Long cachedSize = cache.getFileSize(jarPath);
         if (cachedSize != null) {
             return cachedSize;
         }
@@ -1208,7 +1164,7 @@ public class SimpleLanguageServer implements LanguageServer {
         // 获取文件大小并缓存
         File jarFile = new File(jarPath);
         long size = jarFile.exists() ? jarFile.length() : 0L;
-        fileSizeCache.put(jarPath, size);
+        cache.putFileSize(jarPath, size);
         return size;
     }
     
@@ -1219,10 +1175,10 @@ public class SimpleLanguageServer implements LanguageServer {
         Set<String> jarPaths = collectJarPaths(rootNode);
         
         for (String jarPath : jarPaths) {
-            if (!fileSizeCache.containsKey(jarPath)) {
+            if (cache.getFileSize(jarPath) == null) {
                 File jarFile = new File(jarPath);
                 long size = jarFile.exists() ? jarFile.length() : 0L;
-                fileSizeCache.put(jarPath, size);
+                cache.putFileSize(jarPath, size);
             }
         }
     }
@@ -1241,7 +1197,7 @@ public class SimpleLanguageServer implements LanguageServer {
         List<Artifact> uncachedArtifacts = artifactsToProcess.stream()
                 .filter(artifact -> {
                     String jarPath = buildJarPath(artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion());
-                    return !fileSizeCache.containsKey(jarPath);
+                    return cache.getFileSize(jarPath) == null;
                 })
                 .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
         
@@ -1256,7 +1212,7 @@ public class SimpleLanguageServer implements LanguageServer {
                 String jarPath = buildJarPath(artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion());
                 File jarFile = new File(jarPath);
                 long size = jarFile.exists() ? jarFile.length() : 0L;
-                fileSizeCache.put(jarPath, size);
+                cache.putFileSize(jarPath, size);
                 return null;
             });
             futures.add(future);
@@ -1297,10 +1253,10 @@ public class SimpleLanguageServer implements LanguageServer {
         Set<String> jarPaths = collectJarPaths(rootNode);
         
         for (String jarPath : jarPaths) {
-            if (!fileSizeCache.containsKey(jarPath)) {
+            if (cache.getFileSize(jarPath) == null) {
                 File jarFile = new File(jarPath);
                 long size = jarFile.exists() ? jarFile.length() : 0L;
-                fileSizeCache.put(jarPath, size);
+                cache.putFileSize(jarPath, size);
             }
         }
     }
@@ -1332,21 +1288,5 @@ public class SimpleLanguageServer implements LanguageServer {
     /**
      * 清理缓存
      */
-    private void clearCaches() {
-        dependencyCache.clear();
-        fileSizeCache.clear();
-    }
-    
-    /**
-     * 清理过期缓存
-     */
-    private void cleanupExpiredCaches() {
-        // 清理过期的依赖分析缓存
-        dependencyCache.entrySet().removeIf(entry -> entry.getValue().isExpired());
-        
-        // 文件大小缓存简单限制数量，避免内存过度使用
-        if (fileSizeCache.size() > 1000) {
-            fileSizeCache.clear();
-        }
-    }
+
 }
