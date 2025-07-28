@@ -91,9 +91,6 @@ function handleNodeContextMenu(pathIndex: number, nodeIndex: number, node: any, 
   menuNode.value = { node, path }
   menuPathIndex.value = pathIndex
   menuNodeIndex.value = nodeIndex
-  console.log('pathIndex', pathIndex)
-  console.log('nodeIndex', nodeIndex)
-  console.log('node', node)
   // 动态设置菜单项
   menuItemsRef.value = getMenuItems(node, path)
 }
@@ -169,8 +166,6 @@ function handleNodeClick(pathIndex: number, nodeIndex: number, node: any, path: 
   // 获取所在依赖树的最高节点（非当前项目）
   // 在path数组中，最后一个元素就是最高节点
   const topLevelNode = path[path.length - 1]
-  console.log('topLevelNode', topLevelNode)
-  console.log('Node', node)
   // 保存选中的依赖信息
   selectedNodeInfo.value = {
     pathIndex,

@@ -54,32 +54,14 @@ function triggerSearchAfterModeSwitch(componentRef: any) {
 
 // 添加日志：监听显示模式变化
 watch(displayMode, (newMode, oldMode) => {
-  console.log('🔄 显示模式切换:', { from: oldMode, to: newMode })
-  console.log('📊 缓存状态:', {
-    dependencyTreeCache: !!dependencyTreeCache.value,
-    dependencyTreeLoaded: dependencyTreeLoaded.value,
-    conflictDataCache: !!conflictDataCache.value,
-    conflictDataLoaded: conflictDataLoaded.value
-  })
   
   if (newMode === 'dependency-tree') {
-    if (dependencyTreeCache.value && dependencyTreeLoaded.value) {
-      console.log('✅ 使用依赖树缓存数据，避免重新加载')
-    } else {
-      console.log('❌ 没有依赖树缓存数据，将触发重新加载')
-    }
     
     // 从冲突模式切换到依赖树模式时，触发搜索
     if (oldMode === 'dependency-conflicts') {
       triggerSearchAfterModeSwitch(dependencyTreeRef)
     }
-  } else if (newMode === 'dependency-conflicts') {
-    if (conflictDataCache.value && conflictDataLoaded.value) {
-      console.log('✅ 使用冲突数据缓存，避免重新加载')
-    } else {
-      console.log('❌ 没有冲突数据缓存，将触发重新加载')
-    }
-    
+  } else if (newMode === 'dependency-conflicts') {    
     // 从依赖树模式切换到冲突模式时，触发搜索
     if (oldMode === 'dependency-tree') {
       triggerSearchAfterModeSwitch(dependencyConflictsRef)
@@ -118,10 +100,7 @@ function selectHistoryItem(item: string) {
 }
 
 // 修改：刷新依赖数据时清除所有缓存（合并重复的函数定义）
-function refreshDependencies() {
-  console.log('🔄 手动刷新依赖数据')
-  console.log('🗑️ 清除所有缓存数据')
-  
+function refreshDependencies() {  
   // 清除依赖树缓存
   dependencyTreeCache.value = null
   dependencyTreeLoaded.value = false
@@ -131,13 +110,6 @@ function refreshDependencies() {
   conflictDataCache.value = null
   conflictDataLoaded.value = false
   conflictDataKey.value++
-  
-  console.log('📊 刷新后缓存状态:', {
-    dependencyTreeCache: !!dependencyTreeCache.value,
-    conflictDataCache: !!conflictDataCache.value,
-    dependencyTreeKey: dependencyTreeKey.value,
-    conflictDataKey: conflictDataKey.value
-  })
   
   // 触发相应组件的刷新
   if (displayMode.value === 'dependency-tree') {
@@ -166,67 +138,31 @@ defineExpose({ setSearchText })
 
 // 修改：依赖选择处理，同时缓存数据
 const onSelectDependency = (dep: any, treeData: any) => {
-  console.log('🎯 选择依赖:', dep)
-  console.log('📦 接收到树数据:', {
-    hasData: !!treeData,
-    dataSize: treeData ? JSON.stringify(treeData).length : 0
-  })
   
   selectedDependency.value = dep
   dependencyTreeData.value = treeData
   
   // 缓存依赖树数据
   if (!dependencyTreeCache.value && treeData) {
-    console.log('💾 首次缓存依赖树数据')
     dependencyTreeCache.value = treeData
     dependencyTreeLoaded.value = true
-    console.log('✅ 缓存完成:', {
-      cacheSize: JSON.stringify(dependencyTreeCache.value).length,
-      isLoaded: dependencyTreeLoaded.value
-    })
-  } else if (dependencyTreeCache.value) {
-    console.log('📋 已有缓存数据，跳过缓存')
   }
 }
 
 // 新增：处理冲突数据缓存
 const onCacheConflictData = (conflictData: any) => {
-  console.log('💾 缓存冲突数据:', {
-    hasData: !!conflictData,
-    dataSize: conflictData ? JSON.stringify(conflictData).length : 0
-  })
-  
   if (!conflictDataCache.value && conflictData) {
-    console.log('💾 首次缓存冲突数据')
     conflictDataCache.value = conflictData
     conflictDataLoaded.value = true
-    console.log('✅ 冲突数据缓存完成:', {
-      cacheSize: JSON.stringify(conflictDataCache.value).length,
-      isLoaded: conflictDataLoaded.value
-    })
-  } else if (conflictDataCache.value) {
-    console.log('📋 已有冲突数据缓存，跳过缓存')
-  }
+  } 
 }
 
 // 新增：处理从冲突组件传递过来的依赖树数据
 const onCacheDependencyTreeFromConflicts = (treeData: any) => {
-  console.log('🌳 从冲突组件接收依赖树数据:', {
-    hasData: !!treeData,
-    dataSize: treeData ? JSON.stringify(treeData).length : 0
-  })
-  
   // 如果还没有依赖树缓存，则缓存这个数据
   if (!dependencyTreeCache.value && treeData) {
-    console.log('💾 缓存从冲突组件获取的依赖树数据')
     dependencyTreeCache.value = treeData
     dependencyTreeLoaded.value = true
-    console.log('✅ 依赖树缓存完成 (来自冲突组件):', {
-      cacheSize: JSON.stringify(dependencyTreeCache.value).length,
-      isLoaded: dependencyTreeLoaded.value
-    })
-  } else if (dependencyTreeCache.value) {
-    console.log('📋 已有依赖树缓存，跳过缓存')
   }
 }
 
@@ -268,8 +204,6 @@ onMounted(() => {
         }
       })
     } else if (event.data?.type === 'gotoTreeNode') {
-      // 处理从依赖链页面跳转到左侧树的请求
-      console.log('🎯 App: 收到gotoTreeNode消息，切换到树模式')
       // 先切换到依赖树模式
       displayMode.value = 'dependency-tree'
       // 等待组件渲染完成后再直接调用依赖树组件的方法
@@ -290,8 +224,6 @@ onBeforeUnmount(() => {
 
 // 处理冲突依赖选择
 const onSelectConflict = (conflict: any) => {
-  console.log('🎯 App: 选择冲突依赖:', conflict)
-  
   // 将冲突依赖转换为与dependency tree兼容的格式
   const dependencyForPaths = {
     groupId: conflict.groupId,
@@ -300,8 +232,6 @@ const onSelectConflict = (conflict: any) => {
     scope: conflict.scope, // 使用冲突依赖中的scope信息
     size: conflict.size // 传递size信息
   }
-  
-  console.log('🔄 转换后的依赖格式:', dependencyForPaths)
   
   // 设置选中的依赖，让右侧DependencyPaths组件显示相关依赖链
   selectedDependency.value = dependencyForPaths

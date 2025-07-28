@@ -165,7 +165,6 @@ function getConflictColor(conflict: ConflictDependency): string {
 
 // 选择冲突依赖
 function selectConflict(conflict: ConflictDependency) {
-    console.log('🎯 选择冲突依赖:', conflict)
     selectedConflict.value = conflict
     emit('select-conflict', conflict)
 }
@@ -206,37 +205,25 @@ function handleMenuSelect(action: string) {
     menuVisible.value = false
 }
 
-// 监听搜索文本变化
-watch(() => props.searchText, (newSearchText) => {
-    console.log('🔍 搜索文本变化:', newSearchText)
-    // 搜索逻辑已通过计算属性自动处理
-}, { immediate: true })
-
 // 修改：刷新冲突数据，支持缓存检查
 const refreshConflicts = async () => {
-    console.log('[DependencyConflicts] 开始刷新冲突数据');
 
     // 检查是否有缓存数据
     if (props.cachedData && props.isDataLoaded) {
-        console.log('[DependencyConflicts] ✅ 使用缓存的冲突数据');
         conflictData.value = props.cachedData;
         loading.value = false;
         error.value = '';
         return;
     }
-
-    console.log('[DependencyConflicts] ❌ 没有缓存数据，开始加载');
     loading.value = true;
     error.value = '';
 
     if (props.vscodeApi) {
-        console.log('[DependencyConflicts] 使用真实API获取冲突数据');
         // 发送消息到后端获取依赖树数据
         props.vscodeApi.postMessage({
             type: 'getConflictDependencies'
         });
     } else {
-        console.warn('[DependencyConflicts] 没有可用的 vscodeApi');
         loading.value = false;
         error.value = 'VSCode API 不可用';
     }
@@ -248,8 +235,6 @@ const refreshConflicts = async () => {
  * @returns 冲突依赖列表
  */
 function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
-    console.log('[DependencyConflicts] 开始分析依赖树冲突');
-    console.log('[DependencyConflicts] 依赖树数据:', dependencyTree);
 
     // 存储所有依赖的映射：groupId:artifactId -> 版本信息
     const dependencyMap = new Map<string, {
@@ -269,15 +254,7 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
         totalNodes++;
         const indent = '  '.repeat(depth);
 
-        console.log(`${indent}[节点 ${totalNodes}] 分析节点:`, {
-            groupId: node?.groupId,
-            artifactId: node?.artifactId,
-            version: node?.version,
-            scope: node?.scope, // 添加 scope 调试信息
-            droppedByConflict: node?.droppedByConflict,
-            droppedType: typeof node?.droppedByConflict,
-            hasChildren: node?.children ? node.children.length : 0
-        });
+
 
         // 检查当前节点是否有有效的依赖信息
         if (node && node.groupId && node.artifactId && node.version) {
@@ -285,8 +262,6 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
             const key = `${node.groupId}:${node.artifactId}`;
             const version = node.version;
             const isDropped = node.droppedByConflict === true;
-
-            console.log(`${indent}[节点 ${totalNodes}] ✅ 有效节点: ${key}:${version}, dropped=${isDropped}`);
 
             if (!dependencyMap.has(key)) {
                 dependencyMap.set(key, {
@@ -297,18 +272,13 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
                     size: undefined,
                     scope: undefined
                 });
-                console.log(`${indent}[节点 ${totalNodes}] 🆕 创建新依赖映射: ${key}`);
             }
 
             const depInfo = dependencyMap.get(key)!;
 
-            // 如果当前节点有size信息且映射中还没有，则更新
-            console.log('node.size', node.size, 'depInfo.size', depInfo.size)
-
             if (isDropped) {
                 // 被冲突丢弃的版本
                 depInfo.conflictVersions.add(version);
-                console.log(`${indent}[节点 ${totalNodes}] 🔥 添加冲突版本: ${key}:${version}`);
             } else {
                 // 实际使用的版本
                 if (depInfo.usedVersion === null) {
@@ -330,25 +300,19 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
             // 对于冲突版本，也尝试收集scope信息（如果还没有的话）
             if (node.scope && !dependencyMap.get(key)!.scope) {
                 dependencyMap.get(key)!.scope = node.scope;
-                console.log(`${indent}[节点 ${totalNodes}] 🔄 补充scope信息: ${key} -> ${node.scope}`);
             }
-        } else {
-            console.log(`${indent}[节点 ${totalNodes}] ❌ 跳过：缺少必要字段`);
         }
 
         // 递归处理子依赖
         if (node && node.children && Array.isArray(node.children)) {
-            console.log(`${indent}[节点 ${totalNodes}] 📁 处理 ${node.children.length} 个子依赖`);
             node.children.forEach((child: any) => traverseTree(child, depth + 1));
         }
     }
 
     // 开始遍历 - 如果根节点没有依赖信息，直接遍历其子节点
     if (dependencyTree && dependencyTree.children && Array.isArray(dependencyTree.children)) {
-        console.log('[DependencyConflicts] 🌳 根节点是容器，直接遍历子节点');
         dependencyTree.children.forEach((child: any) => traverseTree(child, 0));
     } else {
-        console.log('[DependencyConflicts] 🌳 从根节点开始遍历');
         traverseTree(dependencyTree);
     }
 
@@ -371,17 +335,13 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
                 scope: depInfo.scope  // 包含scope信息
             };
             conflicts.push(conflict);
-            console.log(`  ✅ 添加到冲突列表:`, conflict);
-        } else {
-            console.log(`  ❌ 不符合冲突条件，跳过`);
         }
     });
 
     // 按冲突数量降序排序
     conflicts.sort((a, b) => b.conflictCount - a.conflictCount);
 
-    console.log(`[DependencyConflicts] 🎯 分析完成，发现 ${conflicts.length} 个冲突依赖`);
-    console.log('[DependencyConflicts] 🔥 最终冲突列表:', conflicts);
+
 
     return conflicts;
 }
@@ -389,12 +349,10 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
 // 处理来自扩展端的消息
 const handleMessage = (event: MessageEvent) => {
     const message = event.data;
-    console.log('[DependencyConflicts] 收到消息:', message);
 
     switch (message.type) {
         case 'dependencyTreeForConflicts':
             try {
-                console.log('[DependencyConflicts] 开始处理依赖树数据');
                 const dependencyTree = typeof message.data === 'string'
                     ? JSON.parse(message.data)
                     : message.data;
@@ -404,19 +362,14 @@ const handleMessage = (event: MessageEvent) => {
                 conflictData.value = conflicts;
                 loading.value = false;
 
-                console.log('[DependencyConflicts] 冲突数据已更新:', conflicts);
-
                 // 新增：触发缓存事件
                 if (conflicts && conflicts.length >= 0) {
-                    console.log('[DependencyConflicts] 💾 触发缓存事件');
                     emit('cache-conflict-data', conflicts);
                 }
 
                 // 新增：将原始依赖树数据也传递给父组件，用于DependencyPaths显示
-                console.log('[DependencyConflicts] 📤 传递依赖树数据给父组件');
                 emit('cache-dependency-tree', dependencyTree);
             } catch (err) {
-                console.error('[DependencyConflicts] 处理依赖树数据失败:', err);
                 error.value = `处理依赖树数据失败: ${err}`;
                 loading.value = false;
             }
@@ -431,39 +384,30 @@ const handleMessage = (event: MessageEvent) => {
                 conflictData.value = conflictDataReceived || [];
                 loading.value = false;
 
-                console.log('[DependencyConflicts] 冲突数据已更新 (兼容格式):', conflictDataReceived);
-
                 // 新增：触发缓存事件
                 if (conflictDataReceived) {
-                    console.log('[DependencyConflicts] 💾 触发缓存事件 (兼容格式)');
                     emit('cache-conflict-data', conflictDataReceived);
                 }
             } catch (err) {
-                console.error('[DependencyConflicts] 解析冲突数据失败:', err);
                 error.value = `解析冲突数据失败: ${err}`;
                 loading.value = false;
             }
             break;
         case 'updateConflicts':
-            console.log('[DependencyConflicts] 收到冲突数据更新');
             refreshConflicts();
             break;
         case 'refresh':
             refreshConflicts();
             break;
         case 'error':
-            console.error('[DependencyConflicts] 收到错误消息:', message.message);
             loading.value = false;
             error.value = message.message || '获取冲突数据失败';
             break;
-        default:
-            console.log('[DependencyConflicts] 未处理的消息类型:', message.type);
     }
 };
 
 // 组件挂载时的初始化
 onMounted(() => {
-    console.log('[DependencyConflicts] 组件已挂载，开始监听消息');
 
     // 监听来自VSCode扩展的消息
     if (typeof window !== 'undefined') {

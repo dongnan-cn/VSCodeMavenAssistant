@@ -322,7 +322,6 @@ function removeDependencyByGA(nodes: DependencyNode[], groupId: string, artifact
 
 // 处理exclude成功后的依赖树更新
 function handleExcludeSuccess(excludedDependency: { groupId: string, artifactId: string }) {
-  console.log('🔄 DependencyTree: 处理exclude成功，移除依赖:', excludedDependency)
   // 从当前依赖树中移除指定GA的所有依赖
   dependencyData.value = removeDependencyByGA(dependencyData.value, excludedDependency.groupId, excludedDependency.artifactId)
   
@@ -363,12 +362,10 @@ onMounted(() => {
             emit('select-dependency', null, dependencyData.value)
           }
         } catch (err) {
-          console.error('❌ DependencyTree: 解析依赖数据失败:', err)
           error.value = `解析失败: ${err}\n\n原始内容:\n${message.data}`
         }
         break
       case 'error':
-        console.error('❌ DependencyTree: 收到错误消息:', message.message)
         loading.value = false
         error.value = message.message || '获取依赖数据失败'
         break
@@ -402,7 +399,6 @@ onMounted(() => {
 
 // 跳转到指定GAV的方法
 function jumpToGAV(gav: { groupId: string, artifactId: string, version: string }) {
-  console.log('🎯 DependencyTree: 跳转到GAV:', gav)
   
   // 递归查找匹配的节点
   function findGAVNode(nodes: DependencyNode[], targetGAV: any): DependencyNode | null {
@@ -433,8 +429,6 @@ function jumpToGAV(gav: { groupId: string, artifactId: string, version: string }
     
     // 高亮搜索结果
     searchAndHighlight(dependencyData.value, gav.artifactId)
-    
-    console.log('✅ DependencyTree: 成功跳转到GAV:', gav)
   } else {
     console.warn('⚠️ DependencyTree: 未找到GAV:', gav)
   }
