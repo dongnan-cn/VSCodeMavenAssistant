@@ -36,7 +36,7 @@
     "Programming Languages",
     "Other"
   ],
-  "icon": "resources/maven-icon.svg",
+  "icon": "resources/maven-icon.png",
   "galleryBanner": {
     "color": "#C71A36",
     "theme": "dark"
@@ -117,7 +117,7 @@
         {
           "id": "maven-assistant",
           "title": "Maven Assistant",
-          "icon": "resources/maven-icon.svg"
+          "icon": "resources/maven-icon.png"
         }
       ]
     },
