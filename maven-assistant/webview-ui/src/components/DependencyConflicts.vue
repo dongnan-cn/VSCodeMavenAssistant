@@ -70,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import type { ConflictDependency } from '../types/dependency'
 import ContextMenu from './ContextMenu.vue'
 
@@ -252,10 +252,6 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
     // 递归遍历依赖树，收集所有依赖信息
     function traverseTree(node: any, depth: number = 0) {
         totalNodes++;
-        const indent = '  '.repeat(depth);
-
-
-
         // 检查当前节点是否有有效的依赖信息
         if (node && node.groupId && node.artifactId && node.version) {
             validNodes++;
