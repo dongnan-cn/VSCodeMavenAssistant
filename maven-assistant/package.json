@@ -1,15 +1,46 @@
 {
   "name": "maven-assistant",
   "displayName": "Maven Assistant",
-  "description": "VSCode前端插件，配合Java后端LSP使用，专注于Maven依赖结构解析和命令管理",
-  "version": "0.0.1",
+  "description": "A powerful Maven dependency management and analysis tool for VSCode, it provides features like dependency tree, conflict analysis and other features.",
+  "version": "1.0.0",
+  "publisher": "dngjb",
+  "author": {
+    "name": "dongnan",
+    "email": "your.email@example.com"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/your-username/VSCodeMavenAssistant#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/VSCodeMavenAssistant.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/VSCodeMavenAssistant/issues"
+  },
+  "keywords": [
+    "maven",
+    "java",
+    "dependency",
+    "pom",
+    "build",
+    "lsp",
+    "language-server",
+    "dependency-management",
+    "conflict-resolution",
+    "project-management"
+  ],
   "engines": {
     "vscode": "^1.101.0"
   },
   "categories": [
-    "Other",
-    "Programming Languages"
+    "Programming Languages",
+    "Other"
   ],
+  "icon": "resources/maven-icon.svg",
+  "galleryBanner": {
+    "color": "#C71A36",
+    "theme": "dark"
+  },
   "activationEvents": [
     "onLanguage:xml",
     "onLanguage:java",
@@ -173,14 +204,18 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run build:all",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test",
     "build:webview": "cd webview-ui && npm run build",
-    "build:all": "npm run build:webview && npm run compile"
+    "build:all": "npm run build:webview && npm run compile",
+    "package": "vsce package",
+    "publish": "vsce publish",
+    "clean": "rimraf out dist",
+    "prebuild": "npm run clean"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

@@ -10,3 +10,4 @@ vsc-extension-quickstart.md
 !dist/**      # 按需添加
 **/*.map      # 可保留（不影响运行）
 **/*.ts       # 保留（正确排除源码）
+!server/**/*.jar  # 确保包含 jar 文件

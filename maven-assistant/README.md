@@ -1,51 +1,119 @@
-# maven-assistant README
+# Maven Assistant
 
-This is the README for your extension "maven-assistant". After writing up a brief description, we recommend including the following sections.
+[![Version](https://img.shields.io/vscode-marketplace/v/your-publisher-name.maven-assistant.svg)](https://marketplace.visualstudio.com/items?itemName=your-publisher-name.maven-assistant)
+[![Downloads](https://img.shields.io/vscode-marketplace/d/your-publisher-name.maven-assistant.svg)](https://marketplace.visualstudio.com/items?itemName=your-publisher-name.maven-assistant)
+[![Rating](https://img.shields.io/vscode-marketplace/r/your-publisher-name.maven-assistant.svg)](https://marketplace.visualstudio.com/items?itemName=your-publisher-name.maven-assistant)
 
-## Features
+A powerful Maven dependency management and analysis tool for Visual Studio Code with Language Server Protocol (LSP) support.
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+## ✨ Features
 
-For example if there is an image subfolder under your extension project workspace:
+### 🔍 Dependency Analysis
+- **Dependency Tree Visualization**: Interactive dependency tree with conflict detection
+- **Dependency Conflict Resolution**: Identify and resolve version conflicts
+- **Transitive Dependency Analysis**: Deep analysis of indirect dependencies
+- **Effective POM Viewer**: View the resolved POM with all inherited configurations
 
-\!\[feature X\]\(images/feature-x.png\)
+### 🚀 Maven Goal Management
+- **Quick Goal Execution**: Run common Maven goals with one click
+- **Custom Goal Configuration**: Define and save custom Maven commands
+- **Terminal Integration**: Execute goals in integrated terminal
+- **Goal History**: Access recently used Maven commands
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+### 📊 Project Insights
+- **Dependency Statistics**: Overview of project dependencies
+- **License Analysis**: Track dependency licenses
+- **Security Vulnerability Detection**: Identify known vulnerabilities
+- **Build Performance Metrics**: Analyze build times and optimization opportunities
 
-## Requirements
+### 🛠️ Developer Experience
+- **IntelliSense Support**: Auto-completion for Maven configurations
+- **Real-time Validation**: Live validation of POM files
+- **Quick Fixes**: Automated fixes for common Maven issues
+- **Multi-module Support**: Full support for Maven multi-module projects
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+## 📋 Requirements
 
-## Extension Settings
+### System Requirements
+- **Visual Studio Code**: Version 1.101.0 or higher
+- **Java Runtime Environment**: Java 21 or higher
+- **Maven**: Apache Maven 3.6.0 or higher
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+### Supported File Types
+- `pom.xml` files
+- Maven project structures
+- Java source files (for context-aware analysis)
 
-For example:
+## 🚀 Installation
+
+1. Open Visual Studio Code
+2. Go to Extensions (Ctrl+Shift+X)
+3. Search for "Maven Assistant"
+4. Click Install
+5. Reload VS Code when prompted
+
+## ⚙️ Configuration
 
 This extension contributes the following settings:
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+### Maven Configuration
+- `maven-assistant.useTerminalCommand`: Use custom terminal command for Maven execution
+- `maven-assistant.terminalCommand`: Custom Maven command (default: "mvn")
+- `maven-assistant.resolveWorkspaceArtifacts`: Resolve workspace artifacts in dependency analysis
 
-## Known Issues
+### UI Preferences
+- `maven-assistant.autoRefreshDependencies`: Automatically refresh dependency information
+- `maven-assistant.showTransitiveDependencies`: Show transitive dependencies in tree view
+- `maven-assistant.enableDelete`: Enable delete functionality in dependency management
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+### Example Configuration
+```json
+{
+  "maven-assistant.useTerminalCommand": true,
+  "maven-assistant.terminalCommand": "mvnd",
+  "maven-assistant.autoRefreshDependencies": true,
+  "maven-assistant.showTransitiveDependencies": true
+}
+```
 
-## Release Notes
+## 🎯 Usage
 
-Users appreciate release notes as you update your extension.
+### Opening Maven Assistant
+1. Open a Maven project in VS Code
+2. Click the Maven Assistant icon in the Activity Bar
+3. Or use Command Palette: `Ctrl+Shift+P` → "Maven Assistant: Open Maven Panel"
 
-### 1.0.0
+### Analyzing Dependencies
+1. Navigate to the "Dependencies" view
+2. Click "Show Dependency Tree" to visualize project dependencies
+3. Use "Analyze Dependencies" for detailed conflict analysis
+4. Click "Show Dependency Conflicts" to identify version conflicts
 
-Initial release of ...
+### Running Maven Goals
+1. Go to the "Maven Goals" view
+2. Click "Quick Run" for common goals (compile, test, package)
+3. Use "Edit Maven Goal" to create custom commands
+4. Access goal history from the panel
 
-### 1.0.1
+## 🐛 Known Issues
 
-Fixed issue #.
+- Large multi-module projects may experience slower initial analysis
+- Some Maven plugins may not be fully supported in dependency analysis
+- Custom repository configurations require manual setup
 
-### 1.1.0
+## 📝 Release Notes
 
-Added features X, Y, and Z.
+### 0.0.1 (Initial Release)
+
+#### Added
+- Maven dependency tree visualization
+- Dependency conflict detection and resolution
+- Maven goal execution with terminal integration
+- Custom Maven command configuration
+- Multi-module project support
+- LSP-based intelligent analysis
+- Real-time POM validation
+- Effective POM viewer
 
 ---
 
