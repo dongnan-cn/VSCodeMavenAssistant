@@ -609,3 +609,45 @@ src/
 - 右侧依赖路径节点支持展开/收起，三角按钮和缩进与左侧一致。
 - 后端insertExclusionWithDOM方法已优化，避免重复排除同一依赖，相关判断逻辑已提取为独立方法，主流程更简洁。
 - 代码整体注释和结构进一步优化，便于团队协作和后续扩展。
+
+## 2024年12月最新进展（依赖链跳转功能修复）
+
+### 1. "Jump to Left Tree" 功能修复 ✅
+- **问题描述**：在依赖链页面选择"jump to left tree"时，在冲突模式下左侧的树视图没有切换到树模式。
+- **问题根源**：`App.vue` 中只处理了 `jumpToConflictInTree` 消息来切换到树模式，而没有处理 `DependencyPaths.vue` 发送的 `gotoTreeNode` 消息。
+- **解决方案**：在 `App.vue` 中添加对 `gotoTreeNode` 消息的处理逻辑，确保接收到该消息时自动切换 `displayMode` 为 `dependency-tree`。
+- **技术实现**：
+  ```javascript
+  // 在 App.vue 的消息监听器中新增
+  if (event.data.type === 'gotoTreeNode') {
+    displayMode.value = 'dependency-tree';
+    nextTick(() => {
+      dependencyTreeRef.value?.gotoAndHighlightNodeByPath?.(event.data.path);
+    });
+  }
+  ```
+
+### 2. 模式切换功能修复 ✅
+- **问题描述**：从右侧依赖链跳转到左侧树视图后，无法再切换回冲突模式。
+- **问题根源**：`App.vue` 中 `gotoTreeNode` 消息处理逻辑存在无限循环，通过 `window.postMessage(event.data, '*')` 重新发送消息，干扰了后续的模式切换。
+- **解决方案**：
+  1. 修改 `App.vue` 中的消息处理逻辑，直接调用 `dependencyTreeRef.value.gotoAndHighlightNodeByPath(event.data.path)` 而不是重新发送消息。
+  2. 确保 `DependencyTree.vue` 在 `defineExpose` 中暴露了 `gotoAndHighlightNodeByPath` 方法。
+- **技术细节**：避免了消息循环，确保模式切换功能正常工作。
+
+### 3. 代码优化 ✅
+- **组件通信优化**：改进了 `App.vue` 与 `DependencyTree.vue` 之间的直接方法调用机制。
+- **消息处理重构**：简化了跨组件消息传递逻辑，提高了代码可维护性。
+- **用户体验提升**：确保"jump to left tree"功能在任何模式下都能正确工作，并且不影响后续的模式切换。
+
+### 4. 测试验证 ✅
+- **功能测试**：验证了从依赖链页面跳转到左侧树视图的完整流程。
+- **模式切换测试**：确认跳转后可以正常切换回冲突模式。
+- **边界情况测试**：测试了不同显示模式下的跳转行为一致性。
+
+**当前状态**：依赖链跳转功能已完全修复，用户可以在任何模式下使用"jump to left tree"功能，且不会影响后续的模式切换操作。
+
+---
+
+**最后更新**：2024年12月
+**修复内容**：依赖链页面"jump to left tree"功能在冲突模式下的切换问题，以及跳转后无法切换回冲突模式的问题
