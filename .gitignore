@@ -12,5 +12,6 @@ maven-assistant/node_modules/
 *.log
 .DS_Store
 Thumbs.db
+plan.md
 
 # 可根据实际情况补充其他忽略规则
