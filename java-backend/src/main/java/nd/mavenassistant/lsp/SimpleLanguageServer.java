@@ -27,6 +27,11 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.aether.graph.Dependency;
 
@@ -59,8 +64,12 @@ public class SimpleLanguageServer implements LanguageServer {
     private final Map<CacheKey, CacheEntry> dependencyCache = new HashMap<>();
     private static final long CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5分钟缓存过期时间
     
-    // 文件大小缓存，避免重复I/O操作
-    private final Map<String, Long> fileSizeCache = new HashMap<>();
+    // 文件大小缓存，避免重复的文件I/O操作（线程安全）
+    private final Map<String, Long> fileSizeCache = new ConcurrentHashMap<>();
+    
+    // 线程池用于并行计算jar文件大小
+    private final ExecutorService jarSizeExecutor = Executors.newFixedThreadPool(
+            Math.max(2, Runtime.getRuntime().availableProcessors() / 2));
     
     // 缓存键类
     private static class CacheKey {
@@ -129,6 +138,17 @@ public class SimpleLanguageServer implements LanguageServer {
 
     @Override
     public CompletableFuture<Object> shutdown() {
+        // 关闭线程池
+        jarSizeExecutor.shutdown();
+        try {
+            // 等待正在执行的任务完成，最多等待10秒
+            if (!jarSizeExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+                jarSizeExecutor.shutdownNow(); // 强制关闭
+            }
+        } catch (InterruptedException e) {
+            jarSizeExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
         return CompletableFuture.completedFuture(null);
     }
 
@@ -900,6 +920,11 @@ public class SimpleLanguageServer implements LanguageServer {
      * @return 树形依赖结构（Map表示）
      */
     private Map<String, Object> buildDependencyTreeWithConflict(DependencyNode node, Set<String> usedGAVSet, Set<String> usedGASet, Map<String, String> gavScopeMap, Map<String, Set<String>> exclusionMap, Map<String, GavLevelTuple> gavLevelMap, int currentLevel) {
+        // 在根节点（currentLevel == 0）时并行预加载所有jar文件大小
+        if (currentLevel == 0) {
+            preloadJarSizesParallel(node, usedGASet);
+        }
+        
         Artifact artifact = node.getArtifact();
         
         // 如果artifact为null（通常是根节点），直接处理子依赖
@@ -1159,11 +1184,20 @@ public class SimpleLanguageServer implements LanguageServer {
         return new Gson().toJson(response);
     }
 
+    /**
+     * 构建JAR文件路径的工具方法
+     * @param groupId Maven groupId
+     * @param artifactId Maven artifactId  
+     * @param version Maven version
+     * @return JAR文件的完整路径
+     */
+    private String buildJarPath(String groupId, String artifactId, String version) {
+        String groupIdPath = groupId.replace('.', '/');
+        return MAVEN_LOCAL_REPO_PATH + "/" + groupIdPath + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar";
+    }
+    
     private long getJarFileSize(Artifact artifact) {
-        String groupIdPath = artifact.getGroupId().replace('.', '/');
-        String artifactId = artifact.getArtifactId();
-        String version = artifact.getVersion();
-        String jarPath = MAVEN_LOCAL_REPO_PATH + "/" + groupIdPath + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar";
+        String jarPath = buildJarPath(artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion());
         
         // 检查缓存
         Long cachedSize = fileSizeCache.get(jarPath);
@@ -1194,6 +1228,84 @@ public class SimpleLanguageServer implements LanguageServer {
     }
     
     /**
+     * 并行预加载指定节点及其所有子节点的jar文件大小
+     * @param node 要处理的依赖节点
+     * @param usedGASet 有效的GA集合，用于过滤不需要的依赖
+     */
+    private void preloadJarSizesParallel(DependencyNode node, Set<String> usedGASet) {
+        // 收集所有需要计算大小的artifact
+        List<Artifact> artifactsToProcess = new ArrayList<>();
+        collectArtifactsForSizeCalculation(node, usedGASet, artifactsToProcess);
+        
+        // 过滤出尚未缓存的artifact
+        List<Artifact> uncachedArtifacts = artifactsToProcess.stream()
+                .filter(artifact -> {
+                    String jarPath = buildJarPath(artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion());
+                    return !fileSizeCache.containsKey(jarPath);
+                })
+                .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
+        
+        if (uncachedArtifacts.isEmpty()) {
+            return; // 所有文件大小都已缓存
+        }
+        
+        // 并行计算文件大小
+        List<Future<Void>> futures = new ArrayList<>();
+        for (Artifact artifact : uncachedArtifacts) {
+            Future<Void> future = jarSizeExecutor.submit(() -> {
+                String jarPath = buildJarPath(artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion());
+                File jarFile = new File(jarPath);
+                long size = jarFile.exists() ? jarFile.length() : 0L;
+                fileSizeCache.put(jarPath, size);
+                return null;
+            });
+            futures.add(future);
+        }
+        
+        // 等待所有任务完成
+        for (Future<Void> future : futures) {
+            try {
+                future.get(5, TimeUnit.SECONDS); // 设置超时避免无限等待
+            } catch (Exception e) {
+                // 记录错误但不中断处理流程
+                System.err.println("并行计算jar文件大小时发生错误: " + e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * 收集需要计算文件大小的artifact列表
+     */
+    private void collectArtifactsForSizeCalculation(DependencyNode node, Set<String> usedGASet, List<Artifact> artifacts) {
+        if (node.getArtifact() != null) {
+            String ga = node.getArtifact().getGroupId() + ":" + node.getArtifact().getArtifactId();
+            if (usedGASet.contains(ga)) {
+                artifacts.add(node.getArtifact());
+            }
+        }
+        
+        // 递归处理子节点
+        for (DependencyNode child : node.getChildren()) {
+            collectArtifactsForSizeCalculation(child, usedGASet, artifacts);
+        }
+    }
+    
+    /**
+     * 原有的预加载方法保持不变，用于向后兼容
+     */
+    private void preloadFileSizesLegacy(DependencyNode rootNode) {
+        Set<String> jarPaths = collectJarPaths(rootNode);
+        
+        for (String jarPath : jarPaths) {
+            if (!fileSizeCache.containsKey(jarPath)) {
+                File jarFile = new File(jarPath);
+                long size = jarFile.exists() ? jarFile.length() : 0L;
+                fileSizeCache.put(jarPath, size);
+            }
+        }
+    }
+    
+    /**
      * 递归收集所有JAR文件路径
      */
     private Set<String> collectJarPaths(DependencyNode node) {
@@ -1208,10 +1320,7 @@ public class SimpleLanguageServer implements LanguageServer {
     private void collectJarPathsRecursive(DependencyNode node, Set<String> jarPaths) {
         if (node.getArtifact() != null) {
             Artifact artifact = node.getArtifact();
-            String groupIdPath = artifact.getGroupId().replace('.', '/');
-            String artifactId = artifact.getArtifactId();
-            String version = artifact.getVersion();
-            String jarPath = MAVEN_LOCAL_REPO_PATH + "/" + groupIdPath + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar";
+            String jarPath = buildJarPath(artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion());
             jarPaths.add(jarPath);
         }
         
