@@ -16,6 +16,7 @@ import java.util.Set;
 import org.apache.maven.model.Model;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static nd.mavenassistant.lsp.TestConstants.*;
 
 /**
  * 测试SimpleLanguageServer的基础功能
@@ -46,6 +47,124 @@ public class SimpleLanguageServerTest {
         }
     }
 
+    // ==================== 辅助方法 ====================
+    
+    /**
+     * 复制test-pom.xml到临时文件
+     * @param fileName 临时文件名
+     * @return 临时文件路径
+     */
+    private Path copyTestPomToTemp(String fileName) throws Exception {
+        Path sourcePom = Path.of(TEST_POM_PATH).toAbsolutePath();
+        Path tempPom = tempDir.resolve(fileName);
+        Files.copy(sourcePom, tempPom);
+        return tempPom;
+    }
+    
+    /**
+     * 创建依赖对象（不包含版本）
+     * @param groupId 组ID
+     * @param artifactId 构件ID
+     * @return 依赖Map
+     */
+    private Map<String, String> createDependency(String groupId, String artifactId) {
+        Map<String, String> dependency = new HashMap<>();
+        dependency.put("groupId", groupId);
+        dependency.put("artifactId", artifactId);
+        return dependency;
+    }
+    
+    /**
+     * 创建依赖对象（包含版本）
+     * @param groupId 组ID
+     * @param artifactId 构件ID
+     * @param version 版本
+     * @return 依赖Map
+     */
+    private Map<String, String> createDependency(String groupId, String artifactId, String version) {
+        Map<String, String> dependency = createDependency(groupId, artifactId);
+        dependency.put("version", version);
+        return dependency;
+    }
+    
+    /**
+     * 创建insertExclusion请求对象
+     * @param pomPath POM文件路径
+     * @param rootDep 根依赖
+     * @param targetDep 目标依赖
+     * @return 请求Map
+     */
+    private Map<String, Object> createInsertExclusionRequest(Path pomPath, Map<String, String> rootDep, Map<String, String> targetDep) {
+        Map<String, Object> request = new HashMap<>();
+        request.put("pomPath", pomPath.toString());
+        request.put("rootDependency", rootDep);
+        request.put("targetDependency", targetDep);
+        return request;
+    }
+    
+    /**
+     * 解析Maven Model
+     * @param pomPath POM文件路径
+     * @return Maven Model对象
+     */
+    private Model parseModel(Path pomPath) throws Exception {
+        org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
+        return reader.read(Files.newInputStream(pomPath));
+    }
+    
+    /**
+     * 构建排除映射
+     * @param pomPath POM文件路径
+     * @return 排除映射
+     */
+    private Map<String, Set<String>> buildExclusionMap(Path pomPath) throws Exception {
+        Model model = parseModel(pomPath);
+        return MavenModelUtils.buildExclusionMap(model);
+    }
+    
+    /**
+     * 构建排除映射
+     * @param model Maven模型
+     * @return 排除映射
+     */
+    private Map<String, Set<String>> buildExclusionMap(Model model) {
+        return MavenModelUtils.buildExclusionMap(model);
+    }
+    
+    /**
+     * 调用insertExclusion方法
+     * @param request 请求对象
+     * @return 结果字符串
+     */
+    private String callInsertExclusion(Map<String, Object> request) throws Exception {
+        SimpleLanguageServer server = createServer();
+        return server.insertExclusion(new com.google.gson.Gson().toJson(request)).get();
+    }
+    
+    /**
+     * 创建服务器实例
+     * @return SimpleLanguageServer实例
+     */
+    private SimpleLanguageServer createServer() {
+        return new SimpleLanguageServer();
+    }
+    
+    /**
+     * 创建默认的Maven Resolver根依赖
+     * @return Maven Resolver依赖Map
+     */
+    private Map<String, String> createDefaultRootDependency() {
+        return createDependency(MAVEN_RESOLVER_GROUP_ID, MAVEN_RESOLVER_ARTIFACT_ID);
+    }
+    
+    /**
+     * 创建默认的测试目标依赖
+     * @return 测试目标依赖Map
+     */
+    private Map<String, String> createDefaultTargetDependency() {
+        return createDependency(TEST_FOO_GROUP_ID, TEST_BAR_ARTIFACT_ID);
+    }
+
     @Test
     public void testInitialize() throws Exception {
         // 创建服务端实例
@@ -65,25 +184,15 @@ public class SimpleLanguageServerTest {
     @Test
     public void testInsertExclusionWithComments() throws Exception {
         // 复制 test-pom.xml 到临时文件
-        Path sourcePom = Path.of("src/test/resources/test-pom.xml").toAbsolutePath();
-        Path tempPom = tempDir.resolve("test-pom-with-comments.xml");
-        Files.copy(sourcePom, tempPom);
+        Path tempPom = copyTestPomToTemp("test-pom-with-comments.xml");
 
         // 构造请求参数，使用 test-pom.xml 中的实际依赖
-        Map<String, Object> req = new HashMap<>();
-        req.put("pomPath", tempPom.toString());
-        Map<String, String> rootDep = new HashMap<>();
-        rootDep.put("groupId", "org.apache.maven.resolver");
-        rootDep.put("artifactId", "maven-resolver-connector-basic");
-        // 不指定版本，让系统自动匹配
-        req.put("rootDependency", rootDep);
-        Map<String, String> targetDep = new HashMap<>();
-        targetDep.put("groupId", "org.foo");
-        targetDep.put("artifactId", "bar");
-        req.put("targetDependency", targetDep);
+        Map<String, String> rootDep = createDefaultRootDependency();
+        Map<String, String> targetDep = createDefaultTargetDependency();
+        Map<String, Object> req = createInsertExclusionRequest(tempPom, rootDep, targetDep);
 
-        SimpleLanguageServer server = new SimpleLanguageServer();
-        String result = server.insertExclusion(new com.google.gson.Gson().toJson(req)).get();
+        // 调用服务并验证结果
+        String result = callInsertExclusion(req);
         System.out.println("测试结果: " + result);
         assertTrue(result.contains("success"));
         
@@ -91,10 +200,10 @@ public class SimpleLanguageServerTest {
         String newContent = Files.readString(tempPom);
         System.out.println("写回后的pom内容：\n" + newContent);
         assertTrue(newContent.contains("<exclusions>"));
-        assertTrue(newContent.contains("<groupId>org.foo</groupId>"));
-        assertTrue(newContent.contains("<artifactId>bar</artifactId>"));
+        assertTrue(newContent.contains("<groupId>" + TEST_FOO_GROUP_ID + "</groupId>"));
+        assertTrue(newContent.contains("<artifactId>" + TEST_BAR_ARTIFACT_ID + "</artifactId>"));
         // 原始依赖应该被保留
-        assertTrue(newContent.contains("org.apache.maven.resolver"));
+        assertTrue(newContent.contains(MAVEN_RESOLVER_GROUP_ID));
     }
 
 
@@ -102,28 +211,18 @@ public class SimpleLanguageServerTest {
     @Test
     public void testInsertExclusionDependencyNotFound() throws Exception {
         // 使用test-pom.xml文件，测试不存在的依赖
-        Path sourcePom = Path.of("src/test/resources/test-pom.xml").toAbsolutePath();
-        Path tempPom = tempDir.resolve("test-pom-not-found.xml");
-        Files.copy(sourcePom, tempPom);
+        Path tempPom = copyTestPomToTemp("test-pom-not-found.xml");
         
         // 保存原始内容用于后续比较
         String originalContent = Files.readString(tempPom);
 
         // 构造请求参数，使用不存在的依赖
-        Map<String, Object> req = new HashMap<>();
-        req.put("pomPath", tempPom.toString());
-        Map<String, String> rootDep = new HashMap<>();
-        rootDep.put("groupId", "org.nonexistent");
-        rootDep.put("artifactId", "nonexistent");
-        rootDep.put("version", "1.0");
-        req.put("rootDependency", rootDep);
-        Map<String, String> targetDep = new HashMap<>();
-        targetDep.put("groupId", "org.foo");
-        targetDep.put("artifactId", "bar");
-        req.put("targetDependency", targetDep);
+        Map<String, String> rootDep = createDependency(NONEXISTENT_GROUP_ID, NONEXISTENT_ARTIFACT_ID, NONEXISTENT_VERSION);
+        Map<String, String> targetDep = createDefaultTargetDependency();
+        Map<String, Object> req = createInsertExclusionRequest(tempPom, rootDep, targetDep);
 
-        SimpleLanguageServer server = new SimpleLanguageServer();
-        String result = server.insertExclusion(new com.google.gson.Gson().toJson(req)).get();
+        // 调用服务并验证错误结果
+        String result = callInsertExclusion(req);
         System.out.println("DependencyNotFound 测试结果: " + result);
         assertTrue(result.contains("error"));
         assertTrue(result.contains("not found"));
@@ -136,38 +235,22 @@ public class SimpleLanguageServerTest {
     @Test
     public void testInsertExclusionWithVersionMatching() throws Exception {
         // 复制 test-pom.xml 到临时文件
-        Path sourcePom = Path.of("src/test/resources/test-pom.xml").toAbsolutePath();
-        Path tempPom = tempDir.resolve("test-pom-multiple-versions.xml");
-        Files.copy(sourcePom, tempPom);
+        Path tempPom = copyTestPomToTemp("test-pom-multiple-versions.xml");
 
         // 构造请求参数，使用 test-pom.xml 中的实际依赖
-        Map<String, String> rootDep = new HashMap<>();
-        rootDep.put("groupId", "org.apache.maven.resolver");
-        rootDep.put("artifactId", "maven-resolver-connector-basic");
-        // 不指定版本，让系统自动匹配
+        Map<String, String> rootDep = createDefaultRootDependency();
 
         // 插入第一个exclusion
-        Map<String, Object> req1 = new HashMap<>();
-        req1.put("pomPath", tempPom.toString());
-        req1.put("rootDependency", rootDep);
-        Map<String, String> targetDep1 = new HashMap<>();
-        targetDep1.put("groupId", "org.foo");
-        targetDep1.put("artifactId", "bar");
-        req1.put("targetDependency", targetDep1);
+        Map<String, String> targetDep1 = createDefaultTargetDependency();
+        Map<String, Object> req1 = createInsertExclusionRequest(tempPom, rootDep, targetDep1);
 
-        SimpleLanguageServer server = new SimpleLanguageServer();
-        String result1 = server.insertExclusion(new com.google.gson.Gson().toJson(req1)).get();
+        String result1 = callInsertExclusion(req1);
         assertTrue(result1.contains("success"));
 
         // 再插入第二个exclusion
-        Map<String, Object> req2 = new HashMap<>();
-        req2.put("pomPath", tempPom.toString());
-        req2.put("rootDependency", rootDep);
-        Map<String, String> targetDep2 = new HashMap<>();
-        targetDep2.put("groupId", "org.hello");
-        targetDep2.put("artifactId", "world");
-        req2.put("targetDependency", targetDep2);
-        String result2 = server.insertExclusion(new com.google.gson.Gson().toJson(req2)).get();
+        Map<String, String> targetDep2 = createDependency(TEST_HELLO_GROUP_ID, TEST_WORLD_ARTIFACT_ID);
+        Map<String, Object> req2 = createInsertExclusionRequest(tempPom, rootDep, targetDep2);
+        String result2 = callInsertExclusion(req2);
         assertTrue(result2.contains("success"));
 
         // 检查写回后的pom内容
@@ -176,42 +259,62 @@ public class SimpleLanguageServerTest {
 
         // 检查 maven-resolver-connector-basic 依赖块中包含了两个exclusion
         assertTrue(newContent.contains("<exclusions>"), "应包含<exclusions>标签");
-        assertTrue(newContent.contains("<groupId>org.foo</groupId>"), "应包含第一个exclusion");
-        assertTrue(newContent.contains("<artifactId>bar</artifactId>"), "应包含第一个exclusion");
-        assertTrue(newContent.contains("<groupId>org.hello</groupId>"), "应包含第二个exclusion");
-        assertTrue(newContent.contains("<artifactId>world</artifactId>"), "应包含第二个exclusion");
+        assertTrue(newContent.contains("<groupId>" + TEST_FOO_GROUP_ID + "</groupId>"), "应包含第一个exclusion");
+        assertTrue(newContent.contains("<artifactId>" + TEST_BAR_ARTIFACT_ID + "</artifactId>"), "应包含第一个exclusion");
+        assertTrue(newContent.contains("<groupId>" + TEST_HELLO_GROUP_ID + "</groupId>"), "应包含第二个exclusion");
+        assertTrue(newContent.contains("<artifactId>" + TEST_WORLD_ARTIFACT_ID + "</artifactId>"), "应包含第二个exclusion");
     }
 
     @Test
     public void testInsertExclusion() throws Exception {
         // 复制 test-pom.xml 到临时文件
-        Path sourcePom = Path.of("src/test/resources/test-pom.xml").toAbsolutePath();
-        Path tempPom = tempDir.resolve("test-pom-old-method.xml");
-        Files.copy(sourcePom, tempPom);
+        Path tempPom = copyTestPomToTemp("test-pom-old-method.xml");
 
         // 构造请求参数，使用 test-pom.xml 中的实际依赖
-        Map<String, Object> req = new HashMap<>();
-        req.put("pomPath", tempPom.toString());
-        Map<String, String> rootDep = new HashMap<>();
-        rootDep.put("groupId", "org.apache.maven.resolver");
-        rootDep.put("artifactId", "maven-resolver-connector-basic");
-        // 不指定版本，让系统自动匹配
-        req.put("rootDependency", rootDep);
-        Map<String, String> targetDep = new HashMap<>();
-        targetDep.put("groupId", "org.foo");
-        targetDep.put("artifactId", "bar");
-        req.put("targetDependency", targetDep);
+        Map<String, String> rootDep = createDefaultRootDependency();
+        Map<String, String> targetDep = createDefaultTargetDependency();
+        Map<String, Object> req = createInsertExclusionRequest(tempPom, rootDep, targetDep);
 
-        SimpleLanguageServer server = new SimpleLanguageServer();
-        String result = server.insertExclusion(new com.google.gson.Gson().toJson(req)).get();
+        // 调用服务并验证结果
+        String result = callInsertExclusion(req);
         System.out.println("testInsertExclusion 测试结果: " + result);
         assertTrue(result.contains("success"));
         assertTrue(result.contains("highlightLine"));
+        
         // 检查文件内容
         String newContent = Files.readString(tempPom);
         assertTrue(newContent.contains("<exclusions>"));
-        assertTrue(newContent.contains("<groupId>org.foo</groupId>"));
-        assertTrue(newContent.contains("<artifactId>bar</artifactId>"));
+        assertTrue(newContent.contains("<groupId>" + TEST_FOO_GROUP_ID + "</groupId>"));
+        assertTrue(newContent.contains("<artifactId>" + TEST_BAR_ARTIFACT_ID + "</artifactId>"));
+    }
+
+    @Test
+    public void testInsertMultipleExclusions() throws Exception {
+        // 复制 test-pom.xml 到临时文件
+        Path tempPom = copyTestPomToTemp("test-pom-multiple.xml");
+
+        // 第一次插入排除项
+        Map<String, String> rootDep = createDefaultRootDependency();
+        Map<String, String> targetDep1 = createDefaultTargetDependency();
+        Map<String, Object> req1 = createInsertExclusionRequest(tempPom, rootDep, targetDep1);
+
+        String result1 = callInsertExclusion(req1);
+        assertTrue(result1.contains("success"));
+
+        // 第二次插入排除项
+        Map<String, String> targetDep2 = createDependency(TEST_BAZ_GROUP_ID, TEST_QUX_ARTIFACT_ID);
+        Map<String, Object> req2 = createInsertExclusionRequest(tempPom, rootDep, targetDep2);
+
+        String result2 = callInsertExclusion(req2);
+        assertTrue(result2.contains("success"));
+
+        // 检查文件内容
+        String newContent = Files.readString(tempPom);
+        assertTrue(newContent.contains("<exclusions>"));
+        assertTrue(newContent.contains("<groupId>" + TEST_FOO_GROUP_ID + "</groupId>"));
+        assertTrue(newContent.contains("<artifactId>" + TEST_BAR_ARTIFACT_ID + "</artifactId>"));
+        assertTrue(newContent.contains("<groupId>" + TEST_BAZ_GROUP_ID + "</groupId>"));
+        assertTrue(newContent.contains("<artifactId>" + TEST_QUX_ARTIFACT_ID + "</artifactId>"));
     }
 
     /**
@@ -220,29 +323,18 @@ public class SimpleLanguageServerTest {
      */
     public void testInsertMultipleExclusions(int n) throws Exception {
         // 复制 test-pom.xml 到临时文件
-        Path sourcePom = Path.of("src/test/resources/test-pom.xml").toAbsolutePath();
-        Path tempPom = tempDir.resolve("test-pom-multi-exclusions.xml");
-        Files.copy(sourcePom, tempPom);
+        Path tempPom = copyTestPomToTemp("test-pom-multi-exclusions.xml");
 
-        // 使用 test-pom.xml 中的实际依赖
-        Map<String, String> rootDep = new HashMap<>();
-        rootDep.put("groupId", "org.apache.maven.resolver");
-        rootDep.put("artifactId", "maven-resolver-connector-basic");
-        // 不指定版本，让系统自动匹配
+        // 使用默认的根依赖
+        Map<String, String> rootDep = createDefaultRootDependency();
 
-        SimpleLanguageServer server = new SimpleLanguageServer();
         for (int i = 1; i <= n; i++) {
-            Map<String, Object> req = new HashMap<>();
-            req.put("pomPath", tempPom.toString());
-            req.put("rootDependency", rootDep);
-            Map<String, String> targetDep = new HashMap<>();
-            targetDep.put("groupId", "org.foo" + i);
-            targetDep.put("artifactId", "bar" + i);
-            req.put("targetDependency", targetDep);
+            Map<String, String> targetDep = createDependency("org.foo" + i, "bar" + i);
+            Map<String, Object> req = createInsertExclusionRequest(tempPom, rootDep, targetDep);
             
             String requestJson = new com.google.gson.Gson().toJson(req);
             System.out.println("第" + i + "次请求: " + requestJson);
-            String result = server.insertExclusion(requestJson).get();
+            String result = callInsertExclusion(req);
             System.out.println("第" + i + "次结果: " + result);
             assertTrue(result.contains("success"), "第" + i + "次插入应该成功");
         }
@@ -267,17 +359,12 @@ public class SimpleLanguageServerTest {
      */
     @Test
     public void testBuildExclusionMapWithDirectDependencies() throws Exception {
-        // 使用test-pom.xml文件，该文件包含exclusions的依赖
-        Path sourcePom = Path.of("src/test/resources/test-pom.xml");
-        Path tempPom = tempDir.resolve("test-pom-exclusions.xml");
-        Files.copy(sourcePom, tempPom);
+        // 复制 test-pom.xml 到临时文件
+        Path tempPom = copyTestPomToTemp("test-pom-exclusions.xml");
         
-        // 使用Maven Model API解析pom.xml
-        org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
-        Model model = reader.read(Files.newInputStream(tempPom));
-        
-        // 直接调用MavenModelUtils.buildExclusionMap方法
-        Map<String, Set<String>> exclusionMap = MavenModelUtils.buildExclusionMap(model);
+        // 解析 Maven 模型并构建排除映射
+        Model model = parseModel(tempPom);
+        Map<String, Set<String>> exclusionMap = buildExclusionMap(model);
         
         // 验证解析结果
         assertNotNull(exclusionMap, "exclusionMap不应该为null");
@@ -306,17 +393,12 @@ public class SimpleLanguageServerTest {
      */
     @Test
     public void testBuildExclusionMapWithDependencyManagement() throws Exception {
-        // 使用test-pom.xml文件进行测试
-        Path sourcePom = Path.of("src/test/resources/test-pom.xml");
-        Path tempPom = tempDir.resolve("test-pom.xml");
-        Files.copy(sourcePom, tempPom);
+        // 复制 test-pom.xml 到临时文件
+        Path tempPom = copyTestPomToTemp("test-pom.xml");
         
-        // 使用Maven Model API解析pom.xml
-        org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
-        Model model = reader.read(Files.newInputStream(tempPom));
-        
-        // 直接调用MavenModelUtils.buildExclusionMap方法
-        Map<String, Set<String>> exclusionMap = MavenModelUtils.buildExclusionMap(model);
+        // 解析 Maven 模型并构建排除映射
+        Model model = parseModel(tempPom);
+        Map<String, Set<String>> exclusionMap = buildExclusionMap(model);
         
         // 验证解析结果
         assertNotNull(exclusionMap, "exclusionMap不应该为null");
@@ -365,12 +447,9 @@ public class SimpleLanguageServerTest {
         Path tempPom = tempDir.resolve("test-pom-no-exclusions.xml");
         Files.writeString(tempPom, simplePom);
         
-        // 使用Maven Model API解析pom.xml
-        org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
-        Model model = reader.read(Files.newInputStream(tempPom));
-        
-        // 直接调用MavenModelUtils.buildExclusionMap方法
-        Map<String, Set<String>> exclusionMap = MavenModelUtils.buildExclusionMap(model);
+        // 解析 Maven 模型并构建排除映射
+        Model model = parseModel(tempPom);
+        Map<String, Set<String>> exclusionMap = buildExclusionMap(model);
         
         // 验证解析结果
         assertNotNull(exclusionMap, "exclusionMap不应该为null");
@@ -424,12 +503,9 @@ public class SimpleLanguageServerTest {
         Path tempPom = tempDir.resolve("test-pom-merged-exclusions.xml");
         Files.writeString(tempPom, mergedPom);
         
-        // 使用Maven Model API解析pom.xml
-        org.apache.maven.model.io.xpp3.MavenXpp3Reader reader = new org.apache.maven.model.io.xpp3.MavenXpp3Reader();
-        Model model = reader.read(Files.newInputStream(tempPom));
-        
-        // 直接调用MavenModelUtils.buildExclusionMap方法
-        Map<String, Set<String>> exclusionMap = MavenModelUtils.buildExclusionMap(model);
+        // 解析 Maven 模型并构建排除映射
+        Model model = parseModel(tempPom);
+        Map<String, Set<String>> exclusionMap = buildExclusionMap(model);
         
         // 验证解析结果
         assertNotNull(exclusionMap, "exclusionMap不应该为null");
