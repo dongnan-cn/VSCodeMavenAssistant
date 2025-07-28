@@ -5,13 +5,12 @@ import nd.mavenassistant.cache.DependencyCache;
 import nd.mavenassistant.model.ArtifactConflictInfo;
 import nd.mavenassistant.model.ArtifactGav;
 import nd.mavenassistant.utils.MavenModelUtils;
+import nd.mavenassistant.utils.PomXmlUtils;
 import org.apache.maven.model.Model;
-import org.apache.maven.model.building.*;
 import org.codehaus.plexus.util.StringUtils;
 import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession.CloseableSession;
 import org.eclipse.aether.artifact.Artifact;
-import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.collection.CollectRequest;
 import org.eclipse.aether.graph.DependencyNode;
 import org.eclipse.aether.repository.RemoteRepository;
@@ -71,8 +70,7 @@ public class SimpleLanguageServer implements LanguageServer {
     
 
 
-    public static record IndentRecord(String dependencyIndent, String indentUnit) {
-    }
+
 
     private final List<RemoteRepository> repos = Collections.singletonList(
             new RemoteRepository.Builder(
@@ -335,52 +333,19 @@ public class SimpleLanguageServer implements LanguageServer {
             }
 
             // 解析 Maven 变量，获取解析后的依赖版本映射
-            Map<String, String> resolvedDependencies = resolveMavenVariables(pomPath);
+            Map<String, String> resolvedDependencies = PomXmlUtils.resolveMavenVariables(pomPath);
 
             // 使用 DOM 解析器读取 pom.xml
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            Document doc = builder.parse(new File(pomPath));
-            doc.getDocumentElement().normalize();
+            Document doc = PomXmlUtils.parseDocument(pomPath);
 
             // 查找目标依赖
-            NodeList dependencies = doc.getElementsByTagName("dependency");
-            Element targetDependencyElement = null;
-
-            for (int i = 0; i < dependencies.getLength(); i++) {
-                Element depElement = (Element) dependencies.item(i);
-                String groupId = getElementTextContent(depElement, "groupId");
-                String artifactId = getElementTextContent(depElement, "artifactId");
-                String version = getElementTextContent(depElement, "version");
-
-                // 如果 version 包含变量，使用解析后的值
-                if (version != null && version.contains("${")) {
-                    String key = groupId + ":" + artifactId;
-                    String resolvedVersion = resolvedDependencies.get(key);
-                    if (resolvedVersion != null) {
-                        version = resolvedVersion;
-                        if (client != null) {
-                            client.logMessage(new MessageParams(MessageType.Info, "Resolved version for " + key + ": " + version));
-                        }
-                    }
-                }
-
-                if (client != null) {
-                    client.logMessage(new MessageParams(MessageType.Info, "Checking dependency: " + groupId + ":" + artifactId + ":" + version));
-                }
-
-                boolean groupIdMatch = groupId.equals(targetGroupId);
-                boolean artifactIdMatch = artifactId.equals(targetArtifactId);
-                boolean versionMatch =
-                        (version == null && (targetVersion == null || targetVersion.isEmpty())) ||
-                                (version != null && version.equals(targetVersion));
-
-                if (groupIdMatch && artifactIdMatch && versionMatch) {
-                    targetDependencyElement = depElement;
-                    if (client != null) {
-                        client.logMessage(new MessageParams(MessageType.Info, "Found target dependency!"));
-                    }
-                    break;
+            Element targetDependencyElement = PomXmlUtils.findTargetDependencyElement(
+                    doc, targetGroupId, targetArtifactId, targetVersion, resolvedDependencies);
+            
+            if (client != null) {
+                client.logMessage(new MessageParams(MessageType.Info, "Resolved " + resolvedDependencies.size() + " dependencies with variables"));
+                if (targetDependencyElement != null) {
+                    client.logMessage(new MessageParams(MessageType.Info, "Found target dependency!"));
                 }
             }
 
@@ -392,7 +357,7 @@ public class SimpleLanguageServer implements LanguageServer {
             }
 
             // 将检查和插入逻辑全部交给fillExclude
-            boolean inserted = fillExclude(exclusionGroupId, exclusionArtifactId, doc, targetDependencyElement);
+            boolean inserted = PomXmlUtils.fillExclude(exclusionGroupId, exclusionArtifactId, doc, targetDependencyElement);
             if (!inserted) {
                 if (client != null) {
                     client.logMessage(new MessageParams(MessageType.Info, "Exclusion already exists: " + exclusionGroupId + ":" + exclusionArtifactId));
@@ -401,11 +366,7 @@ public class SimpleLanguageServer implements LanguageServer {
             }
 
             // 写回文件
-            TransformerFactory transformerFactory = TransformerFactory.newInstance();
-            Transformer transformer = transformerFactory.newTransformer();
-            DOMSource source = new DOMSource(doc);
-            StreamResult result = new StreamResult(new File(pomPath));
-            transformer.transform(source, result);
+            PomXmlUtils.writeDocument(doc, pomPath);
 
             if (client != null) {
                 client.logMessage(new MessageParams(MessageType.Info, "File written successfully"));
@@ -421,116 +382,7 @@ public class SimpleLanguageServer implements LanguageServer {
         }
     }
 
-    /**
-     * 填充exclusion，如果已存在则不插入，返回false，否则插入并返回true
-     */
-    private boolean fillExclude(String exclusionGroupId, String exclusionArtifactId, Document doc,
-                             Element targetDependencyElement) {
-        // 检查是否已有 exclusions 元素
-        NodeList exclusionsList = targetDependencyElement.getElementsByTagName("exclusions");
-        IndentRecord dependencyIndent = getIndent(targetDependencyElement);
-        Element exclusionsElement;
-        boolean exclusionsExist = false;
-        if (exclusionsList.getLength() > 0) {
-            exclusionsExist = true;
-            // 已有 exclusions 元素
-            exclusionsElement = (Element) exclusionsList.item(0);
-            // 使用独立方法判断是否已存在相同GA的exclusion
-            if (hasExclusion(exclusionsElement, exclusionGroupId, exclusionArtifactId)) {
-                return false; // 已存在
-            }
-        } else {
-            exclusionsExist = false;
-            // 创建新的 exclusions 元素
-            exclusionsElement = doc.createElement("exclusions");
-            targetDependencyElement.appendChild(doc.createTextNode(dependencyIndent.indentUnit()));
-            targetDependencyElement.appendChild(exclusionsElement);
-            targetDependencyElement.appendChild(doc.createTextNode(dependencyIndent.dependencyIndent()));
-        }
 
-        // 创建 exclusion 元素
-        Element exclusionElement = doc.createElement("exclusion");
-
-        Element groupIdElement = doc.createElement("groupId");
-        groupIdElement.setTextContent(exclusionGroupId);
-        exclusionElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 3)));
-        exclusionElement.appendChild(groupIdElement);
-        exclusionElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 3)));
-
-        Element artifactIdElement = doc.createElement("artifactId");
-        artifactIdElement.setTextContent(exclusionArtifactId);
-        exclusionElement.appendChild(artifactIdElement);
-        exclusionElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 2)));
-
-        if(!exclusionsExist){
-            exclusionsElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 2)));
-        } else {
-            exclusionsElement.appendChild(doc.createTextNode(dependencyIndent.indentUnit()));
-        }
-        exclusionsElement.appendChild(exclusionElement);
-        exclusionsElement.appendChild(doc.createTextNode(getLeveledIndent(dependencyIndent, 1)));
-
-        return true; // 插入成功
-    }
-
-    /**
-     * 判断exclusionsElement下是否已存在指定GA的exclusion
-     */
-    private boolean hasExclusion(Element exclusionsElement, String groupId, String artifactId) {
-        NodeList exclusionNodes = exclusionsElement.getElementsByTagName("exclusion");
-        for (int i = 0; i < exclusionNodes.getLength(); i++) {
-            Element exclusion = (Element) exclusionNodes.item(i);
-            String existGroupId = getElementTextContent(exclusion, "groupId");
-            String existArtifactId = getElementTextContent(exclusion, "artifactId");
-            if (groupId.equals(existGroupId) && artifactId.equals(existArtifactId)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static String getLeveledIndent(IndentRecord dependencyIndent, int level) {
-        return dependencyIndent.dependencyIndent() + dependencyIndent.indentUnit().repeat(level);
-    }
-
-    /**
-     * 解析 Maven 变量，获取解析后的依赖版本映射
-     * 使用 Maven Model API 解析 pom.xml 中的变量，返回 groupId:artifactId -> resolvedVersion 的映射
-     *
-     * @param pomPath pom.xml 文件路径
-     * @return 解析后的依赖版本映射，key 为 groupId:artifactId，value 为解析后的版本
-     */
-    private Map<String, String> resolveMavenVariables(String pomPath) {
-        try {
-            // 使用 Maven Model API 解析变量，获取解析后的依赖列表
-            Model resolvedModel = MavenModelUtils.getModel(pomPath);
-            Map<String, String> resolvedDependencies = new HashMap<>();
-            for (org.apache.maven.model.Dependency dep : resolvedModel.getDependencies()) {
-                String key = dep.getGroupId() + ":" + dep.getArtifactId();
-                resolvedDependencies.put(key, dep.getVersion());
-            }
-            if (client != null) {
-                client.logMessage(new MessageParams(MessageType.Info, "Resolved " + resolvedDependencies.size() + " dependencies with variables"));
-            }
-            return resolvedDependencies;
-        } catch (Exception e) {
-            if (client != null) {
-                client.logMessage(new MessageParams(MessageType.Error, "Failed to resolve Maven variables: " + e.getMessage()));
-            }
-            return new HashMap<>();
-        }
-    }
-
-    /**
-     * 获取元素的文本内容
-     */
-    private String getElementTextContent(Element parent, String tagName) {
-        NodeList elements = parent.getElementsByTagName(tagName);
-        if (elements.getLength() > 0) {
-            return elements.item(0).getTextContent();
-        }
-        return null;
-    }
 
 
     /**
@@ -942,45 +794,7 @@ public class SimpleLanguageServer implements LanguageServer {
      * @param targetDependencyElement 依赖元素
      * @return IndentRecord对象，包含<dependency>标签的缩进和单位缩进
      */
-    private static IndentRecord getIndent(Element targetDependencyElement) {
-        String dependencyIndent = "\n";
-        String parentIndent = "\n";
-        if (targetDependencyElement != null) {
-            // 获取<dependency>标签的缩进
-            Node depPrev = targetDependencyElement.getPreviousSibling();
-            if (depPrev != null && depPrev.getNodeType() == Node.TEXT_NODE) {
-                String text = depPrev.getTextContent();
-                int lastNewline = text.lastIndexOf('\n');
-                if (lastNewline != -1) {
-                    dependencyIndent = text.substring(lastNewline);
-                } else {
-                    dependencyIndent = text;
-                }
-            }
-            // 获取父节点的缩进
-            Node parent = targetDependencyElement.getParentNode();
-            if (parent != null) {
-                Node parentPrev = parent.getPreviousSibling();
-                if (parentPrev != null && parentPrev.getNodeType() == Node.TEXT_NODE) {
-                    String text = parentPrev.getTextContent();
-                    int lastNewline = text.lastIndexOf('\n');
-                    if (lastNewline != -1) {
-                        parentIndent = text.substring(lastNewline);
-                    } else {
-                        parentIndent = text;
-                    }
-                }
-            }
-        }
-        // 计算单位缩进（父子标签缩进差值）
-        String indentUnit;
-        if (dependencyIndent.length() > parentIndent.length()) {
-            indentUnit = dependencyIndent.substring(parentIndent.length());
-        } else {
-            indentUnit = "  "; // 默认2空格
-        }
-        return new IndentRecord(dependencyIndent, indentUnit);
-    }
+
 
     // 打印所有 rootNode 的依赖以及子依赖，带缩进，便于调试
     private void printDependencyTree(DependencyNode node, int level) {
