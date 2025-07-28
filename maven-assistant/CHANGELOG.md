@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Maven Goals view for goal management
   - Dependencies view for dependency analysis
   - Dependency Conflicts view for conflict resolution
-  - Custom dependency analyzer editor for POM files
+  - Custom dependency assistant editor for POM files
 
 - **Configuration Options**
   - Custom Maven command support (mvn, mvnd, etc.)

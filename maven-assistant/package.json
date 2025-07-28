@@ -192,7 +192,7 @@
     "customEditors": [
       {
         "viewType": "maven-assistant.dependencyAnalyzer",
-        "displayName": "Dependency Analyzer",
+        "displayName": "Dependency Assistant",
         "selector": [
           {
             "filenamePattern": "**/pom.xml"

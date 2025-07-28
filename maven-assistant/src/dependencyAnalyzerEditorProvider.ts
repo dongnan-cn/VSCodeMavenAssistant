@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { LspClient } from './lspClient';
 
 /**
- * Dependency Analyzer 自定义Webview编辑器Provider
+ * Dependency Assistant 自定义Webview编辑器Provider
  * 只读，内容为依赖分析视图，支持手动刷新
  */
 export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEditorProvider {

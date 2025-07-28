@@ -35,7 +35,7 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.window.registerTreeDataProvider('maven-assistant.conflicts', dependencyConflictsProvider)
 	);
 
-	// 注册 Dependency Analyzer 自定义Webview编辑器
+	// 注册 Dependency Assistant 自定义Webview编辑器
 	context.subscriptions.push(
 		vscode.window.registerCustomEditorProvider(
 			DependencyAnalyzerEditorProvider.viewType,
