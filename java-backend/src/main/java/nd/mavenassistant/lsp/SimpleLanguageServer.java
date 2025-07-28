@@ -49,6 +49,61 @@ import org.w3c.dom.Node;
 public class SimpleLanguageServer implements LanguageServer {
     // LanguageClient 用于与 VSCode 前端通信，推送日志等
     private LanguageClient client;
+    
+    // Maven本地仓库路径常量
+    private static final String USER_HOME = System.getProperty("user.home");
+    private static final String MAVEN_LOCAL_REPO_PATH = USER_HOME + "/.m2/repository";
+    private static final File MAVEN_LOCAL_REPO_DIR = new File(MAVEN_LOCAL_REPO_PATH);
+    
+    // 缓存相关字段
+    private final Map<CacheKey, CacheEntry> dependencyCache = new HashMap<>();
+    private static final long CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5分钟缓存过期时间
+    
+    // 文件大小缓存，避免重复I/O操作
+    private final Map<String, Long> fileSizeCache = new HashMap<>();
+    
+    // 缓存键类
+    private static class CacheKey {
+        private final String pomPath;
+        private final long pomLastModified;
+        
+        public CacheKey(String pomPath, long pomLastModified) {
+            this.pomPath = pomPath;
+            this.pomLastModified = pomLastModified;
+        }
+        
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            CacheKey cacheKey = (CacheKey) obj;
+            return pomLastModified == cacheKey.pomLastModified && Objects.equals(pomPath, cacheKey.pomPath);
+        }
+        
+        @Override
+        public int hashCode() {
+            return Objects.hash(pomPath, pomLastModified);
+        }
+    }
+    
+    // 缓存条目类
+    private static class CacheEntry {
+        private final String result;
+        private final long timestamp;
+        
+        public CacheEntry(String result, long timestamp) {
+            this.result = result;
+            this.timestamp = timestamp;
+        }
+        
+        public boolean isExpired() {
+            return System.currentTimeMillis() - timestamp > CACHE_EXPIRY_MS;
+        }
+        
+        public String getResult() {
+            return result;
+        }
+    }
 
     public static record IndentRecord(String dependencyIndent, String indentUnit) {
     }
@@ -79,7 +134,8 @@ public class SimpleLanguageServer implements LanguageServer {
 
     @Override
     public void exit() {
-        // 进程退出时的处理
+        // 进程退出时清理缓存
+        clearCaches();
     }
 
     @Override
@@ -100,35 +156,62 @@ public class SimpleLanguageServer implements LanguageServer {
     @JsonRequest("maven/analyzeDependencies")
     public CompletableFuture<String> analyzeDependencies(String pomPath) throws Exception {
         return CompletableFuture.supplyAsync(() -> {
-            try (RepositorySystem system = new RepositorySystemSupplier().get();
-                 CloseableSession session = new SessionBuilderSupplier(system)
-                         .get()
-                         .withLocalRepositoryBaseDirectories(
-                                 new File(System.getProperty("user.home") + "/.m2/repository").toPath())
-                         .setDependencySelector(new CustomScopeDependencySelector())
-                         .setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, ConflictResolver.Verbosity.STANDARD)
-                         .build()) {
-                Model model = getModel(pomPath);
-                List<Dependency> directDependencies = getDirectDependencies(model);
-                List<Dependency> managedDependencies = getManagedDependencies(model);
-                String coords = model.getGroupId() + ":" + model.getArtifactId() + ":" + model.getVersion();
-                Artifact artifact = new DefaultArtifact(coords);
-                CollectRequest collectRequest = getEffectiveCollectRequest(artifact, directDependencies,
-                        managedDependencies, repos);
-                DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
+            try {
+                // 获取实际的POM文件路径
+                String actualPomPath = (pomPath == null || pomPath.trim().isEmpty()) ? "pom.xml" : pomPath;
+                File pomFile = new File(actualPomPath);
+                if (!pomFile.exists()) {
+                    return errorJson("POM文件不存在: " + actualPomPath);
+                }
+                
+                // 检查缓存
+                long pomLastModified = pomFile.lastModified();
+                CacheKey cacheKey = new CacheKey(actualPomPath, pomLastModified);
+                CacheEntry cachedEntry = dependencyCache.get(cacheKey);
+                if (cachedEntry != null && !cachedEntry.isExpired()) {
+                    return cachedEntry.getResult();
+                }
+                
+                // 清理过期缓存
+                cleanupExpiredCaches();
+                
+                try (RepositorySystem system = new RepositorySystemSupplier().get();
+                     CloseableSession session = new SessionBuilderSupplier(system)
+                             .get()
+                             .withLocalRepositoryBaseDirectories(MAVEN_LOCAL_REPO_DIR.toPath())
+                             .setDependencySelector(new CustomScopeDependencySelector())
+                             .setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, ConflictResolver.Verbosity.STANDARD)
+                             .build()) {
+                    Model model = getModel(actualPomPath);
+                    List<Dependency> directDependencies = getDirectDependencies(model);
+                    List<Dependency> managedDependencies = getManagedDependencies(model);
+                    String coords = model.getGroupId() + ":" + model.getArtifactId() + ":" + model.getVersion();
+                    Artifact artifact = new DefaultArtifact(coords);
+                    CollectRequest collectRequest = getEffectiveCollectRequest(artifact, directDependencies,
+                            managedDependencies, repos);
+                    DependencyNode rootNode = system.collectDependencies(session, collectRequest).getRoot();
 
-                List<ArtifactGav> effectiveGavs = MavenClasspathFetcher.fetchGavList();
-                Set<String> usedGAVSet = new HashSet<>();
-                Set<String> usedGASet = new HashSet<>();
-                Map<String, String> gavScopeMap = new HashMap<>();
-                fillEffectiveGavSets(effectiveGavs, usedGAVSet, usedGASet, gavScopeMap);
-                // 构建 exclusion 映射表，保存原始的 exclusion 信息
-                Map<String, Set<String>> exclusionMap = buildExclusionMap(model);
-                // 初始化GAV层级映射，用于层级优先处理
-                Map<String, GavLevelTuple> gavLevelMap = new HashMap<>();
-                // 构建树形结构并返回JSON，传入 exclusion 信息
-                Map<String, Object> tree = buildDependencyTreeWithConflict(rootNode, usedGAVSet, usedGASet, gavScopeMap, exclusionMap, gavLevelMap, 0);
-                return new Gson().toJson(tree);
+                    // 预加载文件大小以减少I/O操作
+                    preloadFileSizes(rootNode);
+                    
+                    List<ArtifactGav> effectiveGavs = MavenClasspathFetcher.fetchGavList(actualPomPath);
+                    Set<String> usedGAVSet = new HashSet<>();
+                    Set<String> usedGASet = new HashSet<>();
+                    Map<String, String> gavScopeMap = new HashMap<>();
+                    fillEffectiveGavSets(effectiveGavs, usedGAVSet, usedGASet, gavScopeMap);
+                    // 构建 exclusion 映射表，保存原始的 exclusion 信息
+                    Map<String, Set<String>> exclusionMap = buildExclusionMap(model);
+                    // 初始化GAV层级映射，用于层级优先处理
+                    Map<String, GavLevelTuple> gavLevelMap = new HashMap<>();
+                    // 构建树形结构并返回JSON，传入 exclusion 信息
+                    Map<String, Object> tree = buildDependencyTreeWithConflict(rootNode, usedGAVSet, usedGASet, gavScopeMap, exclusionMap, gavLevelMap, 0);
+                    String result = new Gson().toJson(tree);
+                    
+                    // 缓存结果
+                    dependencyCache.put(cacheKey, new CacheEntry(result, System.currentTimeMillis()));
+                    
+                    return result;
+                }
             } catch (Exception e) {
                 return errorJson("依赖解析异常: " + e.getMessage());
             }
@@ -572,8 +655,7 @@ public class SimpleLanguageServer implements LanguageServer {
         String groupId = artifact.getGroupId().replace('.', '/');
         String artifactId = artifact.getArtifactId();
         String version = artifact.getVersion();
-        String home = System.getProperty("user.home");
-        return home + "/.m2/repository/" + groupId + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".pom";
+        return MAVEN_LOCAL_REPO_PATH + "/" + groupId + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".pom";
     }
 
     /**
@@ -1081,9 +1163,81 @@ public class SimpleLanguageServer implements LanguageServer {
         String groupIdPath = artifact.getGroupId().replace('.', '/');
         String artifactId = artifact.getArtifactId();
         String version = artifact.getVersion();
-        String home = System.getProperty("user.home");
-        String jarPath = home + "/.m2/repository/" + groupIdPath + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar";
+        String jarPath = MAVEN_LOCAL_REPO_PATH + "/" + groupIdPath + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar";
+        
+        // 检查缓存
+        Long cachedSize = fileSizeCache.get(jarPath);
+        if (cachedSize != null) {
+            return cachedSize;
+        }
+        
+        // 获取文件大小并缓存
         File jarFile = new File(jarPath);
-        return jarFile.exists() ? jarFile.length() : 0L;
+        long size = jarFile.exists() ? jarFile.length() : 0L;
+        fileSizeCache.put(jarPath, size);
+        return size;
+    }
+    
+    /**
+     * 预加载文件大小以减少I/O操作
+     */
+    private void preloadFileSizes(DependencyNode rootNode) {
+        Set<String> jarPaths = collectJarPaths(rootNode);
+        
+        for (String jarPath : jarPaths) {
+            if (!fileSizeCache.containsKey(jarPath)) {
+                File jarFile = new File(jarPath);
+                long size = jarFile.exists() ? jarFile.length() : 0L;
+                fileSizeCache.put(jarPath, size);
+            }
+        }
+    }
+    
+    /**
+     * 递归收集所有JAR文件路径
+     */
+    private Set<String> collectJarPaths(DependencyNode node) {
+        Set<String> jarPaths = new HashSet<>();
+        collectJarPathsRecursive(node, jarPaths);
+        return jarPaths;
+    }
+    
+    /**
+     * 递归收集JAR文件路径的辅助方法
+     */
+    private void collectJarPathsRecursive(DependencyNode node, Set<String> jarPaths) {
+        if (node.getArtifact() != null) {
+            Artifact artifact = node.getArtifact();
+            String groupIdPath = artifact.getGroupId().replace('.', '/');
+            String artifactId = artifact.getArtifactId();
+            String version = artifact.getVersion();
+            String jarPath = MAVEN_LOCAL_REPO_PATH + "/" + groupIdPath + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version + ".jar";
+            jarPaths.add(jarPath);
+        }
+        
+        for (DependencyNode child : node.getChildren()) {
+            collectJarPathsRecursive(child, jarPaths);
+        }
+    }
+    
+    /**
+     * 清理缓存
+     */
+    private void clearCaches() {
+        dependencyCache.clear();
+        fileSizeCache.clear();
+    }
+    
+    /**
+     * 清理过期缓存
+     */
+    private void cleanupExpiredCaches() {
+        // 清理过期的依赖分析缓存
+        dependencyCache.entrySet().removeIf(entry -> entry.getValue().isExpired());
+        
+        // 文件大小缓存简单限制数量，避免内存过度使用
+        if (fileSizeCache.size() > 1000) {
+            fileSizeCache.clear();
+        }
     }
 }

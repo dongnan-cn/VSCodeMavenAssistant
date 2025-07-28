@@ -5,10 +5,68 @@ import java.io.*;
 import java.util.*;
 
 public class MavenClasspathFetcher {
+    // GAV列表缓存
+    private static final Map<String, CacheEntry> gavListCache = new HashMap<>();
+    private static final long CACHE_EXPIRY_MS = 3 * 60 * 1000; // 3分钟缓存过期时间
+    
+    // 缓存条目类
+    private static class CacheEntry {
+        private final List<ArtifactGav> gavList;
+        private final long timestamp;
+        private final long pomLastModified;
+        
+        public CacheEntry(List<ArtifactGav> gavList, long timestamp, long pomLastModified) {
+            this.gavList = gavList;
+            this.timestamp = timestamp;
+            this.pomLastModified = pomLastModified;
+        }
+        
+        public boolean isExpired(long currentPomLastModified) {
+            return System.currentTimeMillis() - timestamp > CACHE_EXPIRY_MS || 
+                   pomLastModified != currentPomLastModified;
+        }
+        
+        public List<ArtifactGav> getGavList() {
+            return gavList;
+        }
+    }
     /**
      * 执行 mvn dependency:list 并返回所有 GAV 信息的列表（支持 moduleName）
      */
     public static List<ArtifactGav> fetchGavList() throws Exception {
+        return fetchGavList("pom.xml");
+    }
+    
+    /**
+     * 执行 mvn dependency:list 并返回所有 GAV 信息的列表（支持 moduleName 和缓存）
+     */
+    public static List<ArtifactGav> fetchGavList(String pomPath) throws Exception {
+        // 获取POM文件的最后修改时间
+        File pomFile = new File(pomPath);
+        long pomLastModified = pomFile.exists() ? pomFile.lastModified() : 0;
+        
+        // 检查缓存
+        CacheEntry cachedEntry = gavListCache.get(pomPath);
+        if (cachedEntry != null && !cachedEntry.isExpired(pomLastModified)) {
+            return new ArrayList<>(cachedEntry.getGavList()); // 返回副本避免外部修改
+        }
+        
+        // 清理过期缓存
+        gavListCache.entrySet().removeIf(entry -> entry.getValue().isExpired(pomLastModified));
+        
+        // 执行Maven命令获取依赖列表
+        List<ArtifactGav> gavList = executeMavenDependencyList();
+        
+        // 缓存结果
+        gavListCache.put(pomPath, new CacheEntry(gavList, System.currentTimeMillis(), pomLastModified));
+        
+        return gavList;
+    }
+    
+    /**
+     * 执行Maven dependency:list命令的核心逻辑
+     */
+    private static List<ArtifactGav> executeMavenDependencyList() throws Exception {
         // 判断操作系统，选择合适的mvn命令
         String mvnCmd = System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
         // 执行mvn dependency:list命令
