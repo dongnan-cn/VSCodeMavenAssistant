@@ -12,4 +12,4 @@ vsc-extension-quickstart.md
 **/*.ts       # 保留（正确排除源码）
 !server/**/*.jar  # 确保包含 jar 文件
 README.md
-node_modules/
+#node_modules/
