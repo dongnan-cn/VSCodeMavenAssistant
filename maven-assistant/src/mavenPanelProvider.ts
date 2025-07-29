@@ -41,20 +41,16 @@ export class MavenPanelProvider implements vscode.WebviewViewProvider {
 		// 处理来自WebView的消息
 		webviewView.webview.onDidReceiveMessage(async (data) => {
 			switch (data.type) {
-				case 'runGoal':
-					await this._handleRunGoal(data.goal);
-					break;
-				case 'editGoal':
-					await this._handleEditGoal(data.goal);
-					break;
-				case 'addGoal':
-					await this._handleAddGoal();
-					break;
-				case 'deleteGoal':
-					await this._handleDeleteGoal(data.goal);
-					break;
 				case 'refreshGoals':
 					await this._refreshGoals();
+					break;
+				default:
+					// 其他功能暂未实现
+					this._view?.webview.postMessage({
+						type: 'showStatus',
+						message: 'This feature is not implemented yet',
+						status: 'info'
+					});
 					break;
 			}
 		});
@@ -318,102 +314,11 @@ export class MavenPanelProvider implements vscode.WebviewViewProvider {
 	}
 
 	/**
-	 * 处理运行目标
-	 */
-	private async _handleRunGoal(goal: string) {
-		try {
-			const result = await this._lspClient.executeMavenGoal(goal);
-			this._view?.webview.postMessage({
-				type: 'runResult',
-				success: result.success,
-				error: result.error
-			});
-		} catch (error) {
-			this._view?.webview.postMessage({
-				type: 'runResult',
-				success: false,
-				error: String(error)
-			});
-		}
-	}
-
-	/**
-	 * 处理编辑目标
-	 */
-	private async _handleEditGoal(goal: string) {
-		try {
-			await this._lspClient.editGoal(goal);
-			this._view?.webview.postMessage({
-				type: 'showStatus',
-				message: 'Goal editing feature is not implemented yet',
-				status: 'info'
-			});
-		} catch (error) {
-			this._view?.webview.postMessage({
-				type: 'showStatus',
-				message: 'Failed to edit goal: ' + error,
-				status: 'error'
-			});
-		}
-	}
-
-	/**
-	 * 处理添加目标
-	 */
-	private async _handleAddGoal() {
-		try {
-			const goal = await vscode.window.showInputBox({
-				prompt: 'Please enter new Maven goal',
-			placeHolder: 'e.g.: clean install'
-			});
-			
-			if (goal) {
-				// 这里应该调用LSP添加目标到配置
-				this._view?.webview.postMessage({
-					type: 'showStatus',
-					message: 'Add goal feature is not implemented yet',
-					status: 'info'
-				});
-				await this._refreshGoals();
-			}
-		} catch (error) {
-			this._view?.webview.postMessage({
-				type: 'showStatus',
-				message: 'Failed to add goal: ' + error,
-				status: 'error'
-			});
-		}
-	}
-
-	/**
-	 * 处理删除目标
-	 */
-	private async _handleDeleteGoal(goal: string) {
-		try {
-			// 这里应该调用LSP删除目标
-			this._view?.webview.postMessage({
-				type: 'showStatus',
-				message: 'Delete goal feature is not implemented yet',
-				status: 'info'
-			});
-			await this._refreshGoals();
-		} catch (error) {
-			this._view?.webview.postMessage({
-				type: 'showStatus',
-				message: 'Failed to delete goal: ' + error,
-				status: 'error'
-			});
-		}
-	}
-
-	/**
 	 * 刷新目标列表
 	 */
 	private async _refreshGoals() {
 		try {
-			const goals = await this._lspClient.getAvailableGoals();
-			
-			// 分离常用目标和自定义目标
+			// 显示常用Maven目标（静态列表）
 			const commonGoals = [
 				'clean',
 				'compile',
@@ -423,7 +328,8 @@ export class MavenPanelProvider implements vscode.WebviewViewProvider {
 				'clean install'
 			];
 			
-			const customGoals = goals.filter(goal => !commonGoals.includes(goal));
+			// 暂无自定义目标功能
+			const customGoals: string[] = [];
 			
 			this._view?.webview.postMessage({
 				type: 'updateGoals',

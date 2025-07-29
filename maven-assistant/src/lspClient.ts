@@ -99,72 +99,6 @@ export class LspClient {
 			this.serverProcess = undefined;
 		}
 	}
-
-	/**
-	 * Execute Maven goal
-	 */
-	async executeMavenGoal(goal: string): Promise<{ success: boolean; error?: string }> {
-		try {
-			if (!this.client) {
-				throw new Error('LSP client not started');
-			}
-
-			// Call backend to execute Maven command through LSP custom method
-			const result = await this.client.sendRequest('maven/executeGoal', { goal });
-			return result as { success: boolean; error?: string };
-		} catch (error) {
-			console.error('Failed to execute Maven goal:', error);
-			return { success: false, error: String(error) };
-		}
-	}
-
-	/**
-	 * Get available Maven goals
-	 */
-	async getAvailableGoals(): Promise<string[]> {
-		try {
-			if (!this.client) {
-				throw new Error('LSP client not started');
-			}
-
-			// Get available goals through LSP custom method
-			const goals = await this.client.sendRequest('maven/getAvailableGoals', {});
-			return goals as string[];
-		} catch (error) {
-			console.error('Failed to get available Maven goals:', error);
-			// Return default common goals
-			return [
-				'clean',
-				'compile',
-				'test',
-				'package',
-				'install',
-				'clean install',
-				'clean package',
-				'clean test',
-				'dependency:tree',
-				'dependency:analyze'
-			];
-		}
-	}
-
-	/**
-	 * Edit Maven goal
-	 */
-	async editGoal(goal: string): Promise<void> {
-		try {
-			if (!this.client) {
-				throw new Error('LSP client not started');
-			}
-
-			// Edit goal through LSP custom method
-			await this.client.sendRequest('maven/editGoal', { goal });
-		} catch (error) {
-			console.error('Failed to edit Maven goal:', error);
-			throw error;
-		}
-	}
-
 	/**
 	 * Get dependency tree
 	 */
@@ -204,24 +138,7 @@ export class LspClient {
 		}
 	}
 
-	/**
-	 * Get dependency conflicts
-	 */
-	async getDependencyConflicts(): Promise<string[]> {
-		try {
-			if (!this.client) {
-				throw new Error('LSP client not started');
-			}
 
-			// Get dependency conflicts through LSP custom method
-			const result = await this.client.sendRequest('maven/getDependencyConflicts', {});
-			return result as string[];
-		} catch (error) {
-			console.error('Failed to get dependency conflicts:', error);
-			// Throw error instead of returning mock data
-			throw new Error(`Failed to get dependency conflicts: ${error}`);
-		}
-	}
 
 
 

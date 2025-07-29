@@ -56,21 +56,7 @@
         "title": "Maven Assistant: Open Maven Panel",
         "category": "Maven"
       },
-      {
-        "command": "maven-assistant.runMavenGoal",
-        "title": "Maven Assistant: Run Maven Goal",
-        "category": "Maven"
-      },
-      {
-        "command": "maven-assistant.editMavenGoal",
-        "title": "Maven Assistant: Edit Maven Goal",
-        "category": "Maven"
-      },
-      {
-        "command": "maven-assistant.quickRun",
-        "title": "Maven Assistant: Quick Run",
-        "category": "Maven"
-      },
+
       {
         "command": "maven-assistant.showDependencyTree",
         "title": "Maven Assistant: Show Dependency Tree",
@@ -80,12 +66,8 @@
         "command": "maven-assistant.analyzeDependencies",
         "title": "Maven Assistant: Analyze Dependencies",
         "category": "Maven"
-      },
-      {
-        "command": "maven-assistant.showDependencyConflicts",
-        "title": "Maven Assistant: Show Dependency Conflicts",
-        "category": "Maven"
       }
+
 
     ],
     "menus": {
@@ -94,10 +76,7 @@
           "command": "maven-assistant.openMavenPanel",
           "when": "workspaceHasMavenProject"
         },
-        {
-          "command": "maven-assistant.quickRun",
-          "when": "workspaceHasMavenProject"
-        },
+
         {
           "command": "maven-assistant.showDependencyTree",
           "when": "workspaceHasMavenProject"
@@ -128,27 +107,20 @@
           "id": "maven-assistant.dependencies",
           "name": "Dependency Management",
           "when": "workspaceHasMavenProject"
-        },
-        {
-          "id": "maven-assistant.conflicts",
-          "name": "Dependency Conflicts",
-          "when": "workspaceHasMavenProject"
         }
+
       ]
     },
     "viewsWelcome": [
       {
         "view": "maven-assistant.goals",
-        "contents": "Maven Goal Management\n\n[Open Maven Panel](command:maven-assistant.openMavenPanel)\n[Quick Run](command:maven-assistant.quickRun)\n[Edit Goals](command:maven-assistant.editMavenGoal)"
+        "contents": "Maven Goal Management\n\n[Open Maven Panel](command:maven-assistant.openMavenPanel)"
       },
       {
         "view": "maven-assistant.dependencies",
         "contents": "Dependency Structure Analysis\n\n[Show Dependency Tree](command:maven-assistant.showDependencyTree)\n[Analyze Dependencies](command:maven-assistant.analyzeDependencies)"
-      },
-      {
-        "view": "maven-assistant.conflicts",
-        "contents": "Dependency Conflict Detection\n\n[Show Dependency Conflicts](command:maven-assistant.showDependencyConflicts)"
       }
+
     ],
 
     "customEditors": [

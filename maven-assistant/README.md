@@ -40,17 +40,16 @@ After opening a Maven project in VS Code, right click the pom.xml and select opt
 ### 2. Dependency Analysis
 
 #### Viewing Dependency Tree
-1. Click "Show Dependency Tree" in the "Dependency Management" view
-2. Or use command: `Maven Assistant: Show Dependency Tree`
-3. In the opened dependency analyzer:
+1. Click "Dependency Tree" radio button in the "Dependency Management" view
+2. In the opened dependency analyzer:
    - Click arrows to expand/collapse dependency nodes
    - Use the search box to quickly locate specific dependencies
    - View dependency GAV information (GroupId:ArtifactId:Version)
    - View dependency scope and size information
 
 #### Conflict Detection and Resolution
-1. Click "Show Dependency Conflicts" to view conflict list
-2. In the dependency tree, conflicting dependencies are marked in red
+1. Click "Dependency Conflicts" radio button to view conflict list
+2. In the dependency tree mode, conflicting dependencies are marked in red
 3. Right-click on conflicting dependencies and select appropriate actions:
    - **Jump to POM**: Navigate to dependency declaration in POM file
    - **Exclude**: Add exclusion tag to exclude the dependency
