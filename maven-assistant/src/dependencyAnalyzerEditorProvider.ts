@@ -200,7 +200,8 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                 if (result && result.success) {
                     // 高亮新加的 exclusion 行
                     const document = await vscode.workspace.openTextDocument(pomFiles[0]);
-                    const editor = await vscode.window.showTextDocument(document);
+                    // 在新标签页中打开pom文件，与jump to tree功能保持一致
+                    const editor = await vscode.window.showTextDocument(document, { viewColumn: vscode.ViewColumn.Active, preview: false });
                     const line = (result.highlightLine ? result.highlightLine : 1) - 1;
                     const pos = new vscode.Position(line, 0);
                     editor.selection = new vscode.Selection(pos, pos);
