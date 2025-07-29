@@ -223,24 +223,7 @@ export class LspClient {
 		}
 	}
 
-	/**
-	 * Get effective POM
-	 */
-	async getEffectivePom(): Promise<string> {
-		try {
-			if (!this.client) {
-				throw new Error('LSP client not started');
-			}
 
-			// Get effective POM through LSP custom method
-			const result = await this.client.sendRequest('maven/getEffectivePom', {});
-			return result as string;
-		} catch (error) {
-			console.error('Failed to get effective POM:', error);
-			// Return mock effective POM
-			return `<?xml version="1.0" encoding="UTF-8"?>\n<project>\n  <!-- Failed to generate effective POM: ${error} -->\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>com.example</groupId>\n  <artifactId>my-project</artifactId>\n  <version>1.0.0</version>\n</project>`;
-		}
-	}
 
 	/**
 	 * Insert dependency exclusion

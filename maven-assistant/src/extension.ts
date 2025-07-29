@@ -130,12 +130,7 @@ function registerCommands(
 		})
 	);
 
-	// 显示有效POM命令
-	context.subscriptions.push(
-		vscode.commands.registerCommand('maven-assistant.showEffectivePom', async () => {
-			await showEffectivePom(lspClient);
-		})
-	);
+
 
 	// 刷新依赖信息命令
 	context.subscriptions.push(
@@ -292,28 +287,7 @@ async function showDependencyConflicts(lspClient: LspClient) {
 	}
 }
 
-/**
- * Show effective POM
- */
-async function showEffectivePom(lspClient: LspClient) {
-	try {
-		vscode.window.showInformationMessage('Generating effective POM...');
-		
-		// Get effective POM via LSP
-		const effectivePom = await lspClient.getEffectivePom();
-		
-		// Create new XML document to display effective POM
-		const document = await vscode.workspace.openTextDocument({
-			content: effectivePom,
-			language: 'xml'
-		});
-		
-		await vscode.window.showTextDocument(document);
-		vscode.window.showInformationMessage('Effective POM generation completed');
-	} catch (error) {
-		vscode.window.showErrorMessage(`Error showing effective POM: ${error}`);
-	}
-}
+
 
 export function deactivate() {
 	console.log('Maven Assistant plugin deactivated');
