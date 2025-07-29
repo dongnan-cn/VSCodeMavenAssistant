@@ -65,7 +65,7 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
             } else if (msg.type === 'getConflictDependencies') {
                 // 处理获取冲突依赖请求 - 复用现有依赖树数据
                 try {
-                    console.log('[DependencyAnalyzer] 处理getConflictDependencies请求');
+                    console.log('[DependencyAnalyzer] Handling getConflictDependencies request');
                     // 获取依赖树数据
                     const analysis = await this.lspClient.analyzeDependencies();
                     const dependencyTree = JSON.parse(analysis);
@@ -76,10 +76,10 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                         data: dependencyTree 
                     });
                 } catch (error) {
-                    console.error('[DependencyAnalyzer] 获取依赖数据失败:', error);
+                    console.error('[DependencyAnalyzer] Failed to get dependency data:', error);
                     webviewPanel.webview.postMessage({ 
                         type: 'error', 
-                        message: `获取依赖数据失败: ${error}` 
+                        message: `Failed to get dependency data: ${error}` 
                     });
                 }
             }
@@ -168,9 +168,9 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
     private async handleContextMenu(data: any) {
         try {
             const { node, nodeIndex, pathInfo, action } = data;
-            console.log('右键菜单数据 node:', node);
-            console.log('右键菜单数据 nodeIndex:', nodeIndex);
-            console.log('右键菜单数据 pathInfo:', pathInfo);
+            console.log('Context menu data node:', node);
+            console.log('Context menu data nodeIndex:', nodeIndex);
+            console.log('Context menu data pathInfo:', pathInfo);
             if (action === 'exclude') {
                 // 1. 获取根依赖（pathInfo 最后一个节点）和目标依赖（node）
                 // 注意：pathInfo数组中，最后一个元素是根依赖，第一个元素是当前选中的节点
@@ -179,7 +179,7 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                 // 2. 构造参数，调用后端插入exclusion
                 const pomFiles = await vscode.workspace.findFiles('pom.xml', undefined, 1);
                 if (pomFiles.length === 0) {
-                    vscode.window.showErrorMessage('未找到当前项目的 pom.xml 文件');
+                    vscode.window.showErrorMessage('Could not find pom.xml file in current project');
                     return;
                 }
                 const params = {
@@ -204,7 +204,7 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                     const pos = new vscode.Position(line, 0);
                     editor.selection = new vscode.Selection(pos, pos);
                     editor.revealRange(new vscode.Range(pos, pos));
-                    vscode.window.showInformationMessage(result.message || '已成功插入 exclusion');
+                    vscode.window.showInformationMessage(result.message || 'Successfully inserted exclusion');
                     
                     // 通知前端exclude成功，需要更新依赖树
                     // 这里需要获取当前的webviewPanel引用
@@ -219,7 +219,7 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                     }
                 } else {
                     console.log('result error:', result.error);
-                    vscode.window.showErrorMessage(result && result.error ? result.error : '插入 exclusion 失败');
+                    vscode.window.showErrorMessage(result && result.error ? result.error : 'Failed to insert exclusion');
                 }
                 return;
             } else if (action === 'goto-pom') {
@@ -242,37 +242,37 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                     );
                     const fs = require('fs');
                     if (!fs.existsSync(pomPath)) {
-                        vscode.window.showWarningMessage(`未在本地仓库找到父依赖的pom.xml: ${pomPath}`);
+                        vscode.window.showWarningMessage(`Could not find parent dependency pom.xml in local repository: ${pomPath}`);
                         return;
                     }
                     const pomUri = vscode.Uri.file(pomPath);
                     const found = await this.jumpToDependencyInPom(pomUri, node.groupId, node.artifactId);
                     if (found) {
-                        vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置（父依赖pom）`);
+                        vscode.window.showInformationMessage(`Jumped to declaration of ${node.groupId}:${node.artifactId} (parent dependency pom)`);
                     } else {
-                        vscode.window.showWarningMessage(`未在父依赖pom.xml中找到 ${node.groupId}:${node.artifactId} 的声明`);
+                        vscode.window.showWarningMessage(`Could not find declaration of ${node.groupId}:${node.artifactId} in parent dependency pom.xml`);
                     }
                     return;
                 } else {
                     // 依赖链顶端，当前项目pom.xml
                     const pomFiles = await vscode.workspace.findFiles('pom.xml', undefined, 1);
                     if (pomFiles.length === 0) {
-                        vscode.window.showErrorMessage('未找到当前项目的 pom.xml 文件');
+                        vscode.window.showErrorMessage('Could not find pom.xml file in current project');
                         return;
                     }
                     const pomUri = pomFiles[0];
                     const found = await this.jumpToDependencyInPom(pomUri, node.groupId, node.artifactId);
                     if (found) {
-                        vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置`);
+                        vscode.window.showInformationMessage(`Jumped to declaration of ${node.groupId}:${node.artifactId}`);
                     } else {
-                        vscode.window.showWarningMessage(`未在当前项目 pom.xml 中找到 ${node.groupId}:${node.artifactId} 的声明`);
+                        vscode.window.showWarningMessage(`Could not find declaration of ${node.groupId}:${node.artifactId} in current project pom.xml`);
                     }
                     return;
                 }
             }
             // 其他 action 或默认逻辑可在此扩展
         } catch (error) {
-            vscode.window.showErrorMessage(`处理右键菜单失败: ${error}`);
+            vscode.window.showErrorMessage(`Failed to handle context menu: ${error}`);
         }
     }
     
@@ -287,7 +287,7 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
             
             if (pomFiles.length === 0) {
                 // 如果未找到 pom.xml 文件，则显示错误信息
-                vscode.window.showErrorMessage('未找到 pom.xml 文件');
+                vscode.window.showErrorMessage('Could not find pom.xml file');
                 return;
             }
             
@@ -309,16 +309,16 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
                 const position = document.positionAt(match.index);
                 editor.selection = new vscode.Selection(position, position);
                 editor.revealRange(new vscode.Range(position, position));
-                vscode.window.showInformationMessage(`已跳转到 ${node.groupId}:${node.artifactId} 的声明位置`);
+                vscode.window.showInformationMessage(`Jumped to declaration of ${node.groupId}:${node.artifactId}`);
             } else {
                 // 如果未找到依赖声明，则显示警告信息
-                vscode.window.showWarningMessage(`未在 pom.xml 中找到 ${node.groupId}:${node.artifactId} 的声明`);
+                vscode.window.showWarningMessage(`Could not find declaration of ${node.groupId}:${node.artifactId} in pom.xml`);
             }
             
         } catch (error) {
             // 如果跳转失败，则显示错误信息
-            console.error('跳转到 pom.xml 失败:', error);
-            vscode.window.showErrorMessage(`跳转到 pom.xml 失败: ${error}`);
+            console.error('Failed to jump to pom.xml:', error);
+            vscode.window.showErrorMessage(`Failed to jump to pom.xml: ${error}`);
         }
     }
     
@@ -326,6 +326,6 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
      * 排除依赖（暂时只显示消息）
      */
     private async excludeDependency(node: any) {
-        vscode.window.showInformationMessage(`排除依赖功能正在开发中: ${node.groupId}:${node.artifactId}`);
+        vscode.window.showInformationMessage(`Exclude dependency feature is under development: ${node.groupId}:${node.artifactId}`);
     }
 }
