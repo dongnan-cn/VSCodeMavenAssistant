@@ -67,9 +67,14 @@ export class DependencyConflictsProvider implements vscode.TreeDataProvider<Depe
 	 */
 	private async _getDependencyConflicts(): Promise<DependencyConflictItem[]> {
 		try {
-			// If LSP client is not connected, return mock data
+			// If LSP client is not connected, return error message
 			if (!this._lspClient.isConnected()) {
-				return this._getMockConflicts();
+				return [
+					new DependencyConflictItem(
+						'LSP service is not connected, please check Maven project configuration',
+						vscode.TreeItemCollapsibleState.None
+					)
+				];
 			}
 
 			// Get dependency conflicts through LSP
@@ -108,7 +113,12 @@ export class DependencyConflictsProvider implements vscode.TreeDataProvider<Depe
 			}
 		}
 		
-		return conflictItems.length > 0 ? conflictItems : this._getMockConflicts();
+		return conflictItems.length > 0 ? conflictItems : [
+			new DependencyConflictItem(
+				'No dependency conflicts found',
+				vscode.TreeItemCollapsibleState.None
+			)
+		];
 	}
 
 	/**
@@ -158,68 +168,6 @@ export class DependencyConflictsProvider implements vscode.TreeDataProvider<Depe
 		);
 	}
 
-	/**
-	 * 获取模拟冲突数据（用于测试）
-	 */
-	private _getMockConflicts(): DependencyConflictItem[] {
-		return [
-			new DependencyConflictItem(
-				'org.slf4j:slf4j-api',
-				vscode.TreeItemCollapsibleState.Expanded,
-				[
-					new DependencyConflictItem(
-						'1.7.30 (selected)',
-						vscode.TreeItemCollapsibleState.None,
-						undefined,
-						'selected'
-					),
-					new DependencyConflictItem(
-						'1.7.25 (excluded)',
-						vscode.TreeItemCollapsibleState.None,
-						undefined,
-						'excluded'
-					)
-				],
-				'version-conflict'
-			),
-			new DependencyConflictItem(
-				'org.apache.commons:commons-lang3',
-				vscode.TreeItemCollapsibleState.Expanded,
-				[
-					new DependencyConflictItem(
-						'3.12.0 (selected)',
-						vscode.TreeItemCollapsibleState.None,
-						undefined,
-						'selected'
-					),
-					new DependencyConflictItem(
-						'3.11.0 (excluded)',
-						vscode.TreeItemCollapsibleState.None,
-						undefined,
-						'excluded'
-					)
-				],
-				'version-conflict'
-			),
-			new DependencyConflictItem(
-				'com.fasterxml.jackson:jackson-core',
-				vscode.TreeItemCollapsibleState.Expanded,
-				[
-					new DependencyConflictItem(
-						'2.13.0 (selected)',
-						vscode.TreeItemCollapsibleState.None,
-						undefined,
-						'selected'
-					),
-					new DependencyConflictItem(
-						'2.12.0 (excluded)',
-						vscode.TreeItemCollapsibleState.None,
-						undefined,
-						'excluded'
-					)
-				],
-				'version-conflict'
-			)
-		];
-	}
+
+
 }
