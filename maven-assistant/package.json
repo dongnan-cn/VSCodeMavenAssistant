@@ -2,7 +2,7 @@
   "name": "maven-assistant",
   "displayName": "Maven Assistant",
   "description": "A powerful Maven dependency management and analysis tool for VSCode, it provides features like dependency tree, conflict analysis and other features.",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "publisher": "dngjb",
   "author": {
     "name": "dongnan",

@@ -120,7 +120,8 @@ export class DependencyAnalyzerEditorProvider implements vscode.CustomReadonlyEd
      */
     private async jumpToDependencyInPom(pomUri: vscode.Uri, groupId: string, artifactId: string): Promise<boolean> {
         const document = await vscode.workspace.openTextDocument(pomUri);
-        const editor = await vscode.window.showTextDocument(document);
+        // 在新标签页中打开pom文件
+        const editor = await vscode.window.showTextDocument(document, { viewColumn: vscode.ViewColumn.Active, preview: false });
         const text = document.getText();
         const dependencyBlockPattern = /<dependency>[\s\S]*?<\/dependency>/g;
         let match: RegExpExecArray | null;
