@@ -235,7 +235,7 @@ export class MavenPanelProvider implements vscode.WebviewViewProvider {
         
         // 刷新目标列表
         function refreshGoals() {
-            showStatus('正在加载目标列表...', 'info');
+            showStatus('Loading goal list...', 'info');
             vscode.postMessage({ type: 'refreshGoals' });
         }
         
@@ -256,7 +256,7 @@ export class MavenPanelProvider implements vscode.WebviewViewProvider {
         
         // 删除目标
         function deleteGoal(goal) {
-            if (confirm('确定要删除目标 "' + goal + '" 吗？')) {
+            if (confirm('Are you sure you want to delete goal "' + goal + '"?')) {
                 vscode.postMessage({ type: 'deleteGoal', goal: goal });
             }
         }
@@ -278,7 +278,7 @@ export class MavenPanelProvider implements vscode.WebviewViewProvider {
             const container = document.getElementById(containerId);
             
             if (!goals || goals.length === 0) {
-                container.innerHTML = '<div class="empty-state">暂无目标<br><button onclick="addGoal()">添加第一个目标</button></div>';
+                container.innerHTML = '<div class="empty-state">No goals available<br><button onclick="addGoal()">Add first goal</button></div>';
                 return;
             }
             
@@ -302,13 +302,13 @@ export class MavenPanelProvider implements vscode.WebviewViewProvider {
                 case 'updateGoals':
                     renderGoals(message.commonGoals, 'common-goals');
                     renderGoals(message.customGoals, 'custom-goals');
-                    showStatus('目标列表已更新', 'info');
+                    showStatus('Goal list updated', 'info');
                     break;
                 case 'showStatus':
                     showStatus(message.message, message.status);
                     break;
                 case 'runResult':
-                    showStatus(message.success ? '目标执行成功' : '目标执行失败: ' + message.error, message.success ? 'info' : 'error');
+                    showStatus(message.success ? 'Goal executed successfully' : 'Goal execution failed: ' + message.error, message.success ? 'info' : 'error');
                     break;
             }
         });
@@ -345,13 +345,13 @@ export class MavenPanelProvider implements vscode.WebviewViewProvider {
 			await this._lspClient.editGoal(goal);
 			this._view?.webview.postMessage({
 				type: 'showStatus',
-				message: '目标编辑功能待实现',
+				message: 'Goal editing feature is not implemented yet',
 				status: 'info'
 			});
 		} catch (error) {
 			this._view?.webview.postMessage({
 				type: 'showStatus',
-				message: '编辑目标失败: ' + error,
+				message: 'Failed to edit goal: ' + error,
 				status: 'error'
 			});
 		}
@@ -363,15 +363,15 @@ export class MavenPanelProvider implements vscode.WebviewViewProvider {
 	private async _handleAddGoal() {
 		try {
 			const goal = await vscode.window.showInputBox({
-				prompt: '请输入新的Maven目标',
-				placeHolder: '例如: clean install'
+				prompt: 'Please enter new Maven goal',
+			placeHolder: 'e.g.: clean install'
 			});
 			
 			if (goal) {
 				// 这里应该调用LSP添加目标到配置
 				this._view?.webview.postMessage({
 					type: 'showStatus',
-					message: '添加目标功能待实现',
+					message: 'Add goal feature is not implemented yet',
 					status: 'info'
 				});
 				await this._refreshGoals();
@@ -379,7 +379,7 @@ export class MavenPanelProvider implements vscode.WebviewViewProvider {
 		} catch (error) {
 			this._view?.webview.postMessage({
 				type: 'showStatus',
-				message: '添加目标失败: ' + error,
+				message: 'Failed to add goal: ' + error,
 				status: 'error'
 			});
 		}
@@ -393,14 +393,14 @@ export class MavenPanelProvider implements vscode.WebviewViewProvider {
 			// 这里应该调用LSP删除目标
 			this._view?.webview.postMessage({
 				type: 'showStatus',
-				message: '删除目标功能待实现',
+				message: 'Delete goal feature is not implemented yet',
 				status: 'info'
 			});
 			await this._refreshGoals();
 		} catch (error) {
 			this._view?.webview.postMessage({
 				type: 'showStatus',
-				message: '删除目标失败: ' + error,
+				message: 'Failed to delete goal: ' + error,
 				status: 'error'
 			});
 		}
@@ -433,9 +433,9 @@ export class MavenPanelProvider implements vscode.WebviewViewProvider {
 		} catch (error) {
 			this._view?.webview.postMessage({
 				type: 'showStatus',
-				message: '加载目标列表失败: ' + error,
+				message: 'Failed to load goal list: ' + error,
 				status: 'error'
 			});
 		}
 	}
-} 
+}

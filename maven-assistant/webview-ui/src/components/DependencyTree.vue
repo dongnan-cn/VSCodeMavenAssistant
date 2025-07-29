@@ -1,14 +1,14 @@
 <template>
   <div class="dependency-tree-container">
-    <!-- 加载状态 -->
+    <!-- Loading state -->
     <div v-if="loading" class="loading">
       Loading dependency tree...
     </div>
-    <!-- 错误状态 -->
+    <!-- Error state -->
     <div v-else-if="error" class="error">
       {{ error }}
     </div>
-    <!-- 依赖树内容 -->
+    <!-- Dependency tree content -->
     <div v-else-if="renderDependencyData && renderDependencyData.length > 0" class="dependency-tree">
       <ul class="dep-tree">
         <DependencyTreeNode
@@ -25,9 +25,9 @@
         />
       </ul>
     </div>
-    <!-- 空状态 -->
+    <!-- Empty state -->
     <div v-else class="empty-state">
-      暂无依赖数据
+      No dependency data
     </div>
   </div>
 </template>
@@ -37,19 +37,19 @@ import { ref, onMounted, watch, defineExpose, computed } from 'vue'
 import DependencyTreeNode from './DependencyTreeNode.vue'
 const emit = defineEmits(['select-dependency', 'update:filterMode'])
 
-// 接收vscodeApi作为prop
+// Receive vscodeApi as prop
 const props = defineProps({
   vscodeApi: { type: Object, required: true },
   searchText: { type: String, default: '' },
   showGroupId: { type: Boolean, default: false },
   filterMode: { type: Boolean, default: false },
   showSize: { type: Boolean, default: false },
-  // 新增：接收缓存数据和加载状态
+  // Added: receive cached data and loading state
   cachedData: { type: Object, default: null },
   isDataLoaded: { type: Boolean, default: false }
 })
 
-// 定义依赖节点接口
+// Define dependency node interface
 interface DependencyNode {
   groupId: string
   artifactId: string
@@ -62,24 +62,24 @@ interface DependencyNode {
   label?: string
   status?: string
   statusClass?: string
-  matched?: boolean // 新增属性：用于高亮
+  matched?: boolean // Added property: for highlighting
 }
 
-// 响应式数据
+// Reactive data
 const loading = ref(true)
 const error = ref('')
 const dependencyData = ref<DependencyNode[]>([])
 const selectedNode = ref<any>(null)
 
-// 刷新依赖数据
+// Refresh dependency data
 function refreshDependencies() {
   loading.value = true
   error.value = ''
-  dependencyData.value = [] // 清空当前数据
+  dependencyData.value = [] // Clear current data
   props.vscodeApi.postMessage({ type: 'refresh' })
 }
 
-// 选择节点（通过唯一id）
+// Select node (by unique id)
 function handleSelect(_: string, node: DependencyNode) {
   selectedNode.value = node
   emit('select-dependency', {
@@ -99,7 +99,7 @@ function handleSelect(_: string, node: DependencyNode) {
   })
 }
 
-// 检查依赖是否被排除
+// Check if dependency is excluded
 function isExcluded(node: any, parentExclusions: any[]): boolean {
   if (!parentExclusions || parentExclusions.length === 0) {
     return false
@@ -110,19 +110,19 @@ function isExcluded(node: any, parentExclusions: any[]): boolean {
   )
 }
 
-// 递归过滤被排除的依赖
+// Recursively filter excluded dependencies
 function filterExcludedDependencies(nodes: any[], parentExclusions: any[] = []): any[] {
   if (!nodes || !Array.isArray(nodes)) {
     return []
   }
   
   return nodes.filter(node => {
-    // 检查当前节点是否被父级排除
+    // Check if current node is excluded by parent
     if (isExcluded(node, parentExclusions)) {
       return false
     }
     
-    // 递归处理子依赖，传递当前节点的exclusions
+    // Recursively process child dependencies, pass current node's exclusions
     if (node.children && node.children.length > 0) {
       const currentExclusions = node.exclusions || []
       node.children = filterExcludedDependencies(node.children, currentExclusions)
@@ -132,13 +132,13 @@ function filterExcludedDependencies(nodes: any[], parentExclusions: any[] = []):
   })
 }
 
-// 处理依赖数据
+// Process dependency data
 function processDependencyData(data: any): DependencyNode[] {
   if (!data || !Array.isArray(data)) {
     return []
   }
   
-  // 首先过滤被排除的依赖
+  // First filter excluded dependencies
   const filteredData = filterExcludedDependencies(data)
   
   const processed = filteredData.map((node: any) => {
@@ -171,11 +171,11 @@ function collapseAll() {
   setAllExpanded(dependencyData.value, false)
 }
 
-// 搜索与高亮递归逻辑
+// Search and highlight recursive logic
 function searchAndHighlight(nodes: DependencyNode[], keyword: string): boolean {
   let foundInChildren = false
   nodes.forEach(node => {
-    // 在 groupId 和 artifactId 中搜索
+    // Search in groupId and artifactId
     const groupIdMatch = keyword && node.groupId.toLowerCase().includes(keyword.toLowerCase())
     const artifactIdMatch = keyword && node.artifactId.toLowerCase().includes(keyword.toLowerCase())
     const matched = groupIdMatch || artifactIdMatch
@@ -191,12 +191,12 @@ function searchAndHighlight(nodes: DependencyNode[], keyword: string): boolean {
   return foundInChildren
 }
 
-// 递归过滤依赖树，仅保留命中节点及其祖先链
+// Recursively filter dependency tree, only keep matched nodes and their ancestor chains
 function filterDependencyTree(nodes: DependencyNode[], keyword: string): DependencyNode[] {
   if (!nodes) return []
   const result: DependencyNode[] = []
   for (const node of nodes) {
-    // 在 groupId 和 artifactId 中搜索
+    // Search in groupId and artifactId
     const groupIdMatch = keyword && node.groupId.toLowerCase().includes(keyword.toLowerCase())
     const artifactIdMatch = keyword && node.artifactId.toLowerCase().includes(keyword.toLowerCase())
     const matched = groupIdMatch || artifactIdMatch
@@ -215,7 +215,7 @@ function filterDependencyTree(nodes: DependencyNode[], keyword: string): Depende
   return result
 }
 
-// 计算实际用于渲染的依赖树数据
+// Calculate actual dependency tree data for rendering
 const renderDependencyData = computed(() => {
   if (props.filterMode && props.searchText) {
     return filterDependencyTree(dependencyData.value, props.searchText)
@@ -225,7 +225,7 @@ const renderDependencyData = computed(() => {
 
 watch(() => props.searchText, (val) => {
   if (!val) {
-    // 清空搜索时，全部取消高亮和自动展开
+    // When clearing search, cancel all highlighting and auto-expansion
     setAllExpanded(dependencyData.value, false)
     clearMatched(dependencyData.value)
     return
@@ -242,7 +242,7 @@ function clearMatched(nodes: DependencyNode[]) {
   })
 }
 
-// 递归查找 filter 结果树中与 path 匹配的节点
+// Recursively find node matching path in filter result tree
 function findNodeByPath(nodes: DependencyNode[], path: any[]): DependencyNode | null {
   if (!nodes || !path || path.length === 0) return null
   const seg = path[path.length - 1]
@@ -253,25 +253,25 @@ function findNodeByPath(nodes: DependencyNode[], path: any[]): DependencyNode | 
       node.version === seg.version &&
       (seg.scope ? node.scope === seg.scope : true)
     ) {
-      // 路径完全匹配
+      // Path completely matches
       if (path.length === 1) return node
-      // 递归查找子节点
+      // Recursively find child nodes
       if (node.children && node.children.length > 0) {
         const found = findNodeByPath(node.children, path.slice(0, -1))
         if (found) return found
       }
-      // 没有子节点或未找到，返回当前
+      // No child nodes or not found, return current
       return node
     }
   }
   return null
 }
 
-// 跳转并高亮：严格按 path 逐级递归展开和选中
+// Jump and highlight: strictly expand and select recursively by path level by level
 function gotoAndHighlightNodeByPath(path: any[]) {
   let nodes = dependencyData.value
   let currentNode = null
-  // path: 从 root 到 target，正序遍历
+  // path: from root to target, traverse in order
   for (let i = path.length - 1; i >= 0; i--) {
     const seg = path[i]
     currentNode = nodes.find((n: any) =>
@@ -280,11 +280,11 @@ function gotoAndHighlightNodeByPath(path: any[]) {
       n.version === seg.version &&
       (seg.scope ? n.scope === seg.scope : true)
     )
-    if (!currentNode) return // 跳转失败
+    if (!currentNode) return // Jump failed
     currentNode.expanded = true
     nodes = currentNode.children || []
   }
-  // --- 新增：filter 模式下 selectedNode 指向 filter 结果树中的节点 ---
+  // --- Added: in filter mode, selectedNode points to node in filter result tree ---
   if (props.filterMode && props.searchText) {
     const filtered = renderDependencyData.value
     const filteredNode = findNodeByPath(filtered, path)
@@ -298,21 +298,21 @@ function gotoAndHighlightNodeByPath(path: any[]) {
   }
   if (selectedNode.value) {
     emit('select-dependency', selectedNode.value, dependencyData.value)
-    // 跳转时直接设置搜索框内容，确保搜索高亮和搜索框同步
+    // When jumping, directly set search box content to ensure search highlighting and search box sync
     if (currentNode) {
       searchAndHighlight(dependencyData.value, currentNode.artifactId)
     }
   }
 }
 
-// 递归移除指定GA的依赖及其子依赖
+// Recursively remove dependencies with specified GA and their child dependencies
 function removeDependencyByGA(nodes: DependencyNode[], groupId: string, artifactId: string): DependencyNode[] {
   return nodes.filter(node => {
-    // 如果当前节点匹配要移除的GA，则过滤掉
+    // If current node matches GA to be removed, filter it out
     if (node.groupId === groupId && node.artifactId === artifactId) {
       return false
     }
-    // 递归处理子依赖
+    // Recursively process child dependencies
     if (node.children && node.children.length > 0) {
       node.children = removeDependencyByGA(node.children, groupId, artifactId)
     }
@@ -320,12 +320,12 @@ function removeDependencyByGA(nodes: DependencyNode[], groupId: string, artifact
   })
 }
 
-// 处理exclude成功后的依赖树更新
+// Handle dependency tree update after exclude success
 function handleExcludeSuccess(excludedDependency: { groupId: string, artifactId: string }) {
-  // 从当前依赖树中移除指定GA的所有依赖
+  // Remove all dependencies with specified GA from current dependency tree
   dependencyData.value = removeDependencyByGA(dependencyData.value, excludedDependency.groupId, excludedDependency.artifactId)
   
-  // 如果当前选中的节点被移除了，清空选中状态
+  // If currently selected node was removed, clear selection state
   if (selectedNode.value && 
       selectedNode.value.groupId === excludedDependency.groupId && 
       selectedNode.value.artifactId === excludedDependency.artifactId) {
@@ -334,7 +334,7 @@ function handleExcludeSuccess(excludedDependency: { groupId: string, artifactId:
   }
 }
 
-// 监听来自扩展端的消息
+// Listen for messages from extension side
 onMounted(() => {
   window.addEventListener('message', (event) => {
     const message = event.data
@@ -344,10 +344,10 @@ onMounted(() => {
         loading.value = false
         error.value = ''
         try {
-          // 解析依赖树JSON
+          // Parse dependency tree JSON
           const dependencyTree = JSON.parse(message.data)
           
-          // 兼容根节点为 { children: [...] } 的格式
+          // Compatible with root node format { children: [...] }
           let nodes: any[] = []
           if (dependencyTree && !dependencyTree.groupId && Array.isArray(dependencyTree.children)) {
             nodes = dependencyTree.children
@@ -357,17 +357,17 @@ onMounted(() => {
           
           dependencyData.value = processDependencyData(nodes)
           
-          // 触发父组件的缓存逻辑
+          // Trigger parent component's cache logic
           if (dependencyData.value.length > 0) {
             emit('select-dependency', null, dependencyData.value)
           }
         } catch (err) {
-          error.value = `解析失败: ${err}\n\n原始内容:\n${message.data}`
+          error.value = `Parse failed: ${err}\n\nOriginal content:\n${message.data}`
         }
         break
       case 'error':
         loading.value = false
-        error.value = message.message || '获取依赖数据失败'
+        error.value = message.message || 'Failed to get dependency data'
         break
       case 'gotoTreeNode': {
         const { path } = message
@@ -375,7 +375,7 @@ onMounted(() => {
         break
       }
       case 'excludeSuccess': {
-        // 处理exclude成功的消息
+        // Handle exclude success message
         const { excludedDependency } = message
         if (excludedDependency) {
           handleExcludeSuccess(excludedDependency)
@@ -385,7 +385,7 @@ onMounted(() => {
     }
   })
   
-  // 修改：检查缓存数据，避免重复加载
+  // Modified: check cached data, avoid duplicate loading
   if (props.cachedData && props.isDataLoaded) {
     dependencyData.value = processDependencyData(
       Array.isArray(props.cachedData) ? props.cachedData : 
@@ -397,10 +397,10 @@ onMounted(() => {
   }
 })
 
-// 跳转到指定GAV的方法
+// Method to jump to specified GAV
 function jumpToGAV(gav: { groupId: string, artifactId: string, version: string }) {
   
-  // 递归查找匹配的节点
+  // Recursively find matching node
   function findGAVNode(nodes: DependencyNode[], targetGAV: any): DependencyNode | null {
     for (const node of nodes) {
       if (node.groupId === targetGAV.groupId && 
@@ -411,7 +411,7 @@ function jumpToGAV(gav: { groupId: string, artifactId: string, version: string }
       if (node.children && node.children.length > 0) {
         const found = findGAVNode(node.children, targetGAV)
         if (found) {
-          // 展开父节点
+          // Expand parent node
           node.expanded = true
           return found
         }
@@ -420,17 +420,17 @@ function jumpToGAV(gav: { groupId: string, artifactId: string, version: string }
     return null
   }
   
-  // 查找目标节点
+  // Find target node
   const targetNode = findGAVNode(dependencyData.value, gav)
   if (targetNode) {
-    // 选中目标节点
+    // Select target node
     selectedNode.value = targetNode
     emit('select-dependency', targetNode, dependencyData.value)
     
-    // 高亮搜索结果
+    // Highlight search results
     searchAndHighlight(dependencyData.value, gav.artifactId)
   } else {
-    console.warn('⚠️ DependencyTree: 未找到GAV:', gav)
+    console.warn('⚠️ DependencyTree: GAV not found:', gav)
   }
 }
 
@@ -438,7 +438,7 @@ defineExpose({ refreshDependencies, expandAll, collapseAll, jumpToGAV, gotoAndHi
 </script>
 
 <style scoped>
-/* 容器样式 - 参考Tailwind卡片式设计 */
+/* Container styles - Reference Tailwind card design */
 .dependency-tree-container {
   font-family: var(--vscode-font-family);
   color: var(--vscode-foreground);
@@ -450,7 +450,7 @@ defineExpose({ refreshDependencies, expandAll, collapseAll, jumpToGAV, gotoAndHi
   box-sizing: border-box;
 }
 
-/* 加载和错误状态样式 */
+/* Loading and error state styles */
 .loading, .empty-state {
   display: flex;
   flex-direction: column;
@@ -472,7 +472,7 @@ defineExpose({ refreshDependencies, expandAll, collapseAll, jumpToGAV, gotoAndHi
   text-align: center;
 }
 
-/* 依赖树样式 - 采用现代化卡片式设计 */
+/* Dependency tree styles - Modern card design */
 .dependency-tree {
   background: var(--vscode-editor-background);
   border-radius: 8px;
@@ -494,7 +494,7 @@ defineExpose({ refreshDependencies, expandAll, collapseAll, jumpToGAV, gotoAndHi
   margin-top: 4px;
 }
 
-/* 节点行样式 - 参考Tailwind的卡片设计 */
+/* Node row styles - Reference Tailwind card design */
 .dep-node-row {
   display: flex;
   align-items: center;
@@ -532,7 +532,7 @@ defineExpose({ refreshDependencies, expandAll, collapseAll, jumpToGAV, gotoAndHi
   box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
 }
 
-/* 展开/折叠箭头样式 */
+/* Expand/collapse arrow styles */
 .arrow {
   display: inline-block;
   width: 20px;
@@ -563,7 +563,7 @@ defineExpose({ refreshDependencies, expandAll, collapseAll, jumpToGAV, gotoAndHi
   transform: rotate(90deg);
 }
 
-/* 依赖标签样式 */
+/* Dependency label styles */
 .dep-label {
   flex: 1;
   cursor: pointer;
@@ -582,7 +582,7 @@ defineExpose({ refreshDependencies, expandAll, collapseAll, jumpToGAV, gotoAndHi
   color: var(--vscode-textPreformat-foreground);
 }
 
-/* 子节点容器样式 */
+/* Child node container styles */
 .dep-children {
   overflow: hidden;
   transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -597,7 +597,7 @@ li.collapsed > .dep-children {
   display: block;
 }
 
-/* 依赖大小显示样式 */
+/* Dependency size display styles */
 .dependency-size {
   color: var(--vscode-descriptionForeground);
   font-size: 11px;
@@ -611,7 +611,7 @@ li.collapsed > .dep-children {
   border-radius: 12px;
 }
 
-/* GAV信息样式 */
+/* GAV information styles */
 .gav-info {
   display: flex;
   align-items: center;
@@ -637,7 +637,7 @@ li.collapsed > .dep-children {
   opacity: 0.6;
 }
 
-/* scope标识样式 */
+/* Scope badge styles */
 .scope-badge {
   display: inline-flex;
   align-items: center;
@@ -651,7 +651,7 @@ li.collapsed > .dep-children {
   text-transform: uppercase;
 }
 
-/* 不同scope的颜色区分 */
+/* Color differentiation for different scopes */
 .scope-badge.test {
   background: #4CAF50;
   color: white;
@@ -667,7 +667,7 @@ li.collapsed > .dep-children {
   color: var(--vscode-badge-foreground);
 }
 
-/* 冲突标识样式 */
+/* Conflict indicator styles */
 .conflict-indicator {
   color: #F44336;
   font-weight: 600;

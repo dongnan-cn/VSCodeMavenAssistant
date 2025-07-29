@@ -1,18 +1,18 @@
 <template>
     <div class="dependency-conflicts-container">
-        <!-- 加载状态 -->
+        <!-- Loading state -->
         <div v-if="loading" class="loading">
             <div class="loading-spinner"></div>
             <div class="loading-text">Loading dependency conflicts...</div>
         </div>
 
-        <!-- 错误状态 -->
+        <!-- Error state -->
         <div v-else-if="error" class="error">
             <div class="error-icon">⚠️</div>
             <div class="error-message">{{ error }}</div>
         </div>
 
-        <!-- 冲突列表 -->
+        <!-- Conflicts list -->
         <div v-else-if="conflictData.length > 0" class="conflicts-list">
             <div class="conflicts-header">
                 <div class="conflicts-title">
@@ -31,7 +31,7 @@
                     }" @click="selectConflict(conflict)" @contextmenu="handleContextMenu(conflict, $event)">
                     <div class="conflict-main">
                         <div class="conflict-gav" :style="{ color: getConflictColor(conflict) }">
-                            <!-- 显示文件大小（如果启用），size已经是KB单位 -->
+                            <!-- Show file size (if enabled), size is already in KB -->
                             <span v-if="showSize && conflict.size" class="dependency-size">[{{ conflict.size }}
                                 KB]</span>
                             <template v-if="showGroupId">
@@ -41,7 +41,7 @@
                             <span class="artifact-id">{{ conflict.artifactId }}</span>
                             <span class="separator"> : </span>
                             <span class="version">{{ conflict.usedVersion }}</span>
-                            <!-- 冲突版本信息移到同一行 -->
+                            <!-- Move conflict version info to same line -->
                             <span class="separator"> - </span>
                             <span class="versions-list">{{ conflict.conflictVersions.join(', ') }}</span>
                         </div>
@@ -50,14 +50,14 @@
             </div>
         </div>
 
-        <!-- 空状态 -->
+        <!-- Empty state -->
         <div v-else class="empty-state">
             <div class="empty-icon">✅</div>
             <div class="empty-title">No Dependency Conflicts</div>
             <div class="empty-message">All dependencies are resolved without conflicts.</div>
         </div>
         
-        <!-- 右键菜单组件 -->
+        <!-- Context menu component -->
         <ContextMenu
             :visible="menuVisible"
             :x="menuX"
@@ -74,38 +74,38 @@ import { ref, onMounted, computed } from 'vue'
 import type { ConflictDependency } from '../types/dependency'
 import ContextMenu from './ContextMenu.vue'
 
-// 组件属性定义
+// Component props definition
 const props = defineProps<{
     vscodeApi?: any
-    searchText?: string  // 新增：搜索文本
+    searchText?: string  // Added: search text
     showGroupId?: boolean
-    showSize?: boolean  // 新增：控制是否显示文件大小
-    // 新增：缓存相关属性
+    showSize?: boolean  // Added: control whether to show file size
+    // Added: cache related properties
     cachedData?: any
     isDataLoaded?: boolean
 }>()
 
-// 修改 emit 定义，添加缓存事件
+// Modified emit definition, add cache events
 const emit = defineEmits<{
     'select-conflict': [conflict: ConflictDependency]
-    'cache-conflict-data': [data: any] // 新增：缓存数据事件
-    'cache-dependency-tree': [data: any] // 新增：缓存依赖树数据事件
+    'cache-conflict-data': [data: any] // Added: cache data event
+    'cache-dependency-tree': [data: any] // Added: cache dependency tree data event
 }>()
 
-// 响应式数据
+// Reactive data
 const loading = ref(false)
 const error = ref('')
 const conflictData = ref<ConflictDependency[]>([])
 const selectedConflict = ref<ConflictDependency | null>(null)
 
-// 右键菜单相关状态
+// Context menu related state
 const menuVisible = ref(false)
 const menuX = ref(0)
 const menuY = ref(0)
 const menuConflict = ref<ConflictDependency | null>(null)
 const menuItems = ref([{ label: 'Jump to Left Tree', value: 'jump-to-tree' }])
 
-// 搜索过滤函数 - 专门在groupId和artifactId中搜索
+// Search filter function - specifically search in groupId and artifactId
 function searchConflicts(conflicts: ConflictDependency[], searchText: string): ConflictDependency[] {
     if (!searchText || !searchText.trim()) {
         return conflicts
@@ -114,21 +114,21 @@ function searchConflicts(conflicts: ConflictDependency[], searchText: string): C
     const searchLower = searchText.toLowerCase().trim()
     
     return conflicts.filter(conflict => {
-        // 在groupId中搜索
+        // Search in groupId
         const groupIdMatch = conflict.groupId.toLowerCase().includes(searchLower)
-        // 在artifactId中搜索
+        // Search in artifactId
         const artifactIdMatch = conflict.artifactId.toLowerCase().includes(searchLower)
         
         return groupIdMatch || artifactIdMatch
     })
 }
 
-// 计算属性：过滤后的冲突数据
+// Computed property: filtered conflict data
 const filteredConflictData = computed(() => {
     return searchConflicts(conflictData.value, props.searchText || '')
 })
 
-// 计算属性：为每个冲突依赖生成颜色映射
+// Computed property: generate color mapping for each conflict dependency
 const conflictColors = computed(() => {
     const colorMap = new Map<string, string>()
     
@@ -136,19 +136,19 @@ const conflictColors = computed(() => {
         const key = `${conflict.groupId}:${conflict.artifactId}`
         const scope = conflict.scope
         
-        // scope 为 test 时显示绿色
+        // Show green when scope is test
         if (scope === 'test') {
             colorMap.set(key, '#4CAF50') // 绿色
         }
-        // scope 为 runtime 时显示紫色
+        // Show purple when scope is runtime
         else if (scope === 'runtime') {
             colorMap.set(key, '#9C27B0') // 紫色
         }
-        // scope 为 compile 时显示蓝色
+        // Show blue when scope is compile
         else if (scope === 'compile') {
             colorMap.set(key, '#2196F3') // 蓝色
         }
-        // 其他情况显示白色
+        // Show white in other cases
         else {
             colorMap.set(key, '#FFFFFF')
         }
@@ -157,38 +157,38 @@ const conflictColors = computed(() => {
     return colorMap
 })
 
-// 获取指定冲突依赖的颜色
+// Get color for specified conflict dependency
 function getConflictColor(conflict: ConflictDependency): string {
     const key = `${conflict.groupId}:${conflict.artifactId}`
     return conflictColors.value.get(key) || '#FFFFFF'
 }
 
-// 选择冲突依赖
+// Select conflict dependency
 function selectConflict(conflict: ConflictDependency) {
     selectedConflict.value = conflict
     emit('select-conflict', conflict)
 }
 
-// 处理右键菜单
+// Handle context menu
 function handleContextMenu(conflict: ConflictDependency, event: MouseEvent) {
     event.preventDefault()
     
-    // 先选中当前冲突依赖
+    // First select current conflict dependency
     selectConflict(conflict)
     
-    // 显示右键菜单
+    // Show context menu
     menuVisible.value = true
     menuX.value = event.clientX
     menuY.value = event.clientY
     menuConflict.value = conflict
 }
 
-// 处理菜单项选择
+// Handle menu item selection
 function handleMenuSelect(action: string) {
     if (!menuConflict.value) return
     
     if (action === 'jump-to-tree') {
-        // 跳转到左侧依赖树，通过window.postMessage发送消息
+        // Jump to left dependency tree, send message via window.postMessage
         window.postMessage({
             type: 'setSearchText',
             artifactId: menuConflict.value.artifactId
@@ -205,10 +205,10 @@ function handleMenuSelect(action: string) {
     menuVisible.value = false
 }
 
-// 修改：刷新冲突数据，支持缓存检查
+// Modified: refresh conflict data, support cache checking
 const refreshConflicts = async () => {
 
-    // 检查是否有缓存数据
+    // Check if there is cached data
     if (props.cachedData && props.isDataLoaded) {
         conflictData.value = props.cachedData;
         loading.value = false;
@@ -219,40 +219,40 @@ const refreshConflicts = async () => {
     error.value = '';
 
     if (props.vscodeApi) {
-        // 发送消息到后端获取依赖树数据
+        // Send message to backend to get dependency tree data
         props.vscodeApi.postMessage({
             type: 'getConflictDependencies'
         });
     } else {
         loading.value = false;
-        error.value = 'VSCode API 不可用';
+        error.value = 'VSCode API is not available';
     }
 };
 
 /**
- * 从依赖树中提取冲突信息
- * @param dependencyTree 依赖树根节点
- * @returns 冲突依赖列表
+ * Extract conflict information from dependency tree
+ * @param dependencyTree dependency tree root node
+ * @returns conflict dependency list
  */
 function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
 
-    // 存储所有依赖的映射：groupId:artifactId -> 版本信息
+    // Store mapping of all dependencies: groupId:artifactId -> version info
     const dependencyMap = new Map<string, {
         usedVersion: string | null,
         conflictVersions: Set<string>,
         groupId: string,
         artifactId: string,
-        size?: string,  // JAR文件大小
-        scope?: string  // 依赖范围
+        size?: string,  // JAR file size
+        scope?: string  // dependency scope
     }>();
 
     let totalNodes = 0;
     let validNodes = 0;
 
-    // 递归遍历依赖树，收集所有依赖信息
+    // Recursively traverse dependency tree, collect all dependency info
     function traverseTree(node: any, depth: number = 0) {
         totalNodes++;
-        // 检查当前节点是否有有效的依赖信息
+        // Check if current node has valid dependency info
         if (node && node.groupId && node.artifactId && node.version) {
             validNodes++;
             const key = `${node.groupId}:${node.artifactId}`;
@@ -273,19 +273,19 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
             const depInfo = dependencyMap.get(key)!;
 
             if (isDropped) {
-                // 被冲突丢弃的版本
+                // Version dropped by conflict
                 depInfo.conflictVersions.add(version);
             } else {
-                // 实际使用的版本
+                // Actually used version
                 if (depInfo.usedVersion === null) {
                     depInfo.usedVersion = version;
                 }
                 if (node.size && !depInfo.size) {
-                    // 将字节转换为KB（向上取整），与DependencyTreeNode.vue保持一致
+                    // Convert bytes to KB (round up), consistent with DependencyTreeNode.vue
                     const sizeInBytes = node.size || 0;
                     depInfo.size = Math.ceil(sizeInBytes / 1024).toString();
                 }
-                // 收集scope信息：优先使用实际使用版本的scope，确保与tree模式一致
+                // Collect scope info: prioritize scope of actually used version, ensure consistency with tree mode
                 if (depInfo.usedVersion === version && node.scope) {
                     depInfo.scope = node.scope;
                 } else if (node.scope && !depInfo.scope) {
@@ -293,33 +293,33 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
                 }
             }
             
-            // 对于冲突版本，也尝试收集scope信息（如果还没有的话）
+            // For conflict versions, also try to collect scope info (if not already available)
             if (node.scope && !dependencyMap.get(key)!.scope) {
                 dependencyMap.get(key)!.scope = node.scope;
             }
         }
 
-        // 递归处理子依赖
+        // Recursively process child dependencies
         if (node && node.children && Array.isArray(node.children)) {
             node.children.forEach((child: any) => traverseTree(child, depth + 1));
         }
     }
 
-    // 开始遍历 - 如果根节点没有依赖信息，直接遍历其子节点
+    // Start traversal - if root node has no dependency info, directly traverse its child nodes
     if (dependencyTree && dependencyTree.children && Array.isArray(dependencyTree.children)) {
         dependencyTree.children.forEach((child: any) => traverseTree(child, 0));
     } else {
         traverseTree(dependencyTree);
     }
 
-    // 构建冲突列表
+    // Build conflict list
     const conflicts: ConflictDependency[] = [];
 
     dependencyMap.forEach((depInfo) => {
         const hasConflicts = depInfo.conflictVersions.size > 0;
         const hasUsedVersion = depInfo.usedVersion !== null;
 
-        // 只有存在冲突版本的依赖才加入冲突列表
+        // Only dependencies with conflict versions are added to conflict list
         if (hasConflicts && hasUsedVersion) {
             const conflict = {
                 groupId: depInfo.groupId,
@@ -327,14 +327,14 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
                 usedVersion: depInfo.usedVersion!,
                 conflictVersions: Array.from(depInfo.conflictVersions).sort(),
                 conflictCount: depInfo.conflictVersions.size,
-                size: depInfo.size,  // 包含size信息
-                scope: depInfo.scope  // 包含scope信息
+                size: depInfo.size,  // Include size info
+                scope: depInfo.scope  // Include scope info
             };
             conflicts.push(conflict);
         }
     });
 
-    // 按冲突数量降序排序
+    // Sort by conflict count in descending order
     conflicts.sort((a, b) => b.conflictCount - a.conflictCount);
 
 
@@ -342,7 +342,7 @@ function extractConflictsFromTree(dependencyTree: any): ConflictDependency[] {
     return conflicts;
 }
 
-// 处理来自扩展端的消息
+// Handle messages from extension side
 const handleMessage = (event: MessageEvent) => {
     const message = event.data;
 
@@ -353,25 +353,25 @@ const handleMessage = (event: MessageEvent) => {
                     ? JSON.parse(message.data)
                     : message.data;
 
-                // 从依赖树中提取冲突信息
+                // Extract conflict info from dependency tree
                 const conflicts = extractConflictsFromTree(dependencyTree);
                 conflictData.value = conflicts;
                 loading.value = false;
 
-                // 新增：触发缓存事件
+                // Added: trigger cache event
                 if (conflicts && conflicts.length >= 0) {
                     emit('cache-conflict-data', conflicts);
                 }
 
-                // 新增：将原始依赖树数据也传递给父组件，用于DependencyPaths显示
+                // Added: also pass original dependency tree data to parent component for DependencyPaths display
                 emit('cache-dependency-tree', dependencyTree);
             } catch (err) {
-                error.value = `处理依赖树数据失败: ${err}`;
+                error.value = `Failed to process dependency tree data: ${err}`;
                 loading.value = false;
             }
             break;
         case 'conflictDependencies':
-            // 兼容旧的消息格式
+            // Compatible with old message format
             try {
                 const conflictDataReceived = typeof message.data === 'string'
                     ? JSON.parse(message.data)
@@ -380,12 +380,12 @@ const handleMessage = (event: MessageEvent) => {
                 conflictData.value = conflictDataReceived || [];
                 loading.value = false;
 
-                // 新增：触发缓存事件
+                // Added: trigger cache event
                 if (conflictDataReceived) {
                     emit('cache-conflict-data', conflictDataReceived);
                 }
             } catch (err) {
-                error.value = `解析冲突数据失败: ${err}`;
+                error.value = `Failed to parse conflict data: ${err}`;
                 loading.value = false;
             }
             break;
@@ -397,43 +397,43 @@ const handleMessage = (event: MessageEvent) => {
             break;
         case 'error':
             loading.value = false;
-            error.value = message.message || '获取冲突数据失败';
+            error.value = message.message || 'Failed to get conflict data';
             break;
     }
 };
 
-// 组件挂载时的初始化
+// Initialization when component is mounted
 onMounted(() => {
 
-    // 监听来自VSCode扩展的消息
+    // Listen for messages from VSCode extension
     if (typeof window !== 'undefined') {
         window.addEventListener('message', handleMessage);
     }
 
-    // 初始加载冲突数据
+    // Initial load of conflict data
     refreshConflicts();
 });
 
-// 暴露方法供父组件调用
+// Expose methods for parent component to call
 defineExpose({
     refreshConflicts
 });
 </script>
 
 <style scoped>
-/* 容器样式 - 与tree模式保持一致 */
+/* Container style - consistent with tree mode */
 .dependency-conflicts-container {
     font-family: var(--vscode-font-family);
     color: var(--vscode-foreground);
     background: var(--vscode-editor-background);
-    height: 100vh; /* 固定高度，不受分割条影响 */
-    overflow-y: auto; /* 垂直滚动 */
+    height: 100vh; /* Fixed height, not affected by splitter */
+    overflow-y: auto; /* Vertical scrolling */
     padding: 16px;
     margin: 0;
     box-sizing: border-box;
 }
 
-/* 加载状态样式 */
+/* Loading state style */
 .loading {
     display: flex;
     flex-direction: column;
@@ -467,7 +467,7 @@ defineExpose({
     font-size: 13px;
 }
 
-/* 错误状态样式 */
+/* Error state style */
 .error {
     display: flex;
     flex-direction: column;
@@ -490,7 +490,7 @@ defineExpose({
     text-align: center;
 }
 
-/* 冲突列表样式 */
+/* Conflicts list style */
 .conflicts-list {
     padding: 8px;
 }
@@ -499,8 +499,8 @@ defineExpose({
     padding: 8px 12px;
     border-bottom: 1px solid var(--vscode-panel-border);
     margin-bottom: 8px;
-    white-space: nowrap; /* 强制单行显示，不换行 */
-    overflow: hidden; /* 隐藏超出部分 */
+    white-space: nowrap; /* Force single line display, no wrapping */
+    overflow: hidden; /* Hide overflow content */
 }
 
 .conflicts-title {
@@ -508,9 +508,9 @@ defineExpose({
     font-weight: 600;
     color: var(--vscode-foreground);
     margin-bottom: 4px;
-    white-space: nowrap; /* 强制单行显示，不换行 */
-    overflow: hidden; /* 隐藏超出部分 */
-    text-overflow: ellipsis; /* 超出部分显示省略号 */
+    white-space: nowrap; /* Force single line display, no wrapping */
+    overflow: hidden; /* Hide overflow content */
+    text-overflow: ellipsis; /* Show ellipsis for overflow content */
 }
 
 .conflicts-items {
@@ -519,43 +519,43 @@ defineExpose({
     gap: 0;
 }
 
-/* 冲突项样式 - 与tree模式保持一致，强制单行显示 */
+/* Conflict item style - consistent with tree mode, force single line display */
 .conflict-item {
-    display: flex; /* 使用flex布局，与tree模式一致 */
+    display: flex; /* Use flex layout, consistent with tree mode */
     align-items: center;
-    padding: 4px 12px; /* 与tree模式相同的padding */
-    margin: 1px 0; /* 与tree模式相同的margin */
-    border-radius: 6px; /* 与tree模式相同的圆角 */
+    padding: 4px 12px; /* Same padding as tree mode */
+    margin: 1px 0; /* Same margin as tree mode */
+    border-radius: 6px; /* Same border radius as tree mode */
     cursor: pointer;
     transition: all 0.2s ease;
     border: 1px solid transparent;
-    background: var(--vscode-editor-background); /* 与tree模式相同的背景 */
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace; /* 与tree模式相同的字体 */
-    font-size: 14px; /* 与tree模式相同的字体大小 */
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); /* 与tree模式相同的阴影 */
-    white-space: nowrap; /* 强制单行显示，不换行 */
-    overflow: hidden; /* 隐藏超出部分 */
+    background: var(--vscode-editor-background); /* Same background as tree mode */
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace; /* Same font as tree mode */
+    font-size: 14px; /* Same font size as tree mode */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); /* Same shadow as tree mode */
+    white-space: nowrap; /* Force single line display, no wrapping */
+    overflow: hidden; /* Hide overflow content */
 }
 
 .conflict-item:hover {
     background: var(--vscode-list-hoverBackground);
     border-color: var(--vscode-list-hoverBackground);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); /* 与tree模式相同的hover阴影 */
-    transform: translateY(-1px); /* 与tree模式相同的hover效果 */
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); /* Same hover shadow as tree mode */
+    transform: translateY(-1px); /* Same hover effect as tree mode */
 }
 
 .conflict-item.selected {
     background: var(--vscode-list-activeSelectionBackground);
     color: var(--vscode-list-activeSelectionForeground);
     border-color: var(--vscode-focusBorder);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); /* 与tree模式相同的选中阴影 */
-    transform: translateY(-1px); /* 与tree模式相同的选中效果 */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); /* Same selected shadow as tree mode */
+    transform: translateY(-1px); /* Same selected effect as tree mode */
     z-index: 2;
-    font-weight: 600; /* 与tree模式相同的选中字重 */
+    font-weight: 600; /* Same selected font weight as tree mode */
 }
 
 .conflict-main {
-    flex: 1; /* 占据剩余空间，与tree模式的dep-label一致 */
+    flex: 1; /* Occupy remaining space, consistent with dep-label in tree mode */
     cursor: pointer;
     user-select: none;
     display: flex;
@@ -566,14 +566,14 @@ defineExpose({
 
 .conflict-gav {
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 14px; /* 与tree模式相同的字体大小 */
+    font-size: 14px; /* Same font size as tree mode */
     font-weight: 500;
-    display: flex; /* 使用flex布局，与tree模式的gav-info一致 */
+    display: flex; /* Use flex layout, consistent with gav-info in tree mode */
     align-items: center;
-    gap: 4px; /* 与tree模式相同的间距 */
-    white-space: nowrap; /* 强制单行显示，不换行 */
-    overflow: hidden; /* 隐藏超出部分 */
-    flex-shrink: 1; /* 允许收缩以适应容器 */
+    gap: 4px; /* Same spacing as tree mode */
+    white-space: nowrap; /* Force single line display, no wrapping */
+    overflow: hidden; /* Hide overflow content */
+    flex-shrink: 1; /* Allow shrinking to fit container */
 }
 
 .group-id,
@@ -582,9 +582,9 @@ defineExpose({
 .separator,
 .dependency-size,
 .versions-list {
-    /* 所有内联元素统一样式 */
-    display: inline; /* 确保在同一行显示 */
-    color: inherit; /* 继承父元素颜色，用于scope着色 */
+    /* Unified style for all inline elements */
+    display: inline; /* Ensure display on same line */
+    color: inherit; /* Inherit parent element color for scope coloring */
 }
 
 .group-id {
@@ -596,7 +596,7 @@ defineExpose({
 }
 
 .version {
-    font-weight: 500; /* 与tree模式相同的字重 */
+    font-weight: 500; /* Same font weight as tree mode */
 }
 
 .separator {
@@ -604,12 +604,12 @@ defineExpose({
 }
 
 .versions-list {
-    color: var(--vscode-errorForeground) !important; /* 冲突版本使用红色，覆盖继承的颜色 */
+    color: var(--vscode-errorForeground) !important; /* Conflict versions use red color, override inherited color */
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-weight: 500;
 }
 
-/* 空状态样式 */
+/* Empty state style */
 .empty-state {
     display: flex;
     flex-direction: column;

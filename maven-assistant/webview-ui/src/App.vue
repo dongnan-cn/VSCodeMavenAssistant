@@ -2,20 +2,20 @@
 import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import DependencyTree from './components/DependencyTree.vue'
 import DependencyPaths from './components/DependencyPaths.vue'
-import DependencyConflicts from './components/DependencyConflicts.vue' // 新增
+import DependencyConflicts from './components/DependencyConflicts.vue' // Added
 
-// 声明VSCode API
+// Declare VSCode API
 declare function acquireVsCodeApi(): any
 
 const leftWidth = ref(320)
 let dragging = false
 
 const selectedDependency = ref<any>(null)
-const dependencyTreeData = ref<any>(null) // 依赖树原始数据
+const dependencyTreeData = ref<any>(null) // Raw dependency tree data
 
 const searchText = ref('')
 const dependencyTreeRef = ref()
-const dependencyConflictsRef = ref() // 新增：冲突组件引用
+const dependencyConflictsRef = ref() // Added: conflict component reference
 
 const showGroupId = ref(false)
 const filterMode = ref(false)
@@ -23,26 +23,26 @@ const searchHistory = ref<string[]>([])
 const showHistoryDropdown = ref(false)
 const showSize = ref(false)
 
-// 新增：显示模式选择，默认显示依赖树
-const displayMode = ref('dependency-tree') // 'dependency-tree' 或 'dependency-conflicts'
+// Added: display mode selection, default to dependency tree
+const displayMode = ref('dependency-tree') // 'dependency-tree' or 'dependency-conflicts'
 
-// 新增：缓存机制相关变量
-const dependencyTreeCache = ref<any>(null) // 缓存依赖树数据
-const dependencyTreeLoaded = ref(false) // 标记依赖树是否已加载
-const dependencyTreeKey = ref(0) // 用于强制重新渲染组件
+// Added: cache mechanism related variables
+const dependencyTreeCache = ref<any>(null) // Cache dependency tree data
+const dependencyTreeLoaded = ref(false) // Mark if dependency tree is loaded
+const dependencyTreeKey = ref(0) // Used to force re-render component
 
-// 新增：冲突依赖缓存变量
-const conflictDataCache = ref<any>(null) // 缓存冲突数据
-const conflictDataLoaded = ref(false) // 标记冲突数据是否已加载
-const conflictDataKey = ref(0) // 用于强制重新渲染冲突组件
+// Added: conflict dependency cache variables
+const conflictDataCache = ref<any>(null) // Cache conflict data
+const conflictDataLoaded = ref(false) // Mark if conflict data is loaded
+const conflictDataKey = ref(0) // Used to force re-render conflict component
 
-// 通用的搜索触发函数
+// Generic search trigger function
 function triggerSearchAfterModeSwitch(componentRef: any) {
   if (!searchText.value.trim()) return
-  // 使用nextTick确保目标组件已经渲染完成
+  // Use nextTick to ensure target component is rendered
   nextTick(() => {
     if (componentRef.value) {
-      // 通过临时清空再重新设置searchText来强制触发响应式更新
+      // Force reactive update by temporarily clearing and resetting searchText
       const currentSearchText = searchText.value
       searchText.value = ''
       nextTick(() => {
@@ -52,17 +52,17 @@ function triggerSearchAfterModeSwitch(componentRef: any) {
   })
 }
 
-// 添加日志：监听显示模式变化
+// Added logging: watch display mode changes
 watch(displayMode, (newMode, oldMode) => {
   
   if (newMode === 'dependency-tree') {
     
-    // 从冲突模式切换到依赖树模式时，触发搜索
+    // Trigger search when switching from conflict mode to dependency tree mode
     if (oldMode === 'dependency-conflicts') {
       triggerSearchAfterModeSwitch(dependencyTreeRef)
     }
   } else if (newMode === 'dependency-conflicts') {    
-    // 从依赖树模式切换到冲突模式时，触发搜索
+    // Trigger search when switching from dependency tree mode to conflict mode
     if (oldMode === 'dependency-tree') {
       triggerSearchAfterModeSwitch(dependencyConflictsRef)
     }
@@ -76,7 +76,7 @@ function toggleHistoryDropdown() {
 function addToSearchHistory(val: string) {
   const trimmed = val.trim()
   if (!trimmed) return
-  // 去重，最新在前，最多10条
+  // Deduplicate, latest first, max 10 items
   const idx = searchHistory.value.indexOf(trimmed)
   if (idx !== -1) searchHistory.value.splice(idx, 1)
   searchHistory.value.unshift(trimmed)
@@ -91,7 +91,7 @@ function handleSearchInputKeydown(e: KeyboardEvent) {
 }
 function handleSearchInputBlur() {
   addToSearchHistory(searchText.value)
-  // 延迟关闭，避免点击历史项时被提前关闭
+  // Delay closing to avoid premature closure when clicking history items
   setTimeout(() => { showHistoryDropdown.value = false }, 150)
 }
 function selectHistoryItem(item: string) {
@@ -99,19 +99,19 @@ function selectHistoryItem(item: string) {
   showHistoryDropdown.value = false
 }
 
-// 修改：刷新依赖数据时清除所有缓存（合并重复的函数定义）
+// Modified: clear all cache when refreshing dependency data (merged duplicate function definitions)
 function refreshDependencies() {  
-  // 清除依赖树缓存
+  // Clear dependency tree cache
   dependencyTreeCache.value = null
   dependencyTreeLoaded.value = false
   dependencyTreeKey.value++
   
-  // 清除冲突数据缓存
+  // Clear conflict data cache
   conflictDataCache.value = null
   conflictDataLoaded.value = false
   conflictDataKey.value++
   
-  // 触发相应组件的刷新
+  // Trigger refresh of corresponding component
   if (displayMode.value === 'dependency-tree') {
     dependencyTreeRef.value?.refreshDependencies?.()
   } else if (displayMode.value === 'dependency-conflicts') {
@@ -126,30 +126,30 @@ function collapseAll() {
   dependencyTreeRef.value?.collapseAll?.()
 }
 
-// 获取VSCode API实例
+// Get VSCode API instance
 const vscodeApi = acquireVsCodeApi()
 
-// 允许外部设置搜索框内容
+// Allow external setting of search box content
 function setSearchText(val: string) {
   searchText.value = val
   addToSearchHistory(val)
 }
 defineExpose({ setSearchText })
 
-// 修改：依赖选择处理，同时缓存数据
+// Modified: dependency selection handling, cache data simultaneously
 const onSelectDependency = (dep: any, treeData: any) => {
   
   selectedDependency.value = dep
   dependencyTreeData.value = treeData
   
-  // 缓存依赖树数据
+  // Cache dependency tree data
   if (!dependencyTreeCache.value && treeData) {
     dependencyTreeCache.value = treeData
     dependencyTreeLoaded.value = true
   }
 }
 
-// 新增：处理冲突数据缓存
+// Added: handle conflict data cache
 const onCacheConflictData = (conflictData: any) => {
   if (!conflictDataCache.value && conflictData) {
     conflictDataCache.value = conflictData
@@ -157,9 +157,9 @@ const onCacheConflictData = (conflictData: any) => {
   } 
 }
 
-// 新增：处理从冲突组件传递过来的依赖树数据
+// Added: handle dependency tree data passed from conflict component
 const onCacheDependencyTreeFromConflicts = (treeData: any) => {
-  // 如果还没有依赖树缓存，则缓存这个数据
+  // Cache this data if there's no dependency tree cache yet
   if (!dependencyTreeCache.value && treeData) {
     dependencyTreeCache.value = treeData
     dependencyTreeLoaded.value = true
@@ -185,15 +185,15 @@ const stopDrag = () => {
 onMounted(() => {
   window.addEventListener('mousemove', onDrag)
   window.addEventListener('mouseup', stopDrag)
-  // 新增：监听 setSearchText、jumpToConflictInTree 和 gotoTreeNode 消息
+  // Added: listen for setSearchText, jumpToConflictInTree and gotoTreeNode messages
   window.addEventListener('message', (event) => {
     if (event.data?.type === 'setSearchText') {
       setSearchText(event.data.artifactId)
     } else if (event.data?.type === 'jumpToConflictInTree') {
       displayMode.value = 'dependency-tree'
-      // 设置搜索文本为artifactId
+      // Set search text to artifactId
       setSearchText(event.data.artifactId)
-      // 通过依赖树组件查找并选中对应的GAV
+      // Find and select corresponding GAV through dependency tree component
       nextTick(() => {
         if (dependencyTreeRef.value) {
           dependencyTreeRef.value.jumpToGAV({
@@ -204,12 +204,12 @@ onMounted(() => {
         }
       })
     } else if (event.data?.type === 'gotoTreeNode') {
-      // 先切换到依赖树模式
+      // Switch to dependency tree mode first
       displayMode.value = 'dependency-tree'
-      // 等待组件渲染完成后再直接调用依赖树组件的方法
+      // Wait for component to render then directly call dependency tree component method
       nextTick(() => {
         if (dependencyTreeRef.value && event.data.path) {
-          // 直接调用依赖树组件的跳转方法，避免重复发送消息
+          // Directly call dependency tree component's jump method to avoid duplicate messages
           dependencyTreeRef.value.gotoAndHighlightNodeByPath?.(event.data.path)
         }
       })
@@ -222,25 +222,25 @@ onBeforeUnmount(() => {
   window.removeEventListener('mouseup', stopDrag)
 })
 
-// 处理冲突依赖选择
+// Handle conflict dependency selection
 const onSelectConflict = (conflict: any) => {
-  // 将冲突依赖转换为与dependency tree兼容的格式
+  // Convert conflict dependency to format compatible with dependency tree
   const dependencyForPaths = {
     groupId: conflict.groupId,
     artifactId: conflict.artifactId,
-    version: conflict.usedVersion, // 使用当前使用的版本
-    scope: conflict.scope, // 使用冲突依赖中的scope信息
-    size: conflict.size // 传递size信息
+    version: conflict.usedVersion, // Use currently used version
+    scope: conflict.scope, // Use scope information from conflict dependency
+    size: conflict.size // Pass size information
   }
   
-  // 设置选中的依赖，让右侧DependencyPaths组件显示相关依赖链
+  // Set selected dependency to make right-side DependencyPaths component show related dependency chain
   selectedDependency.value = dependencyForPaths
 }
 </script>
 
 <template>
   <div>
-    <!-- 主工具栏区域 -->
+    <!-- Main toolbar area -->
     <div class="toolbar">
       <div class="toolbar-left">
         <div class="search-input-wrapper">
@@ -260,7 +260,7 @@ const onSelectConflict = (conflict: any) => {
           <input type="checkbox" v-model="filterMode" /> filter
         </label>
         <button @click="refreshDependencies" class="refresh-btn">Refresh</button>
-        <!-- 只在依赖树模式下显示展开/折叠按钮 -->
+        <!-- Only show expand/collapse buttons in dependency tree mode -->
         <button v-if="displayMode === 'dependency-tree'" @click="expandAll" class="refresh-btn">Expand All</button>
         <button v-if="displayMode === 'dependency-tree'" @click="collapseAll" class="refresh-btn">Collapse All</button>
         <label class="show-groupid-label">
@@ -270,7 +270,7 @@ const onSelectConflict = (conflict: any) => {
           <input type="checkbox" v-model="showSize" /> Show size
         </label>
       </div>
-      <!-- 显示模式选择栏 - 使用与 toolbar-left 相同的样式 -->
+      <!-- Display mode selection bar - use same style as toolbar-left -->
       <div class="display-mode-bar">
         <div class="display-mode-group">
           <label class="radio-label">
@@ -287,11 +287,11 @@ const onSelectConflict = (conflict: any) => {
 
 
 
-    <!-- 主内容分割面板 -->
+    <!-- Main content split panel -->
     <div class="split-pane">
       <div class="left-pane" :style="{ width: leftWidth + 'px' }">
-        <!-- 根据选择的显示模式切换左侧内容 -->
-        <!-- 修改：使用 key 和缓存机制优化 DependencyTree 组件 -->
+        <!-- Switch left content based on selected display mode -->
+        <!-- Modified: use key and cache mechanism to optimize DependencyTree component -->
         <DependencyTree 
           v-if="displayMode === 'dependency-tree'" 
           :key="dependencyTreeKey"
@@ -305,7 +305,7 @@ const onSelectConflict = (conflict: any) => {
           :isDataLoaded="dependencyTreeLoaded"
           ref="dependencyTreeRef" 
         />
-        <!-- 依赖冲突视图 - 添加缓存支持 -->
+        <!-- Dependency conflicts view - add cache support -->
         <DependencyConflicts 
           v-else-if="displayMode === 'dependency-conflicts'"
           :key="conflictDataKey"
@@ -326,7 +326,7 @@ const onSelectConflict = (conflict: any) => {
       </div>
       <div class="splitter" @mousedown="startDrag"></div>
       <div class="right-pane">
-        <!-- 修改：使用缓存的依赖树数据 -->
+        <!-- Modified: use cached dependency tree data -->
         <DependencyPaths 
           :dependencyTree="dependencyTreeCache || dependencyTreeData" 
           :selectedDependency="selectedDependency"
@@ -350,11 +350,11 @@ body,
   width: 100vw;
 }
 
-/* 主分割面板 - 调整高度以适应新的布局 */
+/* Main split panel - adjust height to fit new layout */
 .split-pane {
   display: flex;
   height: calc(100vh - 90px);
-  /* 减去工具栏和显示模式栏的高度 */
+  /* Subtract toolbar and display mode bar height */
   width: 100vw;
   margin: 0;
   padding: 0;
@@ -395,7 +395,7 @@ body,
   margin: 0;
 }
 
-/* 主工具栏样式 - 修改为垂直布局 */
+/* Main toolbar style - modified to vertical layout */
 .toolbar {
   width: 100%;
   box-sizing: border-box;
@@ -404,7 +404,7 @@ body,
   border-bottom: 1px solid var(--vscode-panel-border);
   background: var(--vscode-editor-background);
   display: flex;
-  flex-direction: column; /* 改为垂直布局 */
+  flex-direction: column; /* Changed to vertical layout */
   z-index: 2;
 }
 
@@ -414,22 +414,22 @@ body,
   gap: 8px;
 }
 
-/* 显示模式栏样式 - 使用与 toolbar-left 相同的样式 */
+/* Display mode bar style - use same style as toolbar-left */
 .display-mode-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 8px; /* 添加上边距分隔两行 */
+  margin-top: 8px; /* Add top margin to separate two rows */
 }
 
-/* 显示模式选择组样式 */
+/* Display mode selection group style */
 .display-mode-group {
   display: flex;
   align-items: center;
   gap: 20px;
 }
 
-/* Radio button 标签样式 */
+/* Radio button label style */
 .radio-label {
   display: flex;
   align-items: center;
@@ -452,7 +452,7 @@ body,
   accent-color: var(--vscode-textLink-foreground);
 }
 
-/* 依赖冲突视图占位符样式 */
+/* Dependency conflicts view placeholder style */
 .conflicts-placeholder {
   display: flex;
   align-items: center;
@@ -467,7 +467,7 @@ body,
   font-style: italic;
 }
 
-/* 搜索输入框相关样式 */
+/* Search input box related styles */
 .search-input-wrapper {
   position: relative;
   display: flex;
@@ -544,7 +544,7 @@ body,
   background: var(--vscode-list-hoverBackground);
 }
 
-/* 其他控件样式 */
+/* Other control styles */
 .filter-label,
 .show-groupid-label,
 .show-size-label {

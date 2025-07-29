@@ -217,12 +217,12 @@ public class PomXmlUtils {
     public static Document parseDocument(String pomPath) throws Exception {
         // 参数验证
         if (pomPath == null || pomPath.trim().isEmpty()) {
-            throw new IllegalArgumentException("POM文件路径不能为空");
+            throw new IllegalArgumentException("POM file path cannot be empty");
         }
         
         File pomFile = new File(pomPath);
         if (!pomFile.exists()) {
-            throw new FileNotFoundException("POM文件不存在: " + pomPath);
+            throw new FileNotFoundException("POM file does not exist: " + pomPath);
         }
         
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();

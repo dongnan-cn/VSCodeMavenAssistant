@@ -85,7 +85,7 @@ public class SimpleLanguageServer implements LanguageServer {
     public CompletableFuture<InitializeResult> initialize(InitializeParams params) {
         // 通过 LSP 协议向 VSCode 输出面板推送初始化日志
         if (client != null) {
-            client.logMessage(new MessageParams(MessageType.Info, "LSP Server 已初始化"));
+            client.logMessage(new MessageParams(MessageType.Info, "LSP Server initialized"));
         }
         // 返回空的初始化结果
         return CompletableFuture.completedFuture(new InitializeResult(new ServerCapabilities()));
@@ -136,7 +136,7 @@ public class SimpleLanguageServer implements LanguageServer {
                 String actualPomPath = (pomPath == null || pomPath.trim().isEmpty()) ? "pom.xml" : pomPath;
                 File pomFile = new File(actualPomPath);
                 if (!pomFile.exists()) {
-                    return errorJson("POM文件不存在: " + actualPomPath);
+                    return errorJson("POM file does not exist: " + actualPomPath);
                 }
                 
                 // 检查缓存
@@ -187,7 +187,7 @@ public class SimpleLanguageServer implements LanguageServer {
                     return result;
                 }
             } catch (Exception e) {
-                return errorJson("依赖解析异常: " + e.getMessage());
+                return errorJson("Dependency analysis exception: " + e.getMessage());
             }
         });
     }
@@ -227,7 +227,7 @@ public class SimpleLanguageServer implements LanguageServer {
                 String targetArtifactId = params.get("artifactId");
                 String targetVersion = params.get("version");
                 if (!validateDependencyPathParams(targetGroupId, targetArtifactId)) {
-                    return "{\"success\":false,\"error\":\"缺少必要参数：groupId、artifactId\"}";
+                    return "{\"success\":false,\"error\":\"Missing required parameters: groupId, artifactId\"}";
                 }
                 String pomPath = getPomPathFromParams(params);
                 Model model = MavenModelUtils.getModel(pomPath);
@@ -247,11 +247,11 @@ public class SimpleLanguageServer implements LanguageServer {
                     if (pathInfo != null) {
                         return new Gson().toJson(pathInfo);
                     } else {
-                        return "{\"success\":false,\"error\":\"未找到依赖路径\"}";
+                        return "{\"success\":false,\"error\":\"Dependency path not found\"}";
                     }
                 }
             } catch (Exception e) {
-                return "{\"success\":false,\"error\":\"获取依赖路径失败: " + e.getMessage() + "\"}";
+                return "{\"success\":false,\"error\":\"Failed to get dependency path: " + e.getMessage() + "\"}";
             }
         });
     }
@@ -298,13 +298,13 @@ public class SimpleLanguageServer implements LanguageServer {
                 Map<String, String> rootDep = (Map<String, String>) params.get("rootDependency");
                 Map<String, String> targetDep = (Map<String, String>) params.get("targetDependency");
                 if (rootDep == null || targetDep == null) {
-                    return "{\"success\":false,\"error\":\"缺少依赖参数\"}";
+                    return "{\"success\":false,\"error\":\"Missing dependency parameters\"}";
                 }
 
                 // 调用新的 DOM 解析器实现（保留注释）
                 return insertExclusionWithDOM(pomPath, rootDep, targetDep);
             } catch (Exception e) {
-                return "{\"success\":false,\"error\":\"插入exclusion失败: " + e.getMessage() + "\"}";
+                return "{\"success\":false,\"error\":\"Failed to insert exclusion: " + e.getMessage() + "\"}";
             }
         });
     }
@@ -431,7 +431,7 @@ public class SimpleLanguageServer implements LanguageServer {
                     pathInfo.artifactIdStart = (Integer) positionInfo.get("artifactIdStart");
                     pathInfo.artifactIdEnd = (Integer) positionInfo.get("artifactIdEnd");
                 } catch (Exception e) {
-                    pathInfo.error = "解析pom文件位置失败: " + e.getMessage();
+                    pathInfo.error = "Failed to parse POM file location: " + e.getMessage();
                 }
 
                 return pathInfo;
@@ -532,7 +532,7 @@ public class SimpleLanguageServer implements LanguageServer {
             }
         }
 
-        throw new Exception("未找到目标依赖: " + groupId + ":" + artifactId);
+        throw new Exception("Target dependency not found: " + groupId + ":" + artifactId);
     }
 
     /**
@@ -913,7 +913,7 @@ public class SimpleLanguageServer implements LanguageServer {
                 future.get(5, TimeUnit.SECONDS); // 设置超时避免无限等待
             } catch (Exception e) {
                 // 记录错误但不中断处理流程
-                System.err.println("并行计算jar文件大小时发生错误: " + e.getMessage());
+                System.err.println("Error occurred while calculating jar file sizes in parallel: " + e.getMessage());
             }
         }
     }

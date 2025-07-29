@@ -27,7 +27,7 @@
         />
       </div>
     </div>
-    <!-- 右键菜单组件 -->
+    <!-- Right-click menu component -->
     <ContextMenu
       :visible="menuVisible"
       :x="menuX"
@@ -49,13 +49,13 @@ const props = defineProps({
   selectedDependency: { type: Object, default: null },
   vscodeApi: { type: Object, required: true },
   showGroupId: { type: Boolean, default: false },
-  showSize: { type: Boolean, default: false } // 新增：控制依赖大小显示
+  showSize: { type: Boolean, default: false } // New: control dependency size display
 })
 
-// 展开状态：记录每条路径每个节点的展开状态
+// Expand state: record expand state of each node in each path
 const expandState = ref<{ [key: string]: boolean }>({})
 
-// 右键菜单状态
+// Right-click menu state
 const menuVisible = ref(false)
 const menuX = ref(0)
 const menuY = ref(0)
@@ -63,26 +63,26 @@ const menuNode = ref<any>(null)
 const menuPathIndex = ref<number>(-1)
 const menuNodeIndex = ref<number>(-1)
 
-// 右键菜单项（注意：不再是常量，需根据节点动态生成）
+// Right-click menu items (note: no longer constant, need to be generated dynamically based on node)
 function getMenuItems(node: any, path: any[]): { label: string, value: string }[] {
-  // 判断是否为一级依赖（即 path 的最后一个节点）
+  // Check if it's a top-level dependency (i.e., the last node in path)
   const isTopLevel = path && path.length > 0 && node === path[path.length - 1]
-  // 如果是一级依赖，则不显示“排除此依赖”
+  // If it's a top-level dependency, don't show "Exclude this dependency"
   if (isTopLevel) {
     return [
       { label: 'Jump to pom.xml', value: 'goto-pom' },
-      { label: 'Jump to Left Tree', value: 'goto-tree' } // 新增
+      { label: 'Jump to Left Tree', value: 'goto-tree' } // New
     ]
   } else {
     return [
       { label: 'Jump to pom.xml', value: 'goto-pom' },
       { label: 'Exclulde', value: 'exclude' },
-      { label: 'Jump to Left Tree', value: 'goto-tree' } // 新增
+      { label: 'Jump to Left Tree', value: 'goto-tree' } // New
     ]
   }
 }
 
-// 右键事件处理
+// Right-click event handling
 function handleNodeContextMenu(pathIndex: number, nodeIndex: number, node: any, path: any[], event: MouseEvent) {
   event.preventDefault()
   menuVisible.value = true
@@ -91,16 +91,16 @@ function handleNodeContextMenu(pathIndex: number, nodeIndex: number, node: any, 
   menuNode.value = { node, path }
   menuPathIndex.value = pathIndex
   menuNodeIndex.value = nodeIndex
-  // 动态设置菜单项
+  // Dynamically set menu items
   menuItemsRef.value = getMenuItems(node, path)
 }
 
-// 菜单项选择
+// Menu item selection
 function handleMenuSelect(action: string) {
   if (!menuNode.value) return
   const { node, path } = menuNode.value
   if (action === 'goto-tree') {
-    // 跳转到左侧依赖树，传递完整 path，使用 window.postMessage
+    // Jump to left dependency tree, pass complete path, use window.postMessage
     window.postMessage({ type: 'setSearchText', artifactId: node.artifactId }, '*')
     window.postMessage({
       type: 'gotoTreeNode',
@@ -108,7 +108,7 @@ function handleMenuSelect(action: string) {
     }, '*')
     return
   }
-  // 通过vscodeApi发送消息
+  // Send message through vscodeApi
   props.vscodeApi.postMessage({
     type: 'showContextMenu',
     data: {
@@ -126,26 +126,26 @@ function handleMenuSelect(action: string) {
         version: pathNode.version,
         scope: pathNode.scope
       })),
-      action // 你可以直接传递action到后端
+      action // You can directly pass action to backend
     }
   })
 }
 
-// 右键菜单项响应式变量（替换原 menuItems 常量）
+// Right-click menu items reactive variable (replace original menuItems constant)
 const menuItemsRef = ref(getMenuItems(null, []))
 
 
-// 当前选中的节点信息
+// Currently selected node information
 const selectedNodeInfo = ref<Record<string, any>>({})
 
-// 路径查找算法：递归遍历所有路径，收集所有到目标依赖（同groupId+artifactId）的路径
+// Path finding algorithm: recursively traverse all paths, collect all paths to target dependency (same groupId+artifactId)
 function findAllPaths(tree: any[], target: any): any[][] {
   const result: any[][] = []
   function dfs(node: any, path: any[]) {
     if (!node) return
-    // 判断是否匹配目标依赖（只比对groupId+artifactId）
+    // Check if it matches target dependency (only compare groupId+artifactId)
     if (node.groupId === target.groupId && node.artifactId === target.artifactId) {
-      result.push([node, ...path]) // 子节点在上，父节点在下
+      result.push([node, ...path]) // Child node on top, parent node below
     }
     if (node.children && node.children.length > 0) {
       for (const child of node.children) {
@@ -161,12 +161,12 @@ function findAllPaths(tree: any[], target: any): any[][] {
 
 const paths = ref<any[][]>([])
 
-// 处理节点点击事件
+// Handle node click event
 function handleNodeClick(pathIndex: number, nodeIndex: number, node: any, path: any[]) {
-  // 获取所在依赖树的最高节点（非当前项目）
-  // 在path数组中，最后一个元素就是最高节点
+  // Get the highest node in the dependency tree (not current project)
+  // In path array, the last element is the highest node
   const topLevelNode = path[path.length - 1]
-  // 保存选中的依赖信息
+  // Save selected dependency information
   selectedNodeInfo.value = {
     pathIndex,
     nodeIndex,
@@ -184,7 +184,7 @@ function handleNodeClick(pathIndex: number, nodeIndex: number, node: any, path: 
     }
   }
   
-  // 这里可以emit事件通知父组件，或者后续添加更多逻辑
+  // Here you can emit event to notify parent component, or add more logic later
   // emit('nodeSelected', selectedNodeInfo.value)
 }
 
@@ -194,7 +194,7 @@ watch(
   ([tree, dep]) => {
     if (tree && dep) {
       paths.value = findAllPaths(tree as any[], dep)
-      // 当依赖树或选中依赖改变时，清空右侧选中状态
+      // When dependency tree or selected dependency changes, clear right side selection state
       selectedNodeInfo.value = {}
     } else {
       paths.value = []
@@ -216,13 +216,13 @@ watch(
   box-sizing: border-box;
   overflow-y: auto;
   padding-left: 3%;
-  text-align: left; /* 内容整体靠左 */
+  text-align: left; /* Content overall left-aligned */
 }
 .title {
   font-weight: bold;
   margin-bottom: 12px;
   font-size: 16px;
-  text-align: center; /* 只让标题居中 */
+  text-align: center; /* Only center the title */
 }
 .no-paths {
   color: var(--vscode-descriptionForeground);
@@ -234,9 +234,9 @@ watch(
   text-align: center;
 }
 .path-block {
-  /* 调整行距与左侧依赖树保持一致 */
+  /* Adjust line spacing to match left dependency tree */
   margin-bottom: 2px;
-  /* 移除左侧竖线 */
+  /* Remove left vertical line */
   /* border-left: 2px solid var(--vscode-panel-border); */
   padding-left: 8px;
 }

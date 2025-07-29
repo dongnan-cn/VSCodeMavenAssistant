@@ -11,9 +11,8 @@ public class DependencyTreeTest {
         // 获取测试专用的 pom.xml 绝对路径
         String pomPath = Paths.get("src/test/resources/test-pom.xml").toAbsolutePath().toString();
         String result = server.analyzeDependencies(pomPath).get();
-        System.out.println("依赖树 JSON 输出：\n" + result);
         // 断言结果不包含 error 字段
-        assertFalse(result.contains("\"error\""), "依赖树解析失败: " + result);
+        assertFalse(result.contains("\"error\""), "Dependency tree parsing failed: " + result);
     }
 
     @Test
@@ -21,7 +20,7 @@ public class DependencyTreeTest {
         SimpleLanguageServer server = new SimpleLanguageServer();
         String pomPath = Paths.get("src/test/resources/test-pom.xml").toAbsolutePath().toString();
         String result = server.analyzeDependencies(pomPath).get();
-        assertFalse(result.contains("\"error\""), "依赖树解析失败: " + result);
+        assertFalse(result.contains("\"error\""), "Dependency tree parsing failed: " + result);
 
         // 递归打印依赖数组结构
         printDependencyArray(result, 0);

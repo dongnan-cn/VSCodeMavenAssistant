@@ -193,12 +193,12 @@ public class SimpleLanguageServerTest {
 
         // 调用服务并验证结果
         String result = callInsertExclusion(req);
-        System.out.println("测试结果: " + result);
+        //System.out.println("Test result: " + result);
         assertTrue(result.contains("success"));
         
         // 检查文件内容
         String newContent = Files.readString(tempPom);
-        System.out.println("写回后的pom内容：\n" + newContent);
+        //System.out.println("POM content after writing back:\n" + newContent);
         assertTrue(newContent.contains("<exclusions>"));
         assertTrue(newContent.contains("<groupId>" + TEST_FOO_GROUP_ID + "</groupId>"));
         assertTrue(newContent.contains("<artifactId>" + TEST_BAR_ARTIFACT_ID + "</artifactId>"));
@@ -223,7 +223,7 @@ public class SimpleLanguageServerTest {
 
         // 调用服务并验证错误结果
         String result = callInsertExclusion(req);
-        System.out.println("DependencyNotFound 测试结果: " + result);
+        //System.out.println("DependencyNotFound test result: " + result);
         assertTrue(result.contains("error"));
         assertTrue(result.contains("not found"));
         
@@ -255,14 +255,14 @@ public class SimpleLanguageServerTest {
 
         // 检查写回后的pom内容
         String newContent = Files.readString(tempPom);
-        System.out.println("写回后的pom内容：\n" + newContent);
+        //System.out.println("POM content after writing back:\n" + newContent);
 
         // 检查 maven-resolver-connector-basic 依赖块中包含了两个exclusion
-        assertTrue(newContent.contains("<exclusions>"), "应包含<exclusions>标签");
-        assertTrue(newContent.contains("<groupId>" + TEST_FOO_GROUP_ID + "</groupId>"), "应包含第一个exclusion");
-        assertTrue(newContent.contains("<artifactId>" + TEST_BAR_ARTIFACT_ID + "</artifactId>"), "应包含第一个exclusion");
-        assertTrue(newContent.contains("<groupId>" + TEST_HELLO_GROUP_ID + "</groupId>"), "应包含第二个exclusion");
-        assertTrue(newContent.contains("<artifactId>" + TEST_WORLD_ARTIFACT_ID + "</artifactId>"), "应包含第二个exclusion");
+        assertTrue(newContent.contains("<exclusions>"), "Should contain <exclusions> tag");
+        assertTrue(newContent.contains("<groupId>" + TEST_FOO_GROUP_ID + "</groupId>"), "Should contain first exclusion");
+        assertTrue(newContent.contains("<artifactId>" + TEST_BAR_ARTIFACT_ID + "</artifactId>"), "Should contain first exclusion");
+        assertTrue(newContent.contains("<groupId>" + TEST_HELLO_GROUP_ID + "</groupId>"), "Should contain second exclusion");
+        assertTrue(newContent.contains("<artifactId>" + TEST_WORLD_ARTIFACT_ID + "</artifactId>"), "Should contain second exclusion");
     }
 
     @Test
@@ -277,7 +277,7 @@ public class SimpleLanguageServerTest {
 
         // 调用服务并验证结果
         String result = callInsertExclusion(req);
-        System.out.println("testInsertExclusion 测试结果: " + result);
+        //System.out.println("testInsertExclusion test result: " + result);
         assertTrue(result.contains("success"));
         assertTrue(result.contains("highlightLine"));
         
@@ -318,8 +318,8 @@ public class SimpleLanguageServerTest {
     }
 
     /**
-     * 测试插入n个exclusion
-     * @param n 要插入的exclusion数量
+     * Test inserting n exclusions
+     * @param n Number of exclusions to insert
      */
     public void testInsertMultipleExclusions(int n) throws Exception {
         // 复制 test-pom.xml 到临时文件
@@ -332,20 +332,20 @@ public class SimpleLanguageServerTest {
             Map<String, String> targetDep = createDependency("org.foo" + i, "bar" + i);
             Map<String, Object> req = createInsertExclusionRequest(tempPom, rootDep, targetDep);
             
-            String requestJson = new com.google.gson.Gson().toJson(req);
-            System.out.println("第" + i + "次请求: " + requestJson);
+            //String requestJson = new com.google.gson.Gson().toJson(req);
+            //System.out.println("Request " + i + ": " + requestJson);
             String result = callInsertExclusion(req);
-            System.out.println("第" + i + "次结果: " + result);
-            assertTrue(result.contains("success"), "第" + i + "次插入应该成功");
+            //System.out.println("Result " + i + ": " + result);
+            assertTrue(result.contains("success"), "Insertion " + i + " should succeed");
         }
 
         // 检查写回后的pom内容
         String newContent = Files.readString(tempPom);
-        System.out.println("写回后的pom内容：\n" + newContent);
+        //System.out.println("POM content after writing back:\n" + newContent);
         // 检查所有exclusion都存在
         for (int i = 1; i <= n; i++) {
-            assertTrue(newContent.contains("<groupId>org.foo" + i + "</groupId>"), "应包含第" + i + "个exclusion");
-            assertTrue(newContent.contains("<artifactId>bar" + i + "</artifactId>"), "应包含第" + i + "个exclusion");
+            assertTrue(newContent.contains("<groupId>org.foo" + i + "</groupId>"), "Should contain exclusion " + i);
+            assertTrue(newContent.contains("<artifactId>bar" + i + "</artifactId>"), "Should contain exclusion " + i);
         }
     }
 
@@ -367,29 +367,29 @@ public class SimpleLanguageServerTest {
         Map<String, Set<String>> exclusionMap = buildExclusionMap(model);
         
         // 验证解析结果
-        assertNotNull(exclusionMap, "exclusionMap不应该为null");
-        assertEquals(2, exclusionMap.size(), "应该有2个依赖包含exclusions");
+        assertNotNull(exclusionMap, "exclusionMap should not be null");
+        assertEquals(2, exclusionMap.size(), "Should have 2 dependencies containing exclusions");
         
         // 验证spring-core的exclusions
         String springCoreKey = "org.springframework:spring-core";
-        assertTrue(exclusionMap.containsKey(springCoreKey), "应该包含spring-core的exclusions");
+        assertTrue(exclusionMap.containsKey(springCoreKey), "Should contain spring-core exclusions");
         Set<String> springCoreExclusions = exclusionMap.get(springCoreKey);
-        assertEquals(2, springCoreExclusions.size(), "spring-core应该有2个exclusions");
-        assertTrue(springCoreExclusions.contains("commons-logging:commons-logging"), "应该排除commons-logging");
-        assertTrue(springCoreExclusions.contains("org.springframework:spring-jcl"), "应该排除spring-jcl");
+        assertEquals(2, springCoreExclusions.size(), "spring-core should have 2 exclusions");
+        assertTrue(springCoreExclusions.contains("commons-logging:commons-logging"), "Should exclude commons-logging");
+        assertTrue(springCoreExclusions.contains("org.springframework:spring-jcl"), "Should exclude spring-jcl");
         
         // 验证commons-lang3的exclusions
         String commonsLang3Key = "org.apache.commons:commons-lang3";
-        assertTrue(exclusionMap.containsKey(commonsLang3Key), "应该包含commons-lang3的exclusions");
+        assertTrue(exclusionMap.containsKey(commonsLang3Key), "Should contain commons-lang3 exclusions");
         Set<String> commonsLang3Exclusions = exclusionMap.get(commonsLang3Key);
-        assertEquals(1, commonsLang3Exclusions.size(), "commons-lang3应该有1个exclusion");
-        assertTrue(commonsLang3Exclusions.contains("junit:junit"), "应该排除junit");
+        assertEquals(1, commonsLang3Exclusions.size(), "commons-lang3 should have 1 exclusion");
+        assertTrue(commonsLang3Exclusions.contains("junit:junit"), "Should exclude junit");
         
-        System.out.println("解析到的exclusionMap: " + exclusionMap);
+        //System.out.println("Parsed exclusionMap: " + exclusionMap);
     }
 
     /**
-     * 测试buildExclusionMap方法 - 解析dependencyManagement中的exclusions
+     * Test buildExclusionMap method - parsing exclusions in dependencyManagement
      */
     @Test
     public void testBuildExclusionMapWithDependencyManagement() throws Exception {
@@ -401,29 +401,29 @@ public class SimpleLanguageServerTest {
         Map<String, Set<String>> exclusionMap = buildExclusionMap(model);
         
         // 验证解析结果
-        assertNotNull(exclusionMap, "exclusionMap不应该为null");
-        assertEquals(2, exclusionMap.size(), "应该有2个依赖包含exclusions");
+        assertNotNull(exclusionMap, "exclusionMap should not be null");
+        assertEquals(2, exclusionMap.size(), "Should have 2 dependencies containing exclusions");
         
         // 验证spring-core的exclusions
         String springCoreKey = "org.springframework:spring-core";
-        assertTrue(exclusionMap.containsKey(springCoreKey), "应该包含spring-core的exclusions");
+        assertTrue(exclusionMap.containsKey(springCoreKey), "Should contain spring-core exclusions");
         Set<String> springCoreExclusions = exclusionMap.get(springCoreKey);
-        assertEquals(2, springCoreExclusions.size(), "spring-core应该有2个exclusions");
-        assertTrue(springCoreExclusions.contains("commons-logging:commons-logging"), "应该排除commons-logging");
-        assertTrue(springCoreExclusions.contains("org.springframework:spring-jcl"), "应该排除spring-jcl");
+        assertEquals(2, springCoreExclusions.size(), "spring-core should have 2 exclusions");
+        assertTrue(springCoreExclusions.contains("commons-logging:commons-logging"), "Should exclude commons-logging");
+        assertTrue(springCoreExclusions.contains("org.springframework:spring-jcl"), "Should exclude spring-jcl");
         
         // 验证commons-lang3的exclusions
         String commonsLang3Key = "org.apache.commons:commons-lang3";
-        assertTrue(exclusionMap.containsKey(commonsLang3Key), "应该包含commons-lang3的exclusions");
+        assertTrue(exclusionMap.containsKey(commonsLang3Key), "Should contain commons-lang3 exclusions");
         Set<String> commonsLang3Exclusions = exclusionMap.get(commonsLang3Key);
-        assertEquals(1, commonsLang3Exclusions.size(), "commons-lang3应该有1个exclusion");
-        assertTrue(commonsLang3Exclusions.contains("junit:junit"), "应该排除junit");
+        assertEquals(1, commonsLang3Exclusions.size(), "commons-lang3 should have 1 exclusion");
+        assertTrue(commonsLang3Exclusions.contains("junit:junit"), "Should exclude junit");
         
-        System.out.println("解析到的exclusionMap: " + exclusionMap);
+        //System.out.println("Parsed exclusionMap: " + exclusionMap);
     }
 
     /**
-     * 测试buildExclusionMap方法 - 处理没有exclusions的情况
+     * Test buildExclusionMap method - handling cases with no exclusions
      */
     @Test
     public void testBuildExclusionMapWithNoExclusions() throws Exception {
@@ -452,14 +452,14 @@ public class SimpleLanguageServerTest {
         Map<String, Set<String>> exclusionMap = buildExclusionMap(model);
         
         // 验证解析结果
-        assertNotNull(exclusionMap, "exclusionMap不应该为null");
-        assertTrue(exclusionMap.isEmpty(), "没有exclusions时，exclusionMap应该为空");
+        assertNotNull(exclusionMap, "exclusionMap should not be null");
+        assertTrue(exclusionMap.isEmpty(), "exclusionMap should be empty when there are no exclusions");
         
-        System.out.println("解析到的exclusionMap: " + exclusionMap);
+        //System.out.println("Parsed exclusionMap: " + exclusionMap);
     }
 
     /**
-     * 测试buildExclusionMap方法 - 处理同一依赖在dependencies和dependencyManagement中都有exclusions的情况
+     * Test buildExclusionMap method - handling cases where the same dependency has exclusions in both dependencies and dependencyManagement
      */
     @Test
     public void testBuildExclusionMapWithMergedExclusions() throws Exception {
@@ -508,17 +508,17 @@ public class SimpleLanguageServerTest {
         Map<String, Set<String>> exclusionMap = buildExclusionMap(model);
         
         // 验证解析结果
-        assertNotNull(exclusionMap, "exclusionMap不应该为null");
-        assertEquals(1, exclusionMap.size(), "应该有1个依赖包含exclusions");
+        assertNotNull(exclusionMap, "exclusionMap should not be null");
+        assertEquals(1, exclusionMap.size(), "Should have 1 dependency containing exclusions");
         
         // 验证spring-core的exclusions被合并了
         String springCoreKey = "org.springframework:spring-core";
-        assertTrue(exclusionMap.containsKey(springCoreKey), "应该包含spring-core的exclusions");
+        assertTrue(exclusionMap.containsKey(springCoreKey), "Should contain spring-core exclusions");
         Set<String> springCoreExclusions = exclusionMap.get(springCoreKey);
-        assertEquals(2, springCoreExclusions.size(), "spring-core应该有2个exclusions（合并后）");
-        assertTrue(springCoreExclusions.contains("commons-logging:commons-logging"), "应该排除commons-logging（来自dependencyManagement）");
-        assertTrue(springCoreExclusions.contains("org.springframework:spring-jcl"), "应该排除spring-jcl（来自dependencies）");
+        assertEquals(2, springCoreExclusions.size(), "spring-core should have 2 exclusions (after merging)");
+        assertTrue(springCoreExclusions.contains("commons-logging:commons-logging"), "Should exclude commons-logging (from dependencyManagement)");
+        assertTrue(springCoreExclusions.contains("org.springframework:spring-jcl"), "Should exclude spring-jcl (from dependencies)");
         
-        System.out.println("解析到的exclusionMap: " + exclusionMap);
+        //System.out.println("Parsed exclusionMap: " + exclusionMap);
     }
 }

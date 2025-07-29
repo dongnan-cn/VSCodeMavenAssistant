@@ -5,8 +5,8 @@ import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } f
 import { workspace } from 'vscode';
 
 /**
- * Maven Assistant LSP客户端
- * 负责与Java后端LSP Server通信，提供Maven相关功能
+ * Maven Assistant LSP Client
+ * Responsible for communicating with Java backend LSP Server, providing Maven-related functionality
  */
 export class LspClient {
 	private client: LanguageClient | undefined;
@@ -18,22 +18,22 @@ export class LspClient {
 	}
 
 	/**
-	 * 启动LSP客户端
+	 * Start LSP client
 	 */
 	async start(): Promise<void> {
 		try {
-			// 获取Java后端jar包路径
+			// Get Java backend jar path
 			const serverJarPath = path.join(this.context.extensionPath, 'server', 'java-backend-1.0-SNAPSHOT.jar');
 			
 			console.log('LSP Server jar path:', serverJarPath);
 
-			// 检查jar包是否存在
+			// Check if jar file exists
 			const fs = require('fs');
 			if (!fs.existsSync(serverJarPath)) {
 				throw new Error(`LSP Server jar file not found: ${serverJarPath}`);
 			}
 
-			// 配置服务器选项
+			// Configure server options
 			const serverOptions: ServerOptions = {
 				run: {
 					command: 'java',
@@ -53,11 +53,11 @@ export class LspClient {
 				}
 			};
 
-			// 配置客户端选项
+			// Configure client options
 			const clientOptions: LanguageClientOptions = {
 				documentSelector: [
-					{ scheme: 'file', language: 'xml' }, // pom.xml文件
-					{ scheme: 'file', language: 'java' }  // Java文件
+					{ scheme: 'file', language: 'xml' }, // pom.xml files
+					{ scheme: 'file', language: 'java' }  // Java files
 				],
 				synchronize: {
 					fileEvents: vscode.workspace.createFileSystemWatcher('**/pom.xml')
@@ -65,7 +65,7 @@ export class LspClient {
 				outputChannel: vscode.window.createOutputChannel('Maven Assistant LSP')
 			};
 
-			// 创建语言客户端
+			// Create language client
 			this.client = new LanguageClient(
 				'maven-assistant',
 				'Maven Assistant Language Server',
@@ -86,7 +86,7 @@ export class LspClient {
 	}
 
 	/**
-	 * 停止LSP客户端
+	 * Stop LSP client
 	 */
 	async stop(): Promise<void> {
 		if (this.client) {
@@ -101,7 +101,7 @@ export class LspClient {
 	}
 
 	/**
-	 * 执行Maven目标
+	 * Execute Maven goal
 	 */
 	async executeMavenGoal(goal: string): Promise<{ success: boolean; error?: string }> {
 		try {
@@ -109,7 +109,7 @@ export class LspClient {
 				throw new Error('LSP client not started');
 			}
 
-			// 通过LSP自定义方法调用后端执行Maven命令
+			// Call backend to execute Maven command through LSP custom method
 			const result = await this.client.sendRequest('maven/executeGoal', { goal });
 			return result as { success: boolean; error?: string };
 		} catch (error) {
@@ -119,7 +119,7 @@ export class LspClient {
 	}
 
 	/**
-	 * 获取可用的Maven目标
+	 * Get available Maven goals
 	 */
 	async getAvailableGoals(): Promise<string[]> {
 		try {
@@ -127,12 +127,12 @@ export class LspClient {
 				throw new Error('LSP client not started');
 			}
 
-			// 通过LSP自定义方法获取可用目标
+			// Get available goals through LSP custom method
 			const goals = await this.client.sendRequest('maven/getAvailableGoals', {});
 			return goals as string[];
 		} catch (error) {
 			console.error('Failed to get available Maven goals:', error);
-			// 返回默认的常用目标
+			// Return default common goals
 			return [
 				'clean',
 				'compile',
@@ -149,7 +149,7 @@ export class LspClient {
 	}
 
 	/**
-	 * 编辑Maven目标
+	 * Edit Maven goal
 	 */
 	async editGoal(goal: string): Promise<void> {
 		try {
@@ -157,7 +157,7 @@ export class LspClient {
 				throw new Error('LSP client not started');
 			}
 
-			// 通过LSP自定义方法编辑目标
+			// Edit goal through LSP custom method
 			await this.client.sendRequest('maven/editGoal', { goal });
 		} catch (error) {
 			console.error('Failed to edit Maven goal:', error);
@@ -166,7 +166,7 @@ export class LspClient {
 	}
 
 	/**
-	 * 获取依赖树
+	 * Get dependency tree
 	 */
 	async getDependencyTree(): Promise<string> {
 		try {
@@ -174,7 +174,7 @@ export class LspClient {
 				throw new Error('LSP client not started');
 			}
 
-			// 通过LSP自定义方法获取依赖树
+			// Get dependency tree through LSP custom method
 			const result = await this.client.sendRequest('maven/getDependencyTree', {});
 			return result as string;
 		} catch (error) {
@@ -185,7 +185,7 @@ export class LspClient {
 	}
 
 	/**
-	 * 分析依赖
+	 * Analyze dependencies
 	 */
 	async analyzeDependencies(): Promise<string> {
 		try {
@@ -193,7 +193,7 @@ export class LspClient {
 				throw new Error('LSP client not started');
 			}
 
-			// 通过LSP自定义方法分析依赖
+			// Analyze dependencies through LSP custom method
 			const result = await this.client.sendRequest('maven/analyzeDependencies', null);
 			// console.log(result);
 			return result as string;
@@ -205,7 +205,7 @@ export class LspClient {
 	}
 
 	/**
-	 * 获取依赖冲突
+	 * Get dependency conflicts
 	 */
 	async getDependencyConflicts(): Promise<string[]> {
 		try {
@@ -213,7 +213,7 @@ export class LspClient {
 				throw new Error('LSP client not started');
 			}
 
-			// 通过LSP自定义方法获取依赖冲突
+			// Get dependency conflicts through LSP custom method
 			const result = await this.client.sendRequest('maven/getDependencyConflicts', {});
 			return result as string[];
 		} catch (error) {
@@ -224,7 +224,7 @@ export class LspClient {
 	}
 
 	/**
-	 * 获取有效POM
+	 * Get effective POM
 	 */
 	async getEffectivePom(): Promise<string> {
 		try {
@@ -232,7 +232,7 @@ export class LspClient {
 				throw new Error('LSP client not started');
 			}
 
-			// 通过LSP自定义方法获取有效POM
+			// Get effective POM through LSP custom method
 			const result = await this.client.sendRequest('maven/getEffectivePom', {});
 			return result as string;
 		} catch (error) {
@@ -243,7 +243,7 @@ export class LspClient {
 	}
 
 	/**
-	 * 插入依赖排除（exclusion）
+	 * Insert dependency exclusion
 	 */
 	async insertExclusion(params: any): Promise<any> {
 		try {
@@ -259,7 +259,7 @@ export class LspClient {
 	}
 
 	/**
-	 * 检查LSP客户端是否已连接
+	 * Check if LSP client is connected
 	 */
 	isConnected(): boolean {
 		return this.client !== undefined && this.client.isRunning();
