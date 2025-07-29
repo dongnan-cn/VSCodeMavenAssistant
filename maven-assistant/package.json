@@ -154,41 +154,7 @@
         "contents": "Dependency Conflict Detection\n\n[Show Dependency Conflicts](command:maven-assistant.showDependencyConflicts)"
       }
     ],
-    "configuration": {
-      "title": "Maven Assistant",
-      "properties": {
-        "maven-assistant.useTerminalCommand": {
-          "type": "boolean",
-          "default": false,
-          "description": "Whether to use custom terminal command to run Maven"
-        },
-        "maven-assistant.terminalCommand": {
-          "type": "string",
-          "default": "mvn",
-          "description": "Custom Maven command (e.g. mvnd)"
-        },
-        "maven-assistant.enableDelete": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether to enable delete functionality"
-        },
-        "maven-assistant.resolveWorkspaceArtifacts": {
-          "type": "boolean",
-          "default": false,
-          "description": "Whether to resolve workspace artifacts"
-        },
-        "maven-assistant.autoRefreshDependencies": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether to automatically refresh dependency information"
-        },
-        "maven-assistant.showTransitiveDependencies": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether to show transitive dependencies"
-        }
-      }
-    },
+
     "customEditors": [
       {
         "viewType": "maven-assistant.dependencyAnalyzer",
