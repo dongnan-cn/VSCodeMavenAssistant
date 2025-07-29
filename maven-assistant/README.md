@@ -1,5 +1,7 @@
 # Maven Assistant
 
+**GitHub Repository**: [VSCodeMavenAssistant](https://github.com/dongnan-cn/VSCodeMavenAssistant.git)
+
 A powerful Visual Studio Code Maven dependency management and analysis tool that provides dependency tree visualization, conflict detection, intelligent POM file editing, and more.
 
 ## 🚀 Key Features
