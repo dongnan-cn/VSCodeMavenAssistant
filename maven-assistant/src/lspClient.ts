@@ -25,12 +25,12 @@ export class LspClient {
 			// 获取Java后端jar包路径
 			const serverJarPath = path.join(this.context.extensionPath, 'server', 'java-backend-1.0-SNAPSHOT.jar');
 			
-			console.log('LSP Server jar路径:', serverJarPath);
+			console.log('LSP Server jar path:', serverJarPath);
 
 			// 检查jar包是否存在
 			const fs = require('fs');
 			if (!fs.existsSync(serverJarPath)) {
-				throw new Error(`LSP Server jar包不存在: ${serverJarPath}`);
+				throw new Error(`LSP Server jar file not found: ${serverJarPath}`);
 			}
 
 			// 配置服务器选项
@@ -73,15 +73,15 @@ export class LspClient {
 				clientOptions
 			);
 
-			// 启动客户端
-			console.log('正在启动LSP客户端...');
+			// Start the client
+			console.log('Starting LSP client...');
 			await this.client.start();
-			console.log('LSP客户端启动成功');
+			console.log('LSP client started successfully');
 
 		} catch (error) {
-			console.error('LSP客户端启动失败:', error);
-			// 不抛出错误，让插件继续运行，使用模拟数据
-			vscode.window.showWarningMessage('Maven Assistant: LSP后端连接失败，将使用模拟数据。请检查Java环境和jar包。');
+			console.error('Failed to start LSP client:', error);
+			// Don't throw error, let the plugin continue running with mock data
+			vscode.window.showWarningMessage('Maven Assistant: LSP backend connection failed, will use mock data. Please check Java environment and jar file.');
 		}
 	}
 
@@ -106,14 +106,14 @@ export class LspClient {
 	async executeMavenGoal(goal: string): Promise<{ success: boolean; error?: string }> {
 		try {
 			if (!this.client) {
-				throw new Error('LSP客户端未启动');
+				throw new Error('LSP client not started');
 			}
 
 			// 通过LSP自定义方法调用后端执行Maven命令
 			const result = await this.client.sendRequest('maven/executeGoal', { goal });
 			return result as { success: boolean; error?: string };
 		} catch (error) {
-			console.error('执行Maven目标失败:', error);
+			console.error('Failed to execute Maven goal:', error);
 			return { success: false, error: String(error) };
 		}
 	}
@@ -124,14 +124,14 @@ export class LspClient {
 	async getAvailableGoals(): Promise<string[]> {
 		try {
 			if (!this.client) {
-				throw new Error('LSP客户端未启动');
+				throw new Error('LSP client not started');
 			}
 
 			// 通过LSP自定义方法获取可用目标
 			const goals = await this.client.sendRequest('maven/getAvailableGoals', {});
 			return goals as string[];
 		} catch (error) {
-			console.error('获取可用Maven目标失败:', error);
+			console.error('Failed to get available Maven goals:', error);
 			// 返回默认的常用目标
 			return [
 				'clean',
@@ -154,13 +154,13 @@ export class LspClient {
 	async editGoal(goal: string): Promise<void> {
 		try {
 			if (!this.client) {
-				throw new Error('LSP客户端未启动');
+				throw new Error('LSP client not started');
 			}
 
 			// 通过LSP自定义方法编辑目标
 			await this.client.sendRequest('maven/editGoal', { goal });
 		} catch (error) {
-			console.error('编辑Maven目标失败:', error);
+			console.error('Failed to edit Maven goal:', error);
 			throw error;
 		}
 	}
@@ -171,16 +171,16 @@ export class LspClient {
 	async getDependencyTree(): Promise<string> {
 		try {
 			if (!this.client) {
-				throw new Error('LSP客户端未启动');
+				throw new Error('LSP client not started');
 			}
 
 			// 通过LSP自定义方法获取依赖树
 			const result = await this.client.sendRequest('maven/getDependencyTree', {});
 			return result as string;
 		} catch (error) {
-			console.error('获取依赖树失败:', error);
-			// 返回模拟的依赖树数据
-			return `[INFO] 依赖树分析失败: ${error}\n\n模拟依赖树:\n└── com.example:my-project:1.0.0\n    ├── org.springframework:spring-core:5.3.0\n    └── org.junit:junit:4.13.2`;
+			console.error('Failed to get dependency tree:', error);
+			// Throw error instead of returning mock data
+			throw new Error(`Failed to get dependency tree: ${error}`);
 		}
 	}
 
@@ -190,7 +190,7 @@ export class LspClient {
 	async analyzeDependencies(): Promise<string> {
 		try {
 			if (!this.client) {
-				throw new Error('LSP客户端未启动');
+				throw new Error('LSP client not started');
 			}
 
 			// 通过LSP自定义方法分析依赖
@@ -198,9 +198,9 @@ export class LspClient {
 			// console.log(result);
 			return result as string;
 		} catch (error) {
-			console.error('分析依赖失败:', error);
-			// 返回模拟的分析结果
-			return `[INFO] 依赖分析失败: ${error}\n\n模拟分析结果:\n- 直接依赖: 5个\n- 传递依赖: 23个\n- 可选依赖: 2个\n- 排除依赖: 1个`;
+			console.error('Failed to analyze dependencies:', error);
+			// Throw error instead of returning mock data
+			throw new Error(`Failed to analyze dependencies: ${error}`);
 		}
 	}
 
@@ -210,20 +210,16 @@ export class LspClient {
 	async getDependencyConflicts(): Promise<string[]> {
 		try {
 			if (!this.client) {
-				throw new Error('LSP客户端未启动');
+				throw new Error('LSP client not started');
 			}
 
 			// 通过LSP自定义方法获取依赖冲突
 			const result = await this.client.sendRequest('maven/getDependencyConflicts', {});
 			return result as string[];
 		} catch (error) {
-			console.error('获取依赖冲突失败:', error);
-			// 返回模拟的冲突信息
-			return [
-				'[WARNING] 发现依赖冲突:',
-				'  org.slf4j:slf4j-api:1.7.30 (选择) vs 1.7.25 (排除)',
-				'  org.apache.commons:commons-lang3:3.12.0 (选择) vs 3.11.0 (排除)'
-			];
+			console.error('Failed to get dependency conflicts:', error);
+			// Throw error instead of returning mock data
+			throw new Error(`Failed to get dependency conflicts: ${error}`);
 		}
 	}
 
@@ -233,16 +229,16 @@ export class LspClient {
 	async getEffectivePom(): Promise<string> {
 		try {
 			if (!this.client) {
-				throw new Error('LSP客户端未启动');
+				throw new Error('LSP client not started');
 			}
 
 			// 通过LSP自定义方法获取有效POM
 			const result = await this.client.sendRequest('maven/getEffectivePom', {});
 			return result as string;
 		} catch (error) {
-			console.error('获取有效POM失败:', error);
-			// 返回模拟的有效POM
-			return `<?xml version="1.0" encoding="UTF-8"?>\n<project>\n  <!-- 有效POM生成失败: ${error} -->\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>com.example</groupId>\n  <artifactId>my-project</artifactId>\n  <version>1.0.0</version>\n</project>`;
+			console.error('Failed to get effective POM:', error);
+			// Return mock effective POM
+			return `<?xml version="1.0" encoding="UTF-8"?>\n<project>\n  <!-- Failed to generate effective POM: ${error} -->\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>com.example</groupId>\n  <artifactId>my-project</artifactId>\n  <version>1.0.0</version>\n</project>`;
 		}
 	}
 
@@ -252,12 +248,12 @@ export class LspClient {
 	async insertExclusion(params: any): Promise<any> {
 		try {
 			if (!this.client) {
-				throw new Error('LSP客户端未启动');
+				throw new Error('LSP client not started');
 			}
 			const result = await this.client.sendRequest('maven/insertExclusion', JSON.stringify(params));
 			return result;
 		} catch (error) {
-			console.error('插入exclusion失败:', error);
+			console.error('Failed to insert exclusion:', error);
 			return { success: false, error: String(error) };
 		}
 	}
@@ -268,4 +264,4 @@ export class LspClient {
 	isConnected(): boolean {
 		return this.client !== undefined && this.client.isRunning();
 	}
-} 
+}

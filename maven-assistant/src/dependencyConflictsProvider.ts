@@ -101,8 +101,8 @@ export class DependencyConflictsProvider implements vscode.TreeDataProvider<Depe
 		const conflictItems: DependencyConflictItem[] = [];
 		
 		for (const conflict of conflicts) {
-			// Skip title lines
-			if (conflict.includes('发现依赖冲突') || conflict.includes('[WARNING]')) {
+			// 跳过空行
+			if (conflict.trim() === '') {
 				continue;
 			}
 			
