@@ -67,22 +67,22 @@ export class DependencyConflictsProvider implements vscode.TreeDataProvider<Depe
 	 */
 	private async _getDependencyConflicts(): Promise<DependencyConflictItem[]> {
 		try {
-			// 如果LSP客户端未连接，返回模拟数据
+			// If LSP client is not connected, return mock data
 			if (!this._lspClient.isConnected()) {
 				return this._getMockConflicts();
 			}
 
-			// 通过LSP获取依赖冲突
+			// Get dependency conflicts through LSP
 			const conflicts = await this._lspClient.getDependencyConflicts();
 			
-			// 解析冲突信息，转换为树形结构
+			// Parse conflict information and convert to tree structure
 			return this._parseDependencyConflicts(conflicts);
 		} catch (error) {
-			console.error('获取依赖冲突失败:', error);
-			// 返回错误节点
+			console.error('Failed to get dependency conflicts:', error);
+			// Return error node
 			return [
 				new DependencyConflictItem(
-					`获取依赖冲突失败: ${error}`,
+					`Failed to get dependency conflicts: ${error}`,
 					vscode.TreeItemCollapsibleState.None
 				)
 			];
@@ -96,7 +96,7 @@ export class DependencyConflictsProvider implements vscode.TreeDataProvider<Depe
 		const conflictItems: DependencyConflictItem[] = [];
 		
 		for (const conflict of conflicts) {
-			// 跳过标题行
+			// Skip title lines
 			if (conflict.includes('发现依赖冲突') || conflict.includes('[WARNING]')) {
 				continue;
 			}
@@ -115,14 +115,14 @@ export class DependencyConflictsProvider implements vscode.TreeDataProvider<Depe
 	 * 解析冲突行
 	 */
 	private _parseConflictLine(line: string): DependencyConflictItem | null {
-		// 移除前缀空格和警告标记
+		// Remove prefix spaces and warning markers
 		const cleanLine = line.replace(/^[\s\-]+/, '').trim();
 		
 		if (!cleanLine) {
 			return null;
 		}
 		
-		// 解析冲突格式：groupId:artifactId:version (选择) vs version (排除)
+		// Parse conflict format: groupId:artifactId:version (selected) vs version (excluded)
 		const match = cleanLine.match(/^([^:]+):([^:]+):([^:]+)\s+\(([^)]+)\)\s+vs\s+([^:]+)\s+\(([^)]+)\)/);
 		if (match) {
 			const [, groupId, artifactId, selectedVersion, selectedType, excludedVersion, excludedType] = match;
@@ -149,7 +149,7 @@ export class DependencyConflictsProvider implements vscode.TreeDataProvider<Depe
 			);
 		}
 		
-		// 如果不是标准格式，直接显示
+		// If not standard format, display directly
 		return new DependencyConflictItem(
 			cleanLine,
 			vscode.TreeItemCollapsibleState.None,
@@ -168,13 +168,13 @@ export class DependencyConflictsProvider implements vscode.TreeDataProvider<Depe
 				vscode.TreeItemCollapsibleState.Expanded,
 				[
 					new DependencyConflictItem(
-						'1.7.30 (选择)',
+						'1.7.30 (selected)',
 						vscode.TreeItemCollapsibleState.None,
 						undefined,
 						'selected'
 					),
 					new DependencyConflictItem(
-						'1.7.25 (排除)',
+						'1.7.25 (excluded)',
 						vscode.TreeItemCollapsibleState.None,
 						undefined,
 						'excluded'
@@ -187,13 +187,13 @@ export class DependencyConflictsProvider implements vscode.TreeDataProvider<Depe
 				vscode.TreeItemCollapsibleState.Expanded,
 				[
 					new DependencyConflictItem(
-						'3.12.0 (选择)',
+						'3.12.0 (selected)',
 						vscode.TreeItemCollapsibleState.None,
 						undefined,
 						'selected'
 					),
 					new DependencyConflictItem(
-						'3.11.0 (排除)',
+						'3.11.0 (excluded)',
 						vscode.TreeItemCollapsibleState.None,
 						undefined,
 						'excluded'
@@ -206,13 +206,13 @@ export class DependencyConflictsProvider implements vscode.TreeDataProvider<Depe
 				vscode.TreeItemCollapsibleState.Expanded,
 				[
 					new DependencyConflictItem(
-						'2.13.0 (选择)',
+						'2.13.0 (selected)',
 						vscode.TreeItemCollapsibleState.None,
 						undefined,
 						'selected'
 					),
 					new DependencyConflictItem(
-						'2.12.0 (排除)',
+						'2.12.0 (excluded)',
 						vscode.TreeItemCollapsibleState.None,
 						undefined,
 						'excluded'
@@ -222,4 +222,4 @@ export class DependencyConflictsProvider implements vscode.TreeDataProvider<Depe
 			)
 		];
 	}
-} 
+}

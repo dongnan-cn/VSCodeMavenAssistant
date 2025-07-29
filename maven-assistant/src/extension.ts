@@ -8,11 +8,11 @@ import { DependencyConflictsProvider } from './dependencyConflictsProvider';
 import { DependencyAnalyzerEditorProvider } from './dependencyAnalyzerEditorProvider';
 
 /**
- * Maven Assistant 插件主入口
- * 负责注册命令、视图提供者和LSP客户端管理
+ * Maven Assistant plugin main entry point
+ * Responsible for registering commands, view providers and LSP client management
  */
 export function activate(context: vscode.ExtensionContext) {
-	console.log('Maven Assistant 插件已激活');
+	console.log('Maven Assistant plugin activated');
 
 	// 创建LSP客户端实例
 	const lspClient = new LspClient(context);
@@ -49,20 +49,20 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// 启动LSP客户端
 	lspClient.start().then(() => {
-		console.log('LSP客户端启动成功');
-		// 初始化时刷新依赖信息
+		console.log('LSP client started successfully');
+		// Refresh dependency information on initialization
 		dependencyTreeProvider.refresh();
 		dependencyConflictsProvider.refresh();
 	}).catch((error: any) => {
-		console.error('LSP客户端启动失败:', error);
-		// 不显示错误消息，因为LspClient内部已经处理了
-		// 插件继续运行，使用模拟数据
-		console.log('插件将继续运行，使用模拟数据');
+		console.error('LSP client startup failed:', error);
+		// Don't show error message as LspClient handles it internally
+		// Plugin continues to run with mock data
+		console.log('Plugin will continue running with mock data');
 	});
 }
 
 /**
- * 注册所有Maven Assistant命令
+ * Register all Maven Assistant commands
  */
 function registerCommands(
 	context: vscode.ExtensionContext,
@@ -82,9 +82,9 @@ function registerCommands(
 	context.subscriptions.push(
 		vscode.commands.registerCommand('maven-assistant.runMavenGoal', async (goal?: string) => {
 			if (!goal) {
-				// 如果没有提供目标，弹出输入框让用户输入
+				// If no goal provided, show input box for user input
 				goal = await vscode.window.showInputBox({
-					prompt: '请输入Maven目标（如：clean install）',
+					prompt: 'Please enter Maven goal (e.g.: clean install)',
 					placeHolder: 'clean install'
 				});
 			}
@@ -142,59 +142,59 @@ function registerCommands(
 		vscode.commands.registerCommand('maven-assistant.refreshDependencies', () => {
 			dependencyTreeProvider.refresh();
 			dependencyConflictsProvider.refresh();
-			vscode.window.showInformationMessage('依赖信息已刷新');
+			vscode.window.showInformationMessage('Dependency information refreshed');
 		})
 	);
 }
 
 /**
- * 运行Maven目标
+ * Run Maven goal
  */
 async function runMavenGoal(goal: string, lspClient: LspClient) {
 	try {
-		vscode.window.showInformationMessage(`正在运行Maven目标: ${goal}`);
+		vscode.window.showInformationMessage(`Running Maven goal: ${goal}`);
 		
-		// 通过LSP调用后端执行Maven命令
+		// Call backend to execute Maven command via LSP
 		const result = await lspClient.executeMavenGoal(goal);
 		
 		if (result.success) {
-			vscode.window.showInformationMessage(`Maven目标执行成功: ${goal}`);
+			vscode.window.showInformationMessage(`Maven goal executed successfully: ${goal}`);
 		} else {
-			vscode.window.showErrorMessage(`Maven目标执行失败: ${result.error}`);
+			vscode.window.showErrorMessage(`Maven goal execution failed: ${result.error}`);
 		}
 	} catch (error) {
-		vscode.window.showErrorMessage(`执行Maven目标时出错: ${error}`);
+		vscode.window.showErrorMessage(`Error executing Maven goal: ${error}`);
 	}
 }
 
 /**
- * 编辑Maven目标
+ * Edit Maven goal
  */
 async function editMavenGoal(lspClient: LspClient) {
 	try {
-		// 获取当前可用的Maven目标
+		// Get currently available Maven goals
 		const goals = await lspClient.getAvailableGoals();
 		
-		// 显示目标选择器
+		// Show goal selector
 		const selectedGoal = await vscode.window.showQuickPick(goals, {
-			placeHolder: '选择要编辑的Maven目标'
+			placeHolder: 'Select Maven goal to edit'
 		});
 		
 		if (selectedGoal) {
-			// 打开目标编辑器
+			// Open goal editor
 			await lspClient.editGoal(selectedGoal);
 		}
 	} catch (error) {
-		vscode.window.showErrorMessage(`编辑Maven目标时出错: ${error}`);
+		vscode.window.showErrorMessage(`Error editing Maven goal: ${error}`);
 	}
 }
 
 /**
- * 快速运行Maven目标
+ * Quick run Maven goal
  */
 async function quickRunMavenGoal(lspClient: LspClient) {
 	try {
-		// 获取常用Maven目标
+		// Get common Maven goals
 		const commonGoals = [
 			'clean',
 			'compile',
@@ -207,77 +207,77 @@ async function quickRunMavenGoal(lspClient: LspClient) {
 		];
 		
 		const selectedGoal = await vscode.window.showQuickPick(commonGoals, {
-			placeHolder: '选择要运行的Maven目标'
+			placeHolder: 'Select Maven goal to run'
 		});
 		
 		if (selectedGoal) {
 			await runMavenGoal(selectedGoal, lspClient);
 		}
 	} catch (error) {
-		vscode.window.showErrorMessage(`快速运行Maven目标时出错: ${error}`);
+		vscode.window.showErrorMessage(`Error quick running Maven goal: ${error}`);
 	}
 }
 
 /**
- * 显示依赖树
+ * Show dependency tree
  */
 async function showDependencyTree(lspClient: LspClient) {
 	try {
-		vscode.window.showInformationMessage('正在分析依赖树...');
+		vscode.window.showInformationMessage('Analyzing dependency tree...');
 		
-		// 通过LSP获取依赖树信息
+		// Get dependency tree information via LSP
 		const dependencyTree = await lspClient.getDependencyTree();
 		
-		// 创建新的文档显示依赖树
+		// Create new document to display dependency tree
 		const document = await vscode.workspace.openTextDocument({
 			content: dependencyTree,
 			language: 'text'
 		});
 		
 		await vscode.window.showTextDocument(document);
-		vscode.window.showInformationMessage('依赖树分析完成');
+		vscode.window.showInformationMessage('Dependency tree analysis completed');
 	} catch (error) {
-		vscode.window.showErrorMessage(`显示依赖树时出错: ${error}`);
+		vscode.window.showErrorMessage(`Error showing dependency tree: ${error}`);
 	}
 }
 
 /**
- * 分析依赖
+ * Analyze dependencies
  */
 async function analyzeDependencies(lspClient: LspClient) {
 	try {
-		vscode.window.showInformationMessage('正在分析依赖...');
+		vscode.window.showInformationMessage('Analyzing dependencies...');
 		
-		// 通过LSP分析依赖
+		// Analyze dependencies via LSP
 		const analysis = await lspClient.analyzeDependencies();
 		
-		// 创建新的文档显示分析结果
+		// Create new document to display analysis results
 		const document = await vscode.workspace.openTextDocument({
 			content: analysis,
 			language: 'text'
 		});
 		
 		await vscode.window.showTextDocument(document);
-		vscode.window.showInformationMessage('依赖分析完成');
+		vscode.window.showInformationMessage('Dependency analysis completed');
 	} catch (error) {
-		vscode.window.showErrorMessage(`分析依赖时出错: ${error}`);
+		vscode.window.showErrorMessage(`Error analyzing dependencies: ${error}`);
 	}
 }
 
 /**
- * 显示依赖冲突
+ * Show dependency conflicts
  */
 async function showDependencyConflicts(lspClient: LspClient) {
 	try {
-		vscode.window.showInformationMessage('正在检测依赖冲突...');
+		vscode.window.showInformationMessage('Detecting dependency conflicts...');
 		
-		// 通过LSP检测依赖冲突
+		// Detect dependency conflicts via LSP
 		const conflicts = await lspClient.getDependencyConflicts();
 		
 		if (conflicts.length === 0) {
-			vscode.window.showInformationMessage('未发现依赖冲突');
+			vscode.window.showInformationMessage('No dependency conflicts found');
 		} else {
-			// 创建新的文档显示冲突信息
+			// Create new document to display conflict information
 			const conflictsText = conflicts.join('\n');
 			const document = await vscode.workspace.openTextDocument({
 				content: conflictsText,
@@ -285,36 +285,36 @@ async function showDependencyConflicts(lspClient: LspClient) {
 			});
 			
 			await vscode.window.showTextDocument(document);
-			vscode.window.showInformationMessage(`发现 ${conflicts.length} 个依赖冲突`);
+			vscode.window.showInformationMessage(`Found ${conflicts.length} dependency conflicts`);
 		}
 	} catch (error) {
-		vscode.window.showErrorMessage(`显示依赖冲突时出错: ${error}`);
+		vscode.window.showErrorMessage(`Error showing dependency conflicts: ${error}`);
 	}
 }
 
 /**
- * 显示有效POM
+ * Show effective POM
  */
 async function showEffectivePom(lspClient: LspClient) {
 	try {
-		vscode.window.showInformationMessage('正在生成有效POM...');
+		vscode.window.showInformationMessage('Generating effective POM...');
 		
-		// 通过LSP获取有效POM
+		// Get effective POM via LSP
 		const effectivePom = await lspClient.getEffectivePom();
 		
-		// 创建新的XML文档显示有效POM
+		// Create new XML document to display effective POM
 		const document = await vscode.workspace.openTextDocument({
 			content: effectivePom,
 			language: 'xml'
 		});
 		
 		await vscode.window.showTextDocument(document);
-		vscode.window.showInformationMessage('有效POM生成完成');
+		vscode.window.showInformationMessage('Effective POM generation completed');
 	} catch (error) {
-		vscode.window.showErrorMessage(`显示有效POM时出错: ${error}`);
+		vscode.window.showErrorMessage(`Error showing effective POM: ${error}`);
 	}
 }
 
 export function deactivate() {
-	console.log('Maven Assistant 插件已停用');
+	console.log('Maven Assistant plugin deactivated');
 }

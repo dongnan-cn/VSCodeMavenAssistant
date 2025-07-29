@@ -13,5 +13,6 @@ maven-assistant/node_modules/
 .DS_Store
 Thumbs.db
 plan.md
+*.vsix
 
 # 可根据实际情况补充其他忽略规则
